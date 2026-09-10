@@ -1,0 +1,79 @@
+/*
+ * The Bookrail design tokens: one name per decision, and the only place a decision is made.
+ *
+ * One source for the homepage and for the documentation: Starlight is overridden with these
+ * values in `starlight.css`, so the two are the same house and not a theme with a logo on top.
+ * Every value that belongs to the system is declared once here and used by name elsewhere. Two
+ * of them were darkened from the palette the design started with, `--ink-3` and
+ * `--code-comment`, so that both clear a contrast ratio of 4.5:1 against their ground;
+ * `test/contrast.test.ts` enforces it.
+ */
+:root {
+  /* Ground and ink */
+  --bg: #fafafa;
+  --card: #ffffff;
+  --ink: #111111;
+  --ink-2: #555555;
+  --ink-3: #6f6f6f;
+  --ink-faint: #8a8a8a;
+
+  /* Rules. Never text. */
+  --line: #e6e6e6;
+  --line-2: #d4d4d4;
+
+  /* One accent. Cobalt, and only where capacity is taken or a state is active. */
+  --accent: #2857f0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e7edfd;
+
+  /* Code surfaces */
+  --code-bg: #0f0f0f;
+  --code-bg-deep: #050505;
+  --code-line: #222222;
+  --code-ink: #e6e6e6;
+  --code-comment: #838383;
+  --code-keyword: #9ab4ff;
+  --code-string: #d9d9d9;
+  --code-number: #ffd479;
+
+  /* Type */
+  --sans: 'Bricolage Grotesque', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Scale */
+  --step--1: 13px;
+  --step-0: 15px;
+  --step-1: 17px;
+  --step-2: clamp(30px, 3.2vw, 44px);
+  --step-3: clamp(40px, 3.7vw, 60px);
+
+  /* Space, on a 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+  --space-7: 40px;
+  --space-8: 56px;
+  --space-9: 72px;
+  --space-10: 112px;
+
+  /* Geometry. Square on data, 8px on controls. */
+  --radius-control: 8px;
+  --radius-data: 0;
+  --max: 1200px;
+  --gutter: 32px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --dur-fast: 0.15s;
+  --dur: 0.3s;
+  --dur-slow: 0.7s;
+}
+
+@media (max-width: 1000px) {
+  :root {
+    --gutter: 20px;
+  }
+}

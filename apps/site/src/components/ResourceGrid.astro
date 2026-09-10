@@ -1,0 +1,70 @@
+---
+/**
+ * The signed moment of the homepage: a day of capacity filling up, and one request refused.
+ *
+ * The rectangles are drawn from `src/data/grid.ts` and the caption is counted from the same
+ * array, so the numbers under the frame are a property of the picture rather than a claim
+ * about it. The animation is progressive enhancement: without JavaScript, and with
+ * `prefers-reduced-motion`, every rectangle is already in place (`site.css`).
+ */
+import { GRID_DATE, GRID_HOURS, GRID_ROWS, gridCounts } from '../data/grid';
+
+const counts = gridCounts();
+const parts = [
+  `${counts.bookings} bookings`,
+  `${counts.holds} holds`,
+  `${counts.blocks} block`,
+  `${counts.rejected} refused`,
+];
+---
+
+<div class="grid-frame" id="resource-grid">
+  <div
+    class="grid-scroll"
+    role="img"
+    aria-label={`A day of seven resources from 08:00 to 20:00 with ${parts.join(', ')}. Synthetic data.`}
+  >
+    <div class="grid-head">
+      <span>{GRID_DATE}</span>
+      {GRID_HOURS.map((hour) => <span>{hour}</span>)}
+    </div>
+    {
+      GRID_ROWS.map((row) => (
+        <div class="row">
+          <div class="name">
+            <i></i>
+            {row.name}
+          </div>
+          <div class="lane">
+            {row.slots.map((slot) => (
+              <div
+                class:list={['slot', slot.kind === 'booking' ? null : slot.kind]}
+                style={`left:${slot.left}%;width:${slot.width}%`}
+                data-slot={slot.left}
+              >
+                {slot.label}
+              </div>
+            ))}
+            {row.rejected && (
+              <div
+                class="rejected"
+                style={`left:${row.rejected.left}%;width:${row.rejected.width}%`}
+                data-rejected
+              >
+                {row.rejected.label}
+              </div>
+            )}
+          </div>
+        </div>
+      ))
+    }
+    <div class="now" data-now style="left:calc(96px + (100% - 96px) * 0.14)"></div>
+  </div>
+  <div class="grid-foot">
+    <span>
+      <b>{counts.bookings}</b> bookings &middot; <b>{counts.holds}</b> holds &middot;
+      <b>{counts.blocks}</b> block &middot; <b>{counts.rejected}</b> refused
+    </span>
+    <span>synthetic data &middot; capacity enforced by Postgres</span>
+  </div>
+</div>

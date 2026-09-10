@@ -1,0 +1,127 @@
+/*
+ * The figures of the documentation.
+ *
+ * Every figure on this site is inline SVG drawn by hand in the system of `DESIGN.md`: hairlines
+ * rather than shadows, square corners on data, one accent used only where capacity is taken or
+ * a state is active, and JetBrains Mono for anything a reader would copy. The colours are the
+ * tokens, referenced through these classes, so a figure cannot invent a colour: changing
+ * `tokens.css` changes every figure with it.
+ *
+ * The SVG carries no colour of its own, and no `style` attribute. It carries classes.
+ */
+
+.bk-figure {
+  margin: var(--space-7) 0;
+  padding: 0;
+}
+
+/*
+ * The frame is the wrapper, never the SVG. A border and a padding on a replaced element make
+ * the browser lay the figure out twice, which is a layout shift on a page full of them: with
+ * the frame outside, the viewBox gives the SVG its intrinsic ratio and the space is reserved
+ * before a single byte of it has been painted.
+ */
+.bk-figure .bk-scroll {
+  /* `scroll`, not `auto`: a scrollbar that appears after the first layout adds its own height
+     to the box and shifts everything under it, which Lighthouse sees as a real layout shift on
+     a page carrying four figures. Always reserved means never shifted, and on a platform with
+     overlay scrollbars it costs nothing. */
+  overflow-x: scroll;
+  overflow-y: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: var(--space-4);
+}
+
+.bk-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.bk-figure figcaption {
+  margin-top: var(--space-3);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* A figure wider than the column scrolls inside itself. The page never scrolls sideways. */
+.bk-figure .bk-scroll svg {
+  min-width: 560px;
+}
+
+/* Surfaces and rules */
+.bk-fill-card {
+  fill: var(--card);
+}
+.bk-fill-ink {
+  fill: var(--ink);
+}
+.bk-fill-soft {
+  fill: var(--accent-soft);
+}
+.bk-fill-accent {
+  fill: var(--accent);
+}
+.bk-fill-none {
+  fill: none;
+}
+.bk-line {
+  stroke: var(--line);
+  stroke-width: 1;
+  fill: none;
+}
+.bk-line-2 {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  fill: none;
+}
+.bk-stroke-ink {
+  stroke: var(--ink);
+  stroke-width: 1;
+  fill: none;
+}
+.bk-stroke-accent {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  fill: none;
+}
+.bk-dashed {
+  stroke-dasharray: 4 3;
+}
+
+/* Type inside a figure. 11px is the floor here, and DESIGN.md fixes 10px as the floor overall. */
+.bk-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink-3);
+}
+.bk-label-strong {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink);
+}
+.bk-label-on-ink {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--card);
+}
+.bk-label-accent {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--accent);
+}
+.bk-title {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  fill: var(--ink);
+}
+
+/* The hatch of a blocked period: two flat colours, never a fade. */
+.bk-hatch-line {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}

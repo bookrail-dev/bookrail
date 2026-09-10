@@ -1,0 +1,241 @@
+---
+/**
+ * The homepage, section by section: the hero with the resource grid, the strip of what the
+ * product is built on, one request with its response, the guarantees, the quickstart, and the
+ * section for coding agents.
+ *
+ * Every claim on this page was checked against what the product actually does before it was
+ * written. Where an earlier draft promised something that does not exist yet, the sentence was
+ * removed, not softened.
+ */
+import RequestResponse from '../components/RequestResponse.astro';
+import ResourceGrid from '../components/ResourceGrid.astro';
+import Base from '../layouts/Base.astro';
+import { DESCRIPTION } from '../data/site';
+
+const guarantees = [
+  {
+    title: 'Capacity in the database',
+    body: 'An exclusion constraint for capacity 1, a trigger for capacity N. Both are checked under real concurrency by a suite of separate processes against real Postgres.',
+  },
+  {
+    title: 'Idempotency on every POST',
+    body: 'The same <code>Idempotency-Key</code> within 24 hours replays the same response and takes the slot once. The key is taken with a unique constraint, not checked with a read.',
+  },
+  {
+    title: 'Time zones done properly',
+    body: 'Schedules live on a local clock, instants leave as UTC. DST is disambiguated explicitly, day by day, from the IANA database.',
+  },
+  {
+    title: 'Frozen policies',
+    body: 'Cancellation, reschedule and no-show rules are snapshotted into the booking. Changing a policy never changes the past.',
+  },
+  {
+    title: 'Signed webhooks',
+    body: 'Every event is delivered with an HMAC signature and retried on a fixed ladder, eight attempts across 24 hours. Any delivery can be sent again by hand.',
+  },
+  {
+    title: 'Explainable availability',
+    body: '<code>explain: true</code> answers with the reason each instant was rejected, and which booking, block or rule did it.',
+  },
+];
+---
+
+<Base title="Bookrail, booking infrastructure for developers" description={DESCRIPTION}>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <h1>Booking<br />infrastructure<br /><em>for developers.</em></h1>
+        <div class="cta">
+          <a class="btn primary" href="/docs/quickstart/">Start building</a>
+          <a class="btn" href="/docs/">Read the docs</a>
+        </div>
+      </div>
+
+      <ResourceGrid />
+
+      <div class="lines">
+        <ul>
+          <li><b>Availability</b> computed across resources, schedules and time zones.</li>
+          <li><b>Zero double bookings</b>, guaranteed by the database, not by luck.</li>
+          <li><b>One API</b> for holds, bookings, policies and webhooks.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="runs">
+    <div class="wrap">
+      <span class="label">Built on</span>
+      <span>PostgreSQL 16+</span>
+      <span>TypeScript</span>
+      <span>Node 20</span>
+      <span>Redis</span>
+      <span>Model Context Protocol</span>
+      <span class="last">OpenAPI 3.1</span>
+    </div>
+  </div>
+
+  <section class="block" id="request" style="padding-bottom:0">
+    <div class="wrap">
+      <div data-reveal>
+        <div class="kicker">// one request</div>
+        <h2>What you send, and what comes back.</h2>
+        <p class="lede">
+          Prefixed identifiers, ISO 8601 instants with any offset in and UTC out, the policy
+          frozen into the booking. The values are synthetic; the shape is generated from the same
+          OpenAPI document the API serves.
+        </p>
+      </div>
+      <div data-reveal>
+        <RequestResponse />
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="guarantees">
+    <div class="wrap">
+      <div class="two">
+        <div data-reveal>
+          <div class="kicker">// guarantees</div>
+          <h2>The layer under your booking app.</h2>
+          <p class="lede">
+            We don't build apps for end users. We build the part every booking product gets wrong
+            the first time: availability that is right across DST, capacity that cannot be
+            exceeded, holds that expire, policies that are frozen when the booking is made.
+          </p>
+        </div>
+        <div data-reveal>
+          <div class="code-tabs">
+            <span class="on">POST /v1/bookings</span><span>two callers, one slot</span>
+          </div>
+          <pre class="code"><span class="c">// two requests, same slot, same millisecond</span>
+<span class="k">await</span> bookrail.bookings.create(&#123;
+  service_id: <span class="s">"svc_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"</span>,
+  start: <span class="s">"2026-09-08T09:00:00+02:00"</span>,
+  customer: &#123; email: <span class="s">"anna@example.com"</span> &#125;,
+&#125;, &#123; idempotencyKey: order.id &#125;);
+
+<span class="c">// first:  201 &#123; "object": "booking", "status": "confirmed" &#125;</span>
+<span class="c">// second: 409 &#123; "code": "slot_unavailable", "message":</span>
+<span class="c">//   "The requested slot is no longer available." &#125;</span></pre>
+        </div>
+      </div>
+      <div class="three" data-reveal>
+        {
+          guarantees.map((item) => (
+            <div>
+              <h3>{item.title}</h3>
+              <p set:html={item.body} />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="quickstart" style="border-top:1px solid var(--line)">
+    <div class="wrap">
+      <div data-reveal>
+        <div class="kicker">// quickstart</div>
+        <h2>From an API key to a booking in three steps.</h2>
+        <p class="lede">
+          Model what is bookable as code, push it, ask for availability, book. The same file
+          applies to test and to live.
+        </p>
+      </div>
+      <div class="steps">
+        <div class="step" data-reveal>
+          <div class="n">01</div>
+          <div>
+            <h3>Describe what is bookable</h3>
+            <p>
+              Locations, schedules, resources, groups, policies and services in
+              <code>bookrail.config.ts</code>, versioned with your app.
+            </p>
+          </div>
+          <pre>export default defineConfig(&#123;
+  schedules: &#123; club: &#123; timezone: "Europe/Rome",
+    rules: [&#123; days: ["mon", "tue"], from: "08:00", to: "23:00" &#125;] &#125; &#125;,
+  resources: [&#123; id: "court_1", name: "Court 1", schedule: "club" &#125;],
+  services:  [&#123; id: "padel_60", durationOptions: [60], alignTo: "hour",
+    requirements: [&#123; resource: "court_1", quantity: 1 &#125;] &#125;],
+&#125;);</pre>
+        </div>
+        <div class="step" data-reveal>
+          <div class="n">02</div>
+          <div>
+            <h3>Push it</h3>
+            <p>
+              A plan first, then the changes. A push matches on <code>metadata.config_id</code> and
+              never touches an object it did not create.
+            </p>
+          </div>
+          <pre>$ bookrail push --dry-run
+[test] plan (dry run, nothing applied): 3 to create
+
+action  kind      id        name      changes
+------  --------  --------  --------  -------
+create  schedule  club      club
+create  resource  court_1   Court 1
+create  service   padel_60  padel_60</pre>
+        </div>
+        <div class="step" data-reveal>
+          <div class="n">03</div>
+          <div>
+            <h3>Ask, then book</h3>
+            <p>
+              Availability answers with slots, their price and the resources behind them. Booking
+              takes the capacity, transactionally.
+            </p>
+          </div>
+          <pre>const &#123; slots &#125; = await bookrail.availability.list(&#123;
+  service_id, from, to, timezone: "Europe/Rome",
+&#125;);
+await bookrail.bookings.create(&#123;
+  service_id, start: slots[0].start, customer,
+&#125;);</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block agents">
+    <div class="wrap two">
+      <div data-reveal>
+        <div class="kicker">// for coding agents</div>
+        <h2>Designed to be driven by an agent.</h2>
+        <p class="lede">
+          A CLI with <code>--json</code> everywhere, an MCP server with 36 tools, every
+          documentation page as plain markdown at the same URL with <code>.md</code> on the end,
+          and an OpenAPI document generated from the very schemas that validate each request.
+        </p>
+        <div class="cta" style="margin-top:28px">
+          <a class="btn" href="/docs/for-ai-agents/">Read the agent page</a>
+        </div>
+      </div>
+      <pre class="term" data-reveal><span class="p">$</span> npx bookrail mcp install --client claude-code
+<span class="d">wrote ./.mcp.json</span>
+<span class="p">$</span> npx bookrail availability --service svc_0198f0c2a1b4 \
+    --from 2026-09-08T08:00:00+02:00 \
+    --to 2026-09-08T12:00:00+02:00 --explain
+<span class="d">[test] 1 slot(s) for svc_0198f0c2a1b4, in Europe/Rome
+
+3 instant(s) rejected: occupied 1, min_notice 1, blocked 1
+
+local instant     code        resource      why
+----------------  ----------  ------------  --------------------
+2026-09-08 09:00  occupied    res_0198f0c2  Taken by bk_0198f0c2
+2026-09-08 09:30  min_notice                Inside the 60 min...
+2026-09-08 10:00  blocked     res_0198f0d4  Blocked by blk_0198f</span>
+<span class="p">$</span> npx bookrail bookings create --service svc_0198f0c2a1b4 \
+    --start 2026-09-08T11:00:00+02:00 \
+    --customer-email anna@example.com
+<span class="d">[test] booked bk_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c &middot; confirmed</span></pre>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import '../scripts/motion';
+</script>

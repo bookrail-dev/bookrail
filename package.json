@@ -1,0 +1,43 @@
+{
+  "name": "bookrail-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "worker": "pnpm --filter @bookrail/api run worker",
+    "build": "turbo run build",
+    "test": "turbo run test --concurrency=1",
+    "test:concurrency": "pnpm --filter @bookrail/engine run test:concurrency",
+    "bench": "turbo run bench",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "pnpm --filter @bookrail/db run db:migrate",
+    "db:reset": "pnpm --filter @bookrail/db run db:reset",
+    "db:status": "pnpm --filter @bookrail/db run db:status",
+    "db:adopt": "pnpm --filter @bookrail/db run db:adopt"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^20.17.10",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

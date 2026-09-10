@@ -1,0 +1,39 @@
+---
+/**
+ * The Bookrail mark: six rounded cells, three columns by two rows, the left column narrower,
+ * the top right cell in cobalt. The grid is the time grid of the product, and the cobalt cell
+ * is the slot that has been taken.
+ *
+ * The geometry is **not** written here. It is read at build time out of `brand/`, where the
+ * founder put it, so a change to the mark is a change to one file in one place and the site
+ * follows. `scripts/generate.mjs` copies the three variants into `src/assets/brand/` and
+ * `test/sources.test.ts` compares them byte for byte with `brand/`.
+ */
+import dark from '../assets/brand/bookrail-mark-on-dark.svg?raw';
+import mono from '../assets/brand/bookrail-mark-mono.svg?raw';
+import light from '../assets/brand/bookrail-mark.svg?raw';
+
+interface Props {
+  /** `light` on the paper ground, `dark` on the ink ground, `mono` to inherit `currentColor`. */
+  tone?: 'light' | 'dark' | 'mono';
+  size?: number;
+  class?: string;
+}
+const { tone = 'light', size = 22, class: className } = Astro.props;
+
+const source = { light, dark, mono }[tone];
+
+// Only the cells travel: the wrapper carries the size this instance asked for.
+const cells = source.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>[\s\S]*$/, '');
+const viewBox = /viewBox="([^"]+)"/.exec(source)?.[1] ?? '0 0 48 48';
+---
+
+<svg
+  width={size}
+  height={size}
+  viewBox={viewBox}
+  aria-hidden="true"
+  focusable="false"
+  class={className}
+  set:html={cells}
+/>

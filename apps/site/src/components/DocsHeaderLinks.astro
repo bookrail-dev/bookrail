@@ -1,0 +1,11 @@
+---
+import { withBlog } from '../data/blog';
+import { NAV_LINKS } from '../data/site';
+
+const links = await withBlog(NAV_LINKS);
+---
+
+<nav class="sl-nav-extra" aria-label="Sections">
+  {links.map((link) => <a href={link.href}>{link.label}</a>)}
+  <a class="sl-nav-extra-home" href="/">Home</a>
+</nav>

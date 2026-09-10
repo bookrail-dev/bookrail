@@ -1,0 +1,39 @@
+---
+/**
+ * Starlight's own footer, plus the two links that have to be on every page of the site.
+ *
+ * `/legal` is what article 2250 of the Italian civil code asks a company to publish, and
+ * `/privacy` is what anybody running a web server owes a visitor. "Every page" includes the
+ * hundred pages of the API reference, which Starlight renders and the marketing footer never
+ * sees, so the links go here rather than being pasted into a layout.
+ */
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { LEGAL_LINKS } from '../data/site';
+---
+
+<Default><slot /></Default>
+<nav class="docs-legal" aria-label="Company">
+  <span>&copy; 2026 MP Informatica Srl</span>
+  {LEGAL_LINKS.map((link) => <a href={link.href}>{link.label}</a>)}
+</nav>
+
+<style>
+  .docs-legal {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .docs-legal a {
+    color: var(--ink-3);
+    text-decoration: none;
+  }
+  .docs-legal a:hover {
+    color: var(--ink);
+  }
+</style>

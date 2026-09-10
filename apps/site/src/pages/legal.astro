@@ -1,0 +1,80 @@
+---
+/**
+ * The legal notice required by article 2250 of the Italian civil code: the company details that
+ * a company has to publish on its own website.
+ *
+ * The certified mail address (PEC) is deliberately **not** here. It is not among the details
+ * article 2250 requires, publishing it invites automated abuse, and the founder decided against
+ * it on 8 September 2026. The company is administered by a sole director and is **not** a
+ * single member company, so no "socio unico" wording appears: stating it wrongly is a real
+ * liability, so it is not stated at all.
+ */
+import Base from '../layouts/Base.astro';
+import { CONTACT_EMAIL } from '../data/site';
+
+const COMPANY = [
+  { label: 'Company name', value: 'MP Informatica Srl' },
+  { label: 'Registered office', value: 'Strada di Santa Bona Nuova 33/B, 31100 Treviso (TV), Italy' },
+  { label: 'VAT number and tax code', value: '05355370262' },
+  { label: 'Companies register', value: 'Registro delle Imprese di Treviso e Belluno' },
+  { label: 'REA number', value: 'TV-437915' },
+  { label: 'Share capital', value: '10,000 EUR, fully paid up' },
+  { label: 'Email', value: CONTACT_EMAIL, mailto: true },
+];
+---
+
+<Base
+  title="Legal notice, Bookrail"
+  description="Bookrail is a product of MP Informatica Srl, Treviso, Italy. Company details as required by article 2250 of the Italian civil code."
+>
+  <div class="wrap prose">
+    <h1>Legal notice</h1>
+
+    <p>
+      <strong>Bookrail</strong> is a product of <strong>MP Informatica Srl</strong>, a limited
+      liability company incorporated in Italy. These are the details article 2250 of the Italian
+      civil code requires a company to publish.
+    </p>
+
+    <dl class="facts">
+      {
+        COMPANY.map((row) => (
+          <>
+            <dt>{row.label}</dt>
+            <dd>
+              {row.mailto ? <a href={`mailto:${row.value}`}>{row.value}</a> : row.value}
+            </dd>
+          </>
+        ))
+      }
+    </dl>
+
+    <p>
+      The company is administered by a sole director. Correspondence about Bookrail, including
+      early access, security reports and anything to do with this website, goes to
+      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, which is read by a person.
+    </p>
+
+    <h2>This website</h2>
+    <p>
+      The site is a set of static files. It sets no cookie and calls no third party, and what
+      the server records is written out in full on the <a href="/privacy">privacy page</a>.
+    </p>
+
+    <h2>Software and licence</h2>
+    <p>
+      The Bookrail engine, API, CLI, MCP server and SDK are licensed under Apache License 2.0.
+      What that covers, and where the code is today, is on the
+      <a href="/docs/open-source/">open source page</a>. The name Bookrail and the mark are the
+      company's.
+    </p>
+
+    <h2>Terms of service</h2>
+    <p>
+      There are none yet, because there is nothing to sign up to: the API is in early access and
+      keys are issued by hand. Terms of service and a data processing agreement are being
+      written and will be linked from here and from the
+      <a href="/privacy">privacy page</a> when they exist.
+    </p>
+  </div>
+</Base>

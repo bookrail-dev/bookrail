@@ -1,0 +1,26 @@
+-- 0019 — The one privilege pg-boss needs beyond owning its schema (brief 014).
+--
+-- Migration 0018 made ${JOBS_ROLE} the owner of the `pgboss` schema, which is enough to create
+-- tables in it. It is not enough to run pg-boss on a database where the queue has never been
+-- installed: `Contractor.start()` asks whether pg-boss's own version table exists and, when it
+-- does not, runs its `create` plan, which begins with
+--
+--   CREATE SCHEMA IF NOT EXISTS pgboss;
+--
+-- Postgres checks CREATE on the *database* before it evaluates `IF NOT EXISTS`, so the
+-- statement is refused with `42501 permission denied for database` even though the schema is
+-- already there and already belongs to this role. Measured, not guessed: the worker was started
+-- against a freshly reset database as ${JOBS_ROLE} and failed with exactly that message.
+--
+-- On a database where the queue is already installed the branch is never taken, so production
+-- would have worked and every rebuild from zero would not. That is the worst shape a missing
+-- privilege can have, which is why it is granted here rather than discovered later.
+--
+-- What CREATE on a database allows is creating new schemas in it. It does not give any
+-- privilege on an existing schema or on any table: 0007 revoked everything on `public` from
+-- every role but the owner, and this file grants nothing there.
+--
+-- It is a separate migration and not an edit to 0018 because 0018 had already been applied to
+-- production when this was found, and an applied migration is never rewritten.
+
+GRANT CREATE ON DATABASE "${DATABASE_NAME}" TO ${JOBS_ROLE};

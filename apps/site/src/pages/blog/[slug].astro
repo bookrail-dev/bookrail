@@ -1,0 +1,39 @@
+---
+/**
+ * One article, in the prose column the other pages outside the documentation use.
+ *
+ * Nothing is added around the text: no share buttons, no comment box, no related articles, no
+ * generated cover image, no reading time. The title, the date, the article, and the name of
+ * the person who wrote it. The canonical URL and the social tags come from the layout, the
+ * same way they do for every other page, so a copy of this article published elsewhere can
+ * point back here.
+ */
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { BLOG_PATH, isoDate, published, readableDate, type Post } from '../../data/blog';
+
+export async function getStaticPaths() {
+  const posts = await published();
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+interface Props {
+  post: Post;
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+
+<Base title={`${post.data.title}, Bookrail`} description={post.data.description} blog>
+  <article class="wrap prose">
+    <h1>{post.data.title}</h1>
+    <p class="post-date">
+      <time datetime={isoDate(post.data.date)}>{readableDate(post.data.date)}</time>
+    </p>
+    <Content />
+    <p class="post-by">
+      Written by {post.data.author}. The other articles are on <a href={BLOG_PATH}>the blog</a>.
+    </p>
+  </article>
+</Base>

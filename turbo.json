@@ -1,0 +1,70 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_ADMIN_URL",
+    "DATABASE_APP_URL",
+    "APP_DB_ROLE",
+    "APP_DB_PASSWORD",
+    "JOBS_DB_ROLE",
+    "JOBS_DB_PASSWORD",
+    "BOOKRAIL_MIGRATION_LOCK_TIMEOUT",
+    "TEST_DATABASE_NAME",
+    "TEST_CLI_DATABASE_NAME",
+    "TEST_MCP_DATABASE_NAME",
+    "TEST_SDK_DATABASE_NAME",
+    "BOOKRAIL_API_URL",
+    "BOOKRAIL_SECRET_KEY",
+    "BOOKRAIL_TEST_SECRET_KEY",
+    "BOOKRAIL_LIVE_SECRET_KEY",
+    "BOOKRAIL_MCP_ALLOW_LIVE",
+    "BOOKRAIL_MCP_LOG",
+    "XDG_CONFIG_HOME",
+    "BOOKRAIL_BOOTSTRAP_TOKEN",
+    "BOOKRAIL_WORKER",
+    "BOOKRAIL_HOLD_EXPIRY_INTERVAL_SECONDS",
+    "WEBHOOK_SECRET_KEY",
+    "BOOKRAIL_WEBHOOK_DELIVERY_INTERVAL_SECONDS",
+    "BOOKRAIL_WEBHOOK_OUTBOX_INTERVAL_SECONDS",
+    "BOOKRAIL_INTEGRITY_CHECK_CRON",
+    "BOOKRAIL_INTEGRITY_CHECK_MAX_WINDOWS",
+    "BOOKRAIL_ORPHAN_RECONCILE_CRON",
+    "BOOKRAIL_ORPHAN_RECONCILE_HORIZON_DAYS",
+    "BOOKRAIL_ORPHAN_RECONCILE_LIMIT",
+    "BOOKRAIL_ORPHAN_RECONCILE_SCOPES",
+    "BENCH_DB_NAME",
+    "REDIS_URL",
+    "TEST_REDIS_URL",
+    "LOG_LEVEL",
+    "NODE_ENV",
+    "PORT",
+    "HOST"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "bench": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    }
+  }
+}

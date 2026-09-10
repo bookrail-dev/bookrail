@@ -1,0 +1,71 @@
+{
+  "name": "@bookrail/node",
+  "version": "0.1.0",
+  "description": "Bookrail SDK for TypeScript. Types generated from the OpenAPI specification, one hand-written idiomatic layer on top. ESM only.",
+  "license": "Apache-2.0",
+  "author": "MP Informatica Srl",
+  "homepage": "https://github.com/bookrail-dev/bookrail#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bookrail-dev/bookrail.git",
+    "directory": "packages/sdk-node"
+  },
+  "bugs": {
+    "url": "https://github.com/bookrail-dev/bookrail/issues"
+  },
+  "keywords": [
+    "booking",
+    "bookings",
+    "reservations",
+    "availability",
+    "scheduling",
+    "sdk",
+    "typescript",
+    "api-client",
+    "bookrail"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "generate": "tsx scripts/generate.ts",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test scripts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bookrail/webhook-signature": "workspace:*"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@bookrail/api": "workspace:*",
+    "@bookrail/db": "workspace:*",
+    "@bookrail/engine": "workspace:*",
+    "@bookrail/shared": "workspace:*",
+    "@types/node": "^20.17.10",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

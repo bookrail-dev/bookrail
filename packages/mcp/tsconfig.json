@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // The source maps of a published package point at files the tarball does not contain:
+    // `files` ships `dist` and never `src`, so a `.js.map` or a `.d.ts.map` next to it names
+    // a path that resolves to nothing on the machine that installs it. `inlineSources` puts
+    // the TypeScript itself inside the map, which is what makes a stack trace and a Go to
+    // Definition land on real code. It is the four publishable packages only: the maps of the
+    // internal ones are read in this working copy, where `src` is right there.
+    "inlineSources": true
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../cli" }]
+}

@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to a pull request replaces the run in flight, because a superseded run tells
+# nobody anything. On `main` every commit keeps its own result: that is the history somebody
+# will bisect one day.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # The suite takes about three minutes locally on eight cores. `pnpm test` runs the packages
+    # one at a time (`turbo run test --concurrency=1`), so a runner with two vCPUs pays the
+    # whole of it in series, and the browser tests of the site are the slowest part. Thirty is
+    # room for that plus the installs, and still a ceiling on a job that has stopped making
+    # progress. A cap is not a remedy for a slow test: the tests wait for conditions rather
+    # than for instants, which is what keeps them honest on a machine of any speed.
+    timeout-minutes: 30
+
+    services:
+      # Postgres 17, the version development runs on. The suites create and drop their own
+      # throwaway databases next to this one, so the superuser connection is the right one.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bookrail_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      # The availability cache suites run against a real Redis: without REDIS_URL they fail
+      # with an explicit message rather than skipping, which is the behaviour we want. A cache
+      # nobody tests is a cache nobody can trust.
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/bookrail_ci
+      APP_DB_ROLE: bookrail_app
+      APP_DB_PASSWORD: bookrail_app_ci
+      JOBS_DB_ROLE: bookrail_jobs
+      JOBS_DB_PASSWORD: bookrail_jobs_ci
+      REDIS_URL: redis://localhost:6379
+      TEST_REDIS_URL: redis://localhost:6379/15
+      # The site suite drives a browser. On a runner there is no Chrome, so it uses the
+      # Chromium installed below instead of the system channel.
+      PLAYWRIGHT_CHANNEL: chromium
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No version here: pnpm/action-setup reads `packageManager` from package.json, so the
+      # runner uses the exact version a developer uses.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for the site tests
+        run: pnpm --filter site exec playwright install --with-deps chromium
+
+      - run: pnpm db:migrate
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm format:check
+
+      - run: pnpm build

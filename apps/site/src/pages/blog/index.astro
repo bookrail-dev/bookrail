@@ -1,0 +1,45 @@
+---
+/**
+ * The list of articles, and nothing else: no tags, no pagination, no search, no archive by
+ * year. When there are enough articles for any of those to earn its place, they can be added;
+ * five links do not need furniture.
+ *
+ * While there is no published article the page returns 404 from the build, which in a static
+ * build means the file is never written. That is the whole of the rule: no empty index, and no
+ * link to one anywhere on the site.
+ */
+import Base from '../../layouts/Base.astro';
+import {
+  BLOG_DESCRIPTION,
+  BLOG_TITLE,
+  isoDate,
+  postPath,
+  published,
+  readableDate,
+} from '../../data/blog';
+
+const posts = await published();
+if (posts.length === 0) return new Response(null, { status: 404 });
+---
+
+<Base title={`${BLOG_TITLE}, Bookrail`} description={BLOG_DESCRIPTION} blog>
+  <div class="wrap prose">
+    <h1>{BLOG_TITLE}</h1>
+    <p>{BLOG_DESCRIPTION}</p>
+    <ul class="posts">
+      {
+        posts.map((post) => (
+          <li>
+            <p class="post-date">
+              <time datetime={isoDate(post.data.date)}>{readableDate(post.data.date)}</time>
+            </p>
+            <h2>
+              <a href={postPath(post)}>{post.data.title}</a>
+            </h2>
+            <p>{post.data.description}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Base>

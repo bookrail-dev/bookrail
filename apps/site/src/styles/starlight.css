@@ -1,0 +1,175 @@
+/*
+ * Starlight, given the tokens of the homepage.
+ *
+ * The default theme is replaced rather than tinted: greys, accent, fonts, widths, radii and the
+ * code surface all come from `tokens.css`, so a reader moving from the homepage into the
+ * documentation stays in the same house. Dark mode is not designed yet, so the dark
+ * palette is defined to the same light values: the toggle exists in the theme and must not
+ * produce a half designed second skin.
+ */
+
+:root,
+:root[data-theme='dark'],
+:root[data-theme='light'] {
+  --sl-color-accent-low: var(--accent-soft);
+  --sl-color-accent: var(--accent);
+  --sl-color-accent-high: var(--accent);
+
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: var(--ink);
+  --sl-color-gray-2: var(--ink-2);
+  --sl-color-gray-3: var(--ink-3);
+  --sl-color-gray-4: var(--line-2);
+  --sl-color-gray-5: var(--line);
+  --sl-color-gray-6: #f1f1f1;
+  --sl-color-gray-7: #f6f6f6;
+  --sl-color-black: var(--bg);
+
+  --sl-color-text: var(--ink-2);
+  --sl-color-text-accent: var(--accent);
+  --sl-color-text-invert: var(--card);
+  --sl-color-bg: var(--bg);
+  --sl-color-bg-nav: var(--bg);
+  --sl-color-bg-sidebar: var(--bg);
+  --sl-color-bg-inline-code: #f1f1f1;
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line);
+  --sl-color-backdrop-overlay: rgb(250 250 250 / 90%);
+
+  --sl-font: var(--sans);
+  --sl-font-mono: var(--mono);
+
+  --sl-text-h1: var(--step-2);
+  --sl-text-h2: 28px;
+  --sl-text-h3: 20px;
+  --sl-text-h4: 17px;
+
+  --sl-content-width: 48rem;
+  --sl-sidebar-width: 17rem;
+  --sl-nav-height: 64px;
+
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+}
+
+body {
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Square corners on data and on code, 8px on controls: the rule of the whole system. */
+.sl-markdown-content :is(pre, table, img, .expressive-code .frame) {
+  border-radius: var(--radius-data);
+}
+
+header.header {
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  box-shadow: none;
+}
+
+/* The mark is the same size in both headers: 30px, which matches the wordmark's cap height. */
+.site-title img {
+  width: 30px;
+  height: 30px;
+}
+.site-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  gap: 10px;
+}
+
+#starlight__sidebar {
+  border-right: 1px solid var(--line);
+  padding-top: var(--space-5);
+}
+
+.sidebar-content ul {
+  border-inline-start: 1px solid var(--line);
+}
+
+.sidebar-content a {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.sidebar-content a[aria-current='page'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.sl-markdown-content {
+  font-size: var(--step-0);
+  line-height: 1.65;
+}
+.sl-markdown-content :is(h1, h2, h3, h4) {
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+.sl-markdown-content table {
+  font-size: 14px;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.sl-markdown-content :is(th, td) {
+  border: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+}
+.sl-markdown-content th {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: start;
+}
+.sl-markdown-content :not(pre) > code:not(:where(.not-content *)) {
+  border: 0;
+  background: #f1f1f1;
+  color: var(--ink);
+  font-size: 0.9em;
+  padding: 2px 5px;
+}
+
+/* The search box, the theme control and the pagination inherit the control geometry. */
+.sl-flex :is(button, input, .pagination-links a) {
+  border-radius: var(--radius-control);
+}
+site-search button[data-open-modal] {
+  border-color: var(--line-2);
+  background: var(--card);
+  color: var(--ink-3);
+}
+
+.pagination-links a {
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: none;
+}
+
+/* The header row that carries the site nav links, so the two chromes agree. */
+.sl-nav-extra {
+  display: flex;
+  gap: 22px;
+  font-size: 14px;
+  color: var(--ink-2);
+  align-items: center;
+}
+.sl-nav-extra a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.sl-nav-extra a:hover {
+  color: var(--ink);
+}
+@media (max-width: 800px) {
+  .sl-nav-extra {
+    display: none;
+  }
+}

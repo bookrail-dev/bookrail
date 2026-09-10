@@ -1,0 +1,71 @@
+{
+  "name": "@bookrail/mcp",
+  "version": "0.1.0",
+  "description": "Bookrail MCP server: booking infrastructure for coding agents, over the Model Context Protocol.",
+  "license": "Apache-2.0",
+  "author": "MP Informatica Srl",
+  "homepage": "https://github.com/bookrail-dev/bookrail#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bookrail-dev/bookrail.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/bookrail-dev/bookrail/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "booking",
+    "bookings",
+    "availability",
+    "scheduling",
+    "agents",
+    "ai",
+    "bookrail"
+  ],
+  "type": "module",
+  "bin": {
+    "bookrail-mcp": "./dist/index.js"
+  },
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "bookrail": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@bookrail/api": "workspace:*",
+    "@bookrail/db": "workspace:*",
+    "@bookrail/engine": "workspace:*",
+    "@bookrail/shared": "workspace:*",
+    "@types/node": "^20.17.10",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

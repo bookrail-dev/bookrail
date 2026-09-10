@@ -1,0 +1,33 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+*.log
+
+# Secrets and local state. `.env.example` is the one exception: it is the documented list of
+# every variable, with the reason for each and a placeholder where a value would be, and it is
+# meant to be copied to `.env` and filled in.
+.env
+.env.*
+!.env.example
+
+# Build state, not source. `tsc -b` writes these next to package.json rather than inside dist/,
+# so they escape the `dist/` rule above.
+*.tsbuildinfo
+
+# The mobile screenshots are an artefact, not a baseline: `apps/site/test/mobile.test.ts` says
+# so itself. What fails a build is the assertions next to them, not a pixel comparison, and a
+# browser does not render byte identically twice, so committing them left a modified binary in
+# the working tree after every run. Regenerate them with `pnpm --filter site test`.
+apps/site/test/__screenshots__/
+
+# A Redis dump left by a `redis-server` started inside the repository.
+dump.rdb
+
+*.tgz
+.DS_Store
+
+# Written by the script that builds this repository out of the working copy it is derived from.
+# It is the proof that the directory was made by that script, and the only thing that lets the
+# next run delete it: a directory nobody recognises is left alone instead.
+.bookrail-export

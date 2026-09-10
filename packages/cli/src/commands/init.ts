@@ -1,0 +1,208 @@
+import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { join, resolve as resolvePath, isAbsolute } from 'node:path';
+import type { Context } from '../context.js';
+import { CliError } from '../errors.js';
+import type { CommandResult } from '../output.js';
+import { renderConfigFile } from '../render.js';
+import { TEMPLATES, TEMPLATE_NAMES } from '../templates/index.js';
+import { assertValidConfig } from '../config/normalize.js';
+import { DEFAULT_API_URL } from '../version.js';
+
+export const FRAMEWORKS = [
+  'nextjs',
+  'nuxt',
+  'sveltekit',
+  'laravel',
+  'rails',
+  'django',
+  'expo',
+  'none',
+] as const;
+export type Framework = (typeof FRAMEWORKS)[number];
+
+export interface InitOptions {
+  template?: string;
+  framework?: string;
+  dir?: string;
+  project?: string;
+  force?: boolean;
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Writes the files a project needs to be described as code.
+ *
+ * `init` never prompts, whatever the terminal: the template is a flag with a default
+ * (`empty`), so the same command line produces the same files for a human and for an agent.
+ * It also never contacts the API: a developer who has not logged in yet still gets a config to
+ * look at, and a first command that explains itself is worth more than one that needs setting up
+ * before it will say anything.
+ */
+export async function init(ctx: Context, options: InitOptions): Promise<CommandResult> {
+  const name = options.template ?? 'empty';
+  const template = TEMPLATES[name];
+  if (!template) {
+    throw new CliError('unknown_template', `No template named "${name}".`, {
+      param: 'template',
+      fix: `Choose one of: ${TEMPLATE_NAMES.join(', ')}.`,
+    });
+  }
+
+  const directory =
+    options.dir === undefined
+      ? ctx.io.cwd
+      : isAbsolute(options.dir)
+        ? options.dir
+        : resolvePath(ctx.io.cwd, options.dir);
+  await mkdir(directory, { recursive: true });
+
+  const framework = (options.framework ?? 'none') as Framework;
+  if (!FRAMEWORKS.includes(framework)) {
+    throw new CliError('unknown_framework', `No framework named "${framework}".`, {
+      param: 'framework',
+      fix: `Choose one of: ${FRAMEWORKS.join(', ')}.`,
+    });
+  }
+
+  const config = { ...template.config };
+  if (options.project !== undefined) config.project = options.project;
+  // The template is validated before it is written: a template that could not be pushed would
+  // be worse than no template at all.
+  assertValidConfig(config, `the "${name}" template`);
+
+  const files: { path: string; bytes: number }[] = [];
+  const written = async (path: string, contents: string): Promise<void> => {
+    if (options.force !== true && (await fileExists(path))) {
+      throw new CliError('file_exists', `${path} already exists.`, {
+        fix: 'Pass `--force` to overwrite it, or `--dir <path>` to write somewhere else.',
+      });
+    }
+    await writeFile(path, contents, 'utf8');
+    files.push({ path, bytes: Buffer.byteLength(contents) });
+  };
+
+  await written(
+    join(directory, 'bookrail.config.ts'),
+    renderConfigFile(config, {
+      header: [
+        `Template: ${name} (${template.vertical}).`,
+        ...template.notes,
+        '',
+        'Run `bookrail push --dry-run` to see what this would create.',
+      ],
+    }),
+  );
+
+  await written(join(directory, '.env.example'), envExample());
+
+  if (framework !== 'none') {
+    await written(join(directory, 'bookrail.ts'), clientFile(framework));
+  }
+
+  return {
+    data: {
+      template: name,
+      vertical: template.vertical,
+      framework,
+      directory,
+      files: files.map((file) => file.path),
+    },
+    human: [
+      `Created ${files.length} file${files.length === 1 ? '' : 's'} in ${directory}:`,
+      ...files.map((file) => `  ${file.path}`),
+    ].join('\n'),
+    nextSteps: [
+      'Copy .env.example to .env and put your test key in it, or run `bookrail login`.',
+      'Run `bookrail push --dry-run` to see the plan.',
+      'Run `bookrail push` to create the objects, then `bookrail diff` to confirm it is clean.',
+      'Ask for slots with `bookrail availability --service <id> --from ... --to ...`.',
+    ],
+  };
+}
+
+function envExample(): string {
+  return [
+    '# Bookrail test environment.',
+    '# The CLI reads BOOKRAIL_SECRET_KEY first, then ~/.config/bookrail/credentials.json.',
+    '# A key that starts with sk_live_ is refused unless the command is run with --live.',
+    'BOOKRAIL_SECRET_KEY=sk_test_replace_me',
+    `BOOKRAIL_API_URL=${DEFAULT_API_URL}`,
+    '',
+  ].join('\n');
+}
+
+/**
+ * A minimal server-side client.
+ *
+ * There is no SDK for this template yet, so this is
+ * `fetch` with the three things every call needs and every hand-written client forgets: the
+ * dated API version, an idempotency key on writes, and an error that carries the code.
+ */
+function clientFile(framework: Framework): string {
+  return `// Generated by \`bookrail init --framework ${framework}\`.
+// Server side only: a secret key must never reach the browser.
+
+const BASE_URL = process.env.BOOKRAIL_API_URL ?? '${DEFAULT_API_URL}';
+const SECRET_KEY = process.env.BOOKRAIL_SECRET_KEY;
+
+export class BookrailError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status: number,
+    readonly requestId: string | null,
+  ) {
+    super(message);
+    this.name = 'BookrailError';
+  }
+}
+
+export async function bookrail<T>(
+  path: string,
+  init: { method?: string; body?: unknown; idempotencyKey?: string } = {},
+): Promise<T> {
+  if (!SECRET_KEY) throw new Error('BOOKRAIL_SECRET_KEY is not set.');
+  const method = init.method ?? 'GET';
+  const headers: Record<string, string> = {
+    authorization: \`Bearer \${SECRET_KEY}\`,
+    accept: 'application/json',
+    'bookrail-version': '2026-09-01',
+  };
+  if (init.body !== undefined) headers['content-type'] = 'application/json';
+  // Every POST is retried by someone, one day. An idempotency key is what makes that safe.
+  if (method === 'POST') headers['idempotency-key'] = init.idempotencyKey ?? crypto.randomUUID();
+
+  const response = await fetch(\`\${BASE_URL}\${path}\`, {
+    method,
+    headers,
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  });
+  const text = await response.text();
+  const payload = text === '' ? null : JSON.parse(text);
+  if (!response.ok) {
+    const error = payload?.error ?? {};
+    throw new BookrailError(
+      error.code ?? 'http_error',
+      error.message ?? \`Bookrail answered \${response.status}\`,
+      response.status,
+      response.headers.get('bookrail-request-id'),
+    );
+  }
+  return payload as T;
+}
+
+// Example: the next free slot of a service.
+//   const availability = await bookrail('/v1/availability', {
+//     method: 'POST',
+//     body: { service_id: 'svc_...', from: '2026-09-08T00:00:00+02:00', to: '2026-09-15T00:00:00+02:00' },
+//   });
+`;
+}

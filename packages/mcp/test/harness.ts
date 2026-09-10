@@ -1,0 +1,270 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { serve, type ServerType } from '@hono/node-server';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createApp } from '@bookrail/api';
+import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
+import { MemoryAvailabilityCache } from '@bookrail/engine';
+import { silentLogger as silentApiLogger } from '@bookrail/shared';
+import { createServer } from '../src/server.js';
+import { createLogger, type LogLevel } from '../src/log.js';
+import { TEST_DB_NAME } from './db-name.js';
+
+const BOOTSTRAP_TOKEN = 'bootstrap-token-for-mcp-tests';
+const WEBHOOK_SECRET_KEY = Buffer.alloc(32, 0x3c);
+
+export interface Project {
+  projectId: string;
+  testKey: string;
+  liveKey: string;
+}
+
+export interface Session {
+  client: Client;
+  /** Every line the server wrote to its logger, which is the only stream it has. */
+  stderr: string[];
+  close(): Promise<void>;
+  /** Calls a tool and returns the parsed envelope, whatever the outcome. */
+  call<T = unknown>(
+    name: string,
+    args?: Record<string, unknown>,
+  ): Promise<{
+    isError: boolean;
+    envelope: {
+      ok: boolean;
+      environment: string;
+      data?: T;
+      next_steps?: string[];
+      requires_confirmation?: boolean;
+      preview?: unknown;
+      error?: { code: string; message: string; fix?: string; doc_url: string };
+    };
+    raw: CallToolResult;
+  }>;
+}
+
+export interface Harness {
+  url: string;
+  /** Every `Authorization` header the API has seen, in order. */
+  seenKeys: string[];
+  /** Every `<method> <path>` the API has seen, in order. */
+  seenRequests: string[];
+  /** The `Bookrail-Actor` of every request, `null` when one carried none. */
+  seenActors: (string | null)[];
+  configHome: string;
+  root: string;
+  workdir(): Promise<string>;
+  bootstrap(name: string): Promise<Project>;
+  /**
+   * Starts one MCP server and connects an in-process client to it over a linked pair of
+   * in-memory transports: a real client speaking the real protocol to the real server, with
+   * no process boundary and therefore no stdout in the picture at all.
+   */
+  session(options?: {
+    cwd?: string;
+    home?: string;
+    env?: Record<string, string>;
+    log?: LogLevel;
+  }): Promise<Session>;
+  close(): Promise<void>;
+}
+
+export async function createHarness(): Promise<Harness> {
+  const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
+  const appPool = createPool({ connectionString: urls.app, max: 3 });
+  const adminPool = createPool({ connectionString: urls.admin, max: 1 });
+  const cache = new MemoryAvailabilityCache();
+
+  const app = createApp({
+    db: createDatabase(appPool),
+    adminDb: createDatabase(adminPool),
+    logger: silentApiLogger,
+    cache,
+    bootstrapToken: BOOTSTRAP_TOKEN,
+    webhookSecretKey: WEBHOOK_SECRET_KEY,
+    allowPrivateWebhookTargets: true,
+  });
+
+  const seenKeys: string[] = [];
+  const seenRequests: string[] = [];
+  const seenActors: (string | null)[] = [];
+
+  const server: ServerType = serve({
+    fetch: (request: Request) => {
+      const authorization = request.headers.get('authorization');
+      if (authorization) seenKeys.push(authorization.replace(/^Bearer\s+/i, ''));
+      seenRequests.push(`${request.method} ${new URL(request.url).pathname}`);
+      seenActors.push(request.headers.get('bookrail-actor'));
+      return app.fetch(request);
+    },
+    port: 0,
+    hostname: '127.0.0.1',
+  });
+
+  await new Promise<void>((resolve) => {
+    if (server.listening) return resolve();
+    server.once('listening', () => resolve());
+  });
+  const address = server.address();
+  const port = typeof address === 'object' && address !== null ? address.port : 0;
+  const url = `http://127.0.0.1:${port}`;
+
+  const root = await mkdtemp(join(tmpdir(), 'bookrail-mcp-'));
+  const configHome = join(root, 'config');
+  const sessions: Session[] = [];
+  let counter = 0;
+
+  return {
+    url,
+    seenKeys,
+    seenRequests,
+    seenActors,
+    configHome,
+    root,
+    async workdir(): Promise<string> {
+      counter += 1;
+      return mkdtemp(join(root, `work-${counter}-`));
+    },
+    async bootstrap(name): Promise<Project> {
+      const response = await fetch(`${url}/internal/bootstrap`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${BOOTSTRAP_TOKEN}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          account_name: name,
+          project_name: name,
+          default_timezone: 'Europe/Rome',
+        }),
+      });
+      if (response.status !== 201) {
+        throw new Error(`bootstrap failed: ${response.status} ${await response.text()}`);
+      }
+      const body = (await response.json()) as {
+        project: { id: string };
+        secrets: { test: string; live: string };
+      };
+      seenKeys.length = 0;
+      seenRequests.length = 0;
+      seenActors.length = 0;
+      return { projectId: body.project.id, testKey: body.secrets.test, liveKey: body.secrets.live };
+    },
+    async session(options = {}): Promise<Session> {
+      const stderr: string[] = [];
+      const { server: mcp } = createServer({
+        cwd: options.cwd ?? root,
+        home: options.home ?? root,
+        env: {
+          XDG_CONFIG_HOME: configHome,
+          BOOKRAIL_API_URL: url,
+          ...(options.env ?? {}),
+        },
+        logger: createLogger(options.log ?? 'debug', (chunk) => {
+          stderr.push(chunk.trimEnd());
+        }),
+      });
+
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: 'bookrail-mcp-test', version: '0.0.0' });
+      await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+
+      const session: Session = {
+        client,
+        stderr,
+        async close(): Promise<void> {
+          await client.close();
+          await mcp.close();
+        },
+        async call(name, args = {}) {
+          const raw = (await client.callTool({ name, arguments: args })) as CallToolResult;
+          const first = raw.content?.[0];
+          if (first === undefined || first.type !== 'text') {
+            throw new Error(`${name} returned no text content: ${JSON.stringify(raw)}`);
+          }
+          return {
+            isError: raw.isError === true,
+            envelope: JSON.parse(first.text),
+            raw,
+          };
+        },
+      };
+      sessions.push(session);
+      return session;
+    },
+    async close(): Promise<void> {
+      for (const session of sessions) {
+        try {
+          await session.close();
+        } catch {
+          /* a test may have closed it already */
+        }
+      }
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await cache.close();
+      await appPool.end();
+      await adminPool.end();
+      await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+/** The padel courts model, as the object an agent would hand to `bookrail_config_push`. */
+export const PADEL_CONFIG = {
+  locations: [{ id: 'club', name: 'Club', timezone: 'Europe/Rome' }],
+  schedules: {
+    club_hours: {
+      name: 'Club hours',
+      timezone: 'Europe/Rome',
+      rules: [
+        { days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], from: '08:00', to: '23:00' },
+      ],
+    },
+  },
+  resources: [
+    { id: 'court_1', name: 'Court 1', type: 'court', location: 'club', schedule: 'club_hours' },
+    { id: 'court_2', name: 'Court 2', type: 'court', location: 'club', schedule: 'club_hours' },
+  ],
+  resourceGroups: {
+    courts: {
+      name: 'Courts',
+      resources: ['court_1', 'court_2'],
+      allocationStrategy: 'first_available',
+    },
+  },
+  policies: {
+    prepaid: {
+      name: 'Prepaid',
+      cancellation: [
+        { before: '12h', refundPercent: 100 },
+        { before: '0h', refundPercent: 0 },
+      ],
+      holdDuration: '10m',
+    },
+  },
+  services: [
+    {
+      id: 'match',
+      name: 'Match',
+      durationOptions: [60, 90],
+      slotInterval: 30,
+      alignTo: 'hour',
+      price: { amount: 3000, currency: 'EUR' },
+      policy: 'prepaid',
+      bookingWindow: { minNoticeMinutes: 60, maxAdvanceDays: 30 },
+      requirements: [{ group: 'courts', quantity: 1 }],
+    },
+  ],
+};
+
+const DAY_MS = 86_400_000;
+
+/** Midnight UTC of a day a week out, so nothing is near `now` or the booking window's edge. */
+export function nextWeek(offsetDays = 7): string {
+  const day = new Date(Date.now() + offsetDays * DAY_MS);
+  day.setUTCHours(0, 0, 0, 0);
+  return day.toISOString();
+}

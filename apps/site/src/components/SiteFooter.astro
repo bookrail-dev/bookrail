@@ -1,0 +1,16 @@
+---
+import { withBlog } from '../data/blog';
+import { BRAND, FOOTER_LINKS, TAGLINE } from '../data/site';
+const year = 2026;
+// Among the things there are to read, before the machine readable files and the legal pages.
+const links = await withBlog(FOOTER_LINKS, '/llms.txt');
+---
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>&copy; {year} {BRAND} &middot; {TAGLINE}</div>
+    <nav aria-label="Footer">
+      {links.map((link) => <a href={link.href}>{link.label}</a>)}
+    </nav>
+  </div>
+</footer>

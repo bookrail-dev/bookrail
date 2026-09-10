@@ -1,0 +1,117 @@
+---
+/**
+ * One request, and the object that comes back.
+ *
+ * The response is not written here. `scripts/generate.mjs` builds it from the `Booking` schema
+ * of `packages/api/openapi/openapi.json` and `test/booking-sample.test.ts` checks every value
+ * against that schema, so the pane cannot claim a field the API does not return or a format it
+ * does not use. The fourteen fields shown are the ones this page talks about; the count of the
+ * rest is printed under the pane instead of being hidden.
+ *
+ * Both panes are rendered as HTML and then animated, never built by JavaScript: the text has to
+ * be in the document for a reader without JavaScript, for the em dash test, and for search.
+ */
+import sample from '../generated/booking-response.json';
+
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
+/** One key per line at the top level, nested values inline: fourteen lines instead of thirty two. */
+function inline(value: Json): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return `[${value.map(inline).join(', ')}]`;
+  if (typeof value === 'object') {
+    return `{ ${Object.entries(value)
+      .map(([key, nested]) => `"${key}": ${inline(nested)}`)
+      .join(', ')} }`;
+  }
+  return JSON.stringify(value);
+}
+
+const entries = Object.entries(sample.value as Record<string, Json>);
+const responseLines = [
+  '{',
+  ...entries.map(
+    ([key, value], index) =>
+      `  "${key}": ${inline(value)}${index === entries.length - 1 ? '' : ','}`,
+  ),
+  '}',
+];
+
+/** Colours the three things worth telling apart: the key, a string, a number. */
+function tokens(line: string): { text: string; kind: string }[] {
+  const out: { text: string; kind: string }[] = [];
+  const pattern = /("(?:[^"\\]|\\.)*"\s*:)|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?)/g;
+  let last = 0;
+  for (const match of line.matchAll(pattern)) {
+    if (match.index > last) out.push({ text: line.slice(last, match.index), kind: 'punct' });
+    out.push({
+      text: match[0],
+      kind: match[1] !== undefined ? 'key' : match[2] !== undefined ? 'str' : 'num',
+    });
+    last = match.index + match[0].length;
+  }
+  if (last < line.length) out.push({ text: line.slice(last), kind: 'punct' });
+  return out;
+}
+
+/** The request: the server SDK call, with the fields `POST /v1/bookings` accepts. */
+const requestLines: { text: string; kind: string }[][] = [
+  [{ text: '// the customer picked 09:00 on Court 1', kind: 'c' }],
+  [
+    { text: 'const', kind: 'k' },
+    { text: ' booking = ', kind: '' },
+    { text: 'await', kind: 'k' },
+    { text: ' bookrail.bookings.create({', kind: '' },
+  ],
+  [
+    { text: '  service_id: ', kind: '' },
+    { text: '"svc_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"', kind: 's' },
+    { text: ',', kind: '' },
+  ],
+  [
+    { text: '  start: ', kind: '' },
+    { text: '"2026-09-08T09:00:00+02:00"', kind: 's' },
+    { text: ',', kind: '' },
+  ],
+  [
+    { text: '  quantity: ', kind: '' },
+    { text: '1', kind: 'n' },
+    { text: ',', kind: '' },
+  ],
+  [
+    { text: '  customer: { email: ', kind: '' },
+    { text: '"anna@example.com"', kind: 's' },
+    { text: ', name: ', kind: '' },
+    { text: '"Anna"', kind: 's' },
+    { text: ' },', kind: '' },
+  ],
+  [{ text: '}, { idempotencyKey: order.id });', kind: '' }],
+];
+---
+
+<div class="split" data-request-response>
+  <div class="pane dark">
+    <div class="pane-head">
+      <b>POST</b> /v1/bookings <span class="st">Idempotency-Key: ord_8f1c</span>
+    </div>
+    <pre data-request>{requestLines.map((line) => (
+      <span class="req-line">{line.map((token) => (
+        token.kind === '' ? token.text : <span class={token.kind}>{token.text}</span>
+      ))}</span>
+    ))}</pre>
+  </div>
+  <div class="pane">
+    <div class="pane-head">
+      <b>201</b> Created <span class="st ok">Bookrail-Version: 2026-09-01</span>
+    </div>
+    <pre class="resp" data-response>{responseLines.map((line) => (
+      <span class="resp-line">{tokens(line).map((token) => (
+        token.kind === 'punct' ? token.text : <span class={token.kind}>{token.text}</span>
+      ))}</span>
+    ))}</pre>
+    <p class="pane-foot">
+      {sample.fields.length} of the {sample.total} fields a booking always carries. The other{' '}
+      {sample.omitted} are in the <a href="/docs/api/reference/">API reference</a>.
+    </p>
+  </div>
+</div>

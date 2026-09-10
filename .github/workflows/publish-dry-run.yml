@@ -1,0 +1,38 @@
+name: Publish dry run
+
+# Manual, and it publishes nothing. It builds the workspace and asks npm what it would send
+# for the four public packages: the file list of each tarball, its size, and whether anything
+# in the manifests stops a publish. Run it before a release, and after any change to `files`,
+# `exports`, `bin` or the dependency list of a published package.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: publish-dry-run-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The tarballs contain `dist`, so there has to be one.
+      - run: pnpm build
+
+      # `--no-git-checks` because this runs on a checkout with no upstream branch to compare
+      # against, not because the checks are unwelcome.
+      - run: pnpm -r publish --dry-run --no-git-checks

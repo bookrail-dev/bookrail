@@ -1,0 +1,34 @@
+{
+  "name": "@bookrail/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test bench scripts",
+    "test": "vitest run",
+    "bench": "vitest bench --run",
+    "bench:consolidation": "tsx scripts/consolidation-bench.ts",
+    "test:concurrency": "tsx scripts/concurrency.ts"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "@bookrail/db": "workspace:*",
+    "@bookrail/shared": "workspace:*",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "fast-check": "^4.9.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

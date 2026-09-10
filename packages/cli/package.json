@@ -1,0 +1,72 @@
+{
+  "name": "bookrail",
+  "version": "0.1.0",
+  "description": "Bookrail CLI: booking infrastructure as code, designed to be driven by coding agents.",
+  "license": "Apache-2.0",
+  "author": "MP Informatica Srl",
+  "homepage": "https://github.com/bookrail-dev/bookrail#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bookrail-dev/bookrail.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/bookrail-dev/bookrail/issues"
+  },
+  "keywords": [
+    "booking",
+    "bookings",
+    "reservations",
+    "availability",
+    "scheduling",
+    "calendar",
+    "cli",
+    "infrastructure",
+    "bookrail"
+  ],
+  "type": "module",
+  "bin": {
+    "bookrail": "./dist/index.js"
+  },
+  "main": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "default": "./dist/lib.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -b && node scripts/bundle-docs.mjs",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bookrail/webhook-signature": "workspace:*",
+    "commander": "^12.1.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@bookrail/api": "workspace:*",
+    "@bookrail/db": "workspace:*",
+    "@bookrail/engine": "workspace:*",
+    "@bookrail/shared": "workspace:*",
+    "@types/node": "^20.17.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

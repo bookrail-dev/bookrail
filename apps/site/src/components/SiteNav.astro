@@ -1,0 +1,24 @@
+---
+import Logo from './Logo.astro';
+import { withBlog } from '../data/blog';
+import { BRAND, NAV_LINKS } from '../data/site';
+
+// The blog is in the header only once it has an article in it, and then it is in every header.
+const links = await withBlog(NAV_LINKS);
+---
+
+<header class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label={`${BRAND}, home`}>
+      <Logo size={30} />
+      {BRAND}
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      {links.map((link) => <a href={link.href}>{link.label}</a>)}
+    </nav>
+    <div class="nav-right">
+      <a class="btn sm" href="/early-access/">Log in</a>
+      <a class="btn sm primary" href="/early-access/">Get an API key</a>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,257 @@
+---
+/**
+ * The consent banner, written and **not switched on**.
+ *
+ * Bookrail's site sets no cookie, loads no third party resource and runs no analytics, so it
+ * needs no banner, and putting one up anyway would be a dark pattern of its own: it would teach
+ * visitors to click through a dialog that protects nothing.
+ *
+ * This component is therefore dormant, in two layers:
+ *
+ * 1. it is imported by no layout and no page, so nothing of it reaches `dist`;
+ * 2. even if it were mounted, it renders nothing unless the build carries
+ *    `PUBLIC_CONSENT_BANNER=1`.
+ *
+ * `test/consent.test.ts` asserts both, and asserts the behaviour of the state machine in
+ * `src/scripts/consent.ts`.
+ *
+ * The day the site adds something that genuinely needs consent, cookie based analytics, an
+ * embedded video, a chat widget, the work is: set the variable, mount this in `Base.astro` and
+ * in `DocsFooter.astro`, fill in the provider and the duration of the affected category in
+ * `CONSENT_CATEGORIES`, write `/cookies`, and add a "Cookie settings" link carrying
+ * `data-consent-reopen` to the footer. The preferred alternative is still to need none of it: a
+ * self hosted, cookie free analytics such as Plausible or Umami requires no banner.
+ *
+ * The rule this implements, if it is ever switched on: nothing beyond what is strictly
+ * necessary is stored or loaded before the visitor has chosen, no choice counts as a refusal,
+ * and the choice itself is kept per category in a first party technical cookie for six months,
+ * changeable at any time.
+ */
+import { CONSENT_CATEGORIES } from '../scripts/consent';
+
+const enabled = import.meta.env.PUBLIC_CONSENT_BANNER === '1';
+---
+
+{
+  enabled && (
+    <div
+      id="consent-banner"
+      class="consent"
+      role="dialog"
+      aria-labelledby="consent-title"
+      aria-describedby="consent-text"
+      aria-modal="false"
+      hidden
+    >
+      <div class="consent-inner">
+        <h2 id="consent-title">Your choice about cookies</h2>
+        <p id="consent-text">
+          This site stores nothing on your device without your choice. Necessary storage
+          remembers this decision and does nothing else. You can accept everything, refuse
+          everything, or decide category by category, and you can change your mind at any time
+          from the Cookie settings link in the footer. Read the
+          <a href="/privacy">privacy notice</a> and the <a href="/cookies">list of cookies</a>.
+        </p>
+
+        <div class="consent-actions">
+          <button type="button" class="consent-action" data-consent="accept">
+            Accept all
+          </button>
+          <button type="button" class="consent-action" data-consent="reject">
+            Reject all
+          </button>
+          <button
+            type="button"
+            class="consent-action"
+            data-consent="manage"
+            aria-expanded="false"
+            aria-controls="consent-panel"
+          >
+            Manage
+          </button>
+        </div>
+
+        <div id="consent-panel" class="consent-panel" hidden>
+          {CONSENT_CATEGORIES.map((category) => (
+            <div class="consent-category">
+              <label>
+                <input
+                  type="checkbox"
+                  name={category.id}
+                  disabled={category.always}
+                  checked={category.always}
+                />
+                <span>{category.label}</span>
+                {category.always && <span class="consent-always">always active</span>}
+              </label>
+              <p>{category.purpose}</p>
+              <p class="consent-meta">
+                Provider: {category.provider} · Duration: {category.duration}
+              </p>
+            </div>
+          ))}
+          <button type="button" class="consent-action" data-consent="save">
+            Save my choice
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+<script>
+  import { browserEnvironment, createController } from '../scripts/consent';
+
+  // Nothing runs unless the banner was rendered, which needs PUBLIC_CONSENT_BANNER=1 and a
+  // layout that mounts the component. Today neither is true.
+  const banner = document.getElementById('consent-banner');
+  const panel = document.getElementById('consent-panel');
+
+  if (banner instanceof HTMLElement && panel instanceof HTMLElement) {
+    const controller = createController(browserEnvironment());
+
+    const render = (): void => {
+      banner.hidden = !controller.visible;
+      panel.hidden = !controller.managing;
+      banner
+        .querySelector('[data-consent="manage"]')
+        ?.setAttribute('aria-expanded', String(controller.managing));
+      banner.classList.toggle('no-motion', !controller.animate);
+    };
+
+    banner.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const action = target.closest('[data-consent]')?.getAttribute('data-consent');
+      if (action === 'accept') controller.acceptAll();
+      else if (action === 'reject') controller.rejectAll();
+      else if (action === 'manage') controller.manage();
+      else if (action === 'save') {
+        const selected: Record<string, boolean> = {};
+        for (const input of panel.querySelectorAll('input[type="checkbox"]')) {
+          if (input instanceof HTMLInputElement) selected[input.name] = input.checked;
+        }
+        controller.save(selected);
+      } else return;
+      render();
+    });
+
+    // The footer link, and nothing else, reopens it. Closing the bar or scrolling the page is
+    // never consent, so there is no close button and no scroll listener.
+    document.querySelector('[data-consent-reopen]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      controller.reopen();
+      render();
+      banner.querySelector('button')?.focus();
+    });
+
+    render();
+  }
+</script>
+
+<style>
+  /*
+   * A bar at the bottom, never a sheet over the content, and never more than 40% of the
+   * viewport. Ink on paper, hairlines, no shadow. The three actions share one class: refusing
+   * must not look heavier, lighter or further away than accepting.
+   */
+  .consent {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: var(--card);
+    border-top: 1px solid var(--line-2);
+    max-height: 40vh;
+    overflow-y: auto;
+    transform: translateY(0);
+    transition: transform var(--dur) var(--ease);
+  }
+  .consent[hidden] {
+    display: none;
+  }
+  .consent.no-motion {
+    transition: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .consent {
+      transition: none;
+    }
+  }
+
+  .consent-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-6);
+  }
+  .consent-inner h2 {
+    font-size: var(--step-0);
+    font-weight: 500;
+    margin: 0 0 var(--space-2);
+  }
+  .consent-inner > p {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: var(--step--1);
+    line-height: 1.6;
+    max-width: 68ch;
+  }
+  .consent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+  .consent-action {
+    font: inherit;
+    font-size: var(--step--1);
+    height: 40px;
+    padding: 0 var(--space-5);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
+    background: var(--card);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .consent-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .consent-panel {
+    margin-top: var(--space-5);
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-4);
+  }
+  .consent-panel[hidden] {
+    display: none;
+  }
+  .consent-category {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .consent-category label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--step-0);
+  }
+  /* Cobalt marks an active category, which is the one meaning the accent is allowed to carry. */
+  .consent-category input:checked {
+    accent-color: var(--accent);
+  }
+  .consent-always {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .consent-category p {
+    margin: var(--space-2) 0 0;
+    color: var(--ink-2);
+    font-size: var(--step--1);
+  }
+  .consent-meta {
+    font-family: var(--mono);
+    color: var(--ink-3);
+  }
+</style>

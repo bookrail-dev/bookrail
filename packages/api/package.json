@@ -1,0 +1,42 @@
+{
+  "name": "@bookrail/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test scripts",
+    "test": "vitest run",
+    "dev": "tsx watch src/server.ts",
+    "worker": "tsx src/worker-main.ts",
+    "openapi": "tsx scripts/openapi.ts"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "7.3.4",
+    "@hono/node-server": "^1.13.7",
+    "@bookrail/db": "workspace:*",
+    "@bookrail/engine": "workspace:*",
+    "@bookrail/shared": "workspace:*",
+    "drizzle-orm": "^0.38.2",
+    "hono": "^4.6.14",
+    "pg": "^8.13.1",
+    "pg-boss": "^10.4.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,19 @@
+Bookrail
+Copyright 2026 MP Informatica Srl
+
+This product includes software developed by MP Informatica Srl
+(https://bookrail.dev).
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the
+License in the LICENSE file at the root of this repository, or at
+https://www.apache.org/licenses/LICENSE-2.0
+
+This product bundles two typefaces, each under the SIL Open Font License 1.1,
+with the licence text next to the font files in apps/site/public/fonts/:
+Bricolage Grotesque, and JetBrains Mono.
+
+"Bookrail" and the Bookrail mark are trademarks of MP Informatica Srl. Section 6
+of the Apache License does not grant permission to use them. You may say that
+your software uses Bookrail, or that it is built on Bookrail; you may not name a
+fork, a distribution, a hosted service or a package after it in a way that
+suggests it is the original, and you may not use the mark as your own.

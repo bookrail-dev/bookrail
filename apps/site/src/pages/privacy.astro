@@ -1,0 +1,99 @@
+---
+/**
+ * The privacy notice, and nothing more than what is true.
+ *
+ * This site is a folder of static files on one server. It sets no cookie, calls no third party,
+ * loads no font from a CDN and runs no analytics, so the only personal data that exists is what
+ * the web server writes into its own log. That is the whole notice, and writing three screens
+ * of generated boilerplate about processors and transfers that do not exist would be worse than
+ * useless: it would be false.
+ *
+ * `test/dist.test.ts` asserts the page exists, answers 200, and carries the company details.
+ */
+import Base from '../layouts/Base.astro';
+import { CONTACT_EMAIL } from '../data/site';
+
+const UPDATED = '8 September 2026';
+---
+
+<Base
+  title="Privacy, Bookrail"
+  description="What Bookrail collects on this website: server logs only, kept 14 days. No cookies, no trackers, no analytics, no third parties."
+>
+  <div class="wrap prose">
+    <h1>Privacy</h1>
+    <p class="lede-note">Last updated: {UPDATED}</p>
+
+    <p>
+      This website is a set of static files. It sets <strong>no cookie</strong>, loads
+      <strong>no third party resource</strong>, runs <strong>no analytics</strong>, and has no
+      form that posts anywhere. The fonts are served from this domain. There is nothing to opt
+      out of, which is why there is no banner asking you to.
+    </p>
+
+    <h2>Who is responsible</h2>
+    <p>
+      The data controller is <strong>MP Informatica Srl</strong>, Strada di Santa Bona Nuova
+      33/B, 31100 Treviso, Italy. Bookrail is a product of MP Informatica Srl. Contact:
+      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. The full company details are on
+      the <a href="/legal">legal notice</a>.
+    </p>
+
+    <h2>What is processed when you visit this site</h2>
+    <p>
+      One thing: the access log of the web server. Every request writes a line containing your
+      IP address, the user agent your browser sends, the URL requested, the response status and
+      the time. Nothing else is recorded, and nothing is combined with anything.
+    </p>
+    <ul>
+      <li><strong>Purpose</strong>: security and diagnostics. Detecting abuse, and finding out why a page is broken.</li>
+      <li><strong>Legal basis</strong>: legitimate interest, Article 6(1)(f) GDPR, in keeping the service available and secure.</li>
+      <li><strong>Retention</strong>: <strong>14 days</strong>, then the log rotates and the lines are gone.</li>
+      <li><strong>Where</strong>: one server in Europe. No copy leaves it, and no processor receives it.</li>
+      <li><strong>Recipients</strong>: none. There is no analytics provider, no CDN, no tag manager and no advertising network.</li>
+    </ul>
+
+    <h2>If you write to us</h2>
+    <p>
+      Mail sent to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> is processed for the
+      purpose of answering it, on the basis of Article 6(1)(b) or 6(1)(f) GDPR depending on
+      whether the exchange is about a contract. It is kept as long as the conversation is useful
+      and then deleted. It is not used for marketing, and there is no mailing list.
+    </p>
+
+    <h2>When you use the API</h2>
+    <p>
+      This is the part that grows. When you build on the Bookrail API, data about
+      <em>your</em> customers, a name, an email address, a booking, passes through the API and
+      is stored in the project you own. In that relationship you are the controller and
+      Bookrail is the processor: we process that data on your instructions, for the purpose of
+      running your bookings, and for nothing else.
+    </p>
+    <p>
+      Today the API is in early access, issued by hand and without a signed agreement in place.
+      The terms of service and the data processing agreement that complete this section are
+      being written and will be published here and linked from this page. Until they exist, do
+      not put personal data you cannot afford to lose into a test project.
+    </p>
+
+    <h2>Your rights</h2>
+    <p>
+      Under Articles 15 to 22 GDPR you may ask for access to your personal data, its correction
+      or erasure, a restriction of processing, portability, and you may object to processing
+      based on legitimate interest. Write to
+      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. In practice, for a visit to this
+      website, the only data that exists is a log line that is deleted within 14 days, and
+      finding it requires the IP address and the approximate time of the visit.
+    </p>
+    <p>
+      You may also lodge a complaint with the Italian supervisory authority, the Garante per la
+      protezione dei dati personali, Piazza Venezia 11, 00187 Roma.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      If this notice changes, the date at the top changes with it. There is no version of this
+      page that says one thing and does another: what the server does is what is written above.
+    </p>
+  </div>
+</Base>

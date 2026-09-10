@@ -1,0 +1,84 @@
+---
+/**
+ * The shell of every page that is not documentation. Starlight has its own shell and is given
+ * the same tokens in `src/styles/starlight.css`, so the two are one system.
+ */
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteNav from '../components/SiteNav.astro';
+import { FEED_PATH, FEED_TITLE } from '../data/blog';
+import { DESCRIPTION } from '../data/site';
+import '../styles/tokens.css';
+import '../styles/fonts.css';
+import '../styles/site.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  /**
+   * A page of the blog. Two things follow from it and nothing else does: the page advertises
+   * the feed, which is the blog's and no other page's, and it carries the attribute the code
+   * block component reads to choose between the two palettes it ships. The blog is the only
+   * place on this site where a fenced code block comes from markdown, and without the
+   * attribute the choice would be made by the reader's system, on a site that has one
+   * palette. `site.css` carries the rest of what that component needs.
+   */
+  blog?: boolean;
+}
+const { title, description = DESCRIPTION, blog = false } = Astro.props;
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+// A social card has to be an absolute URL: no platform resolves a relative one.
+const social = Astro.site ? new URL('/og.png', Astro.site).href : '/og.png';
+---
+
+<!doctype html>
+<html lang="en" data-theme={blog ? 'light' : undefined}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link
+      rel="preload"
+      href="/fonts/bricolage-grotesque-latin-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/jetbrains-mono-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={social} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {
+      blog && (
+        <link
+          rel="alternate"
+          type="application/atom+xml"
+          title={FEED_TITLE}
+          href={FEED_PATH}
+        />
+      )
+    }
+    {canonical && <link rel="canonical" href={canonical} />}
+    {canonical && <meta property="og:url" content={canonical} />}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <SiteNav />
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

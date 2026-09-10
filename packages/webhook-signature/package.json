@@ -1,0 +1,56 @@
+{
+  "name": "@bookrail/webhook-signature",
+  "version": "0.1.0",
+  "description": "Verify and sign Bookrail webhook payloads. Zero runtime dependencies: node:crypto only.",
+  "license": "Apache-2.0",
+  "author": "MP Informatica Srl",
+  "homepage": "https://github.com/bookrail-dev/bookrail#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bookrail-dev/bookrail.git",
+    "directory": "packages/webhook-signature"
+  },
+  "bugs": {
+    "url": "https://github.com/bookrail-dev/bookrail/issues"
+  },
+  "keywords": [
+    "webhook",
+    "webhooks",
+    "signature",
+    "hmac",
+    "verification",
+    "booking",
+    "bookrail"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
