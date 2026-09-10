@@ -37,6 +37,13 @@ jobs:
           POSTGRES_DB: bookrail_ci
         ports:
           - 5432:5432
+        # The database package has a test that asks the server for `unix_socket_directories`
+        # and then connects over that socket, because production runs on a socket and no TCP
+        # port. A service container keeps its sockets to itself, so the directory is shared
+        # with the runner: the image's entrypoint owns it and Postgres creates the socket in
+        # it, and the runner reaches it at the same path the server reports.
+        volumes:
+          - /var/run/postgresql:/var/run/postgresql
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
