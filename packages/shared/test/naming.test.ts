@@ -38,6 +38,10 @@ const SKIPPED_DIRECTORIES = new Set([
   // Written in halves, like the former name below, so that this file is not itself an
   // occurrence of a word the export refuses. The directory exists only in the working copy.
   ['brie', 'fs'].join(''),
+  // A checkout of the public repository may sit inside a private working copy. It is a
+  // repository of its own, with the same migrations and the same history notes, and it is
+  // checked by its own copy of this file.
+  'bookrail-public',
   'coverage',
   'dist',
   'node_modules',
