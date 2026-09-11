@@ -1,14 +1,32 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { timestampColumns } from './columns.js';
 
-export const accounts = pgTable('accounts', {
-  id: uuid('id').primaryKey(),
-  name: text('name').notNull(),
-  plan: text('plan').notNull().default('free'),
-  apiVersion: text('api_version').notNull(),
-  metadata: jsonb('metadata').notNull().default({}),
-  ...timestampColumns(),
-});
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: uuid('id').primaryKey(),
+    name: text('name').notNull(),
+    plan: text('plan').notNull().default('free'),
+    apiVersion: text('api_version').notNull(),
+    /**
+     * How the account came into being. `bootstrap` is a human running the command over SSH,
+     * `self_serve` is the sign up endpoint. The distinction is not decoration: the unique index
+     * on `owner_email` covers the second kind only, so a second account for the same address
+     * can still be created by hand for somebody who asks for one.
+     */
+    origin: text('origin').notNull().default('bootstrap').$type<'bootstrap' | 'self_serve'>(),
+    /** The address that confirmed the sign up, lower case. NULL for an account made by hand. */
+    ownerEmail: text('owner_email'),
+    metadata: jsonb('metadata').notNull().default({}),
+    ...timestampColumns(),
+  },
+  (t) => [
+    uniqueIndex('accounts_self_serve_owner_email_idx')
+      .on(t.ownerEmail)
+      .where(sql`origin = 'self_serve'`),
+  ],
+);
 
 export const projects = pgTable(
   'projects',

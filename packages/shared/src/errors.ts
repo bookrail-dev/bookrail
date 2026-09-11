@@ -1,4 +1,7 @@
-/** The nine error families of the API. Each one maps to one HTTP status, in `STATUS_BY_TYPE`. */
+/**
+ * The nine error families of the API. Each one maps to one HTTP status, in `STATUS_BY_TYPE`,
+ * and a handful of named codes override that status in {@link STATUS_BY_CODE}.
+ */
 export const ERROR_TYPES = [
   'invalid_request',
   'authentication',
@@ -27,11 +30,42 @@ const STATUS_BY_TYPE: Record<ErrorType, number> = {
 
 export const DOC_BASE_URL = 'https://bookrail.dev/docs/errors';
 
+/**
+ * Codes whose HTTP status is not the one their family implies.
+ *
+ * The nine families cover nine statuses, and they cover every error the booking API can
+ * produce. The sign up endpoints produce three that they cannot express: a confirmation link
+ * that has been used or has run out is `410 Gone` and not `409 Conflict` (the resource was
+ * there and is deliberately no longer), a deployment with no mailer is `503` (the endpoint
+ * exists and is temporarily not serving), and a mail server that refused the message is `502`
+ * (this service is fine, the one behind it is not).
+ *
+ * The family still decides everything else: the `type` in the body, the exit code a client
+ * maps it to, and the way it reads in the reference. Only the status is overridden, by name,
+ * in one table, so that the server and the specification cannot disagree about it.
+ */
+export const STATUS_BY_CODE: Readonly<Record<string, number>> = {
+  signup_expired: 410,
+  signup_secret_claimed: 410,
+  signup_secret_expired: 410,
+  signup_disabled: 503,
+  signup_email_failed: 502,
+};
+
 export interface ErrorBody {
   type: ErrorType;
   code: string;
   message: string;
   param?: string;
+  /**
+   * The operative sentence: what the caller should do next, when there is one thing to do.
+   *
+   * Most errors are self explanatory from `code` and `message`, and carry none. The ones that
+   * are about the state of the deployment rather than about the request carry one, because
+   * "write to this address" or "try again in a minute" is not something a client can derive
+   * from a code it has never seen.
+   */
+  fix?: string;
   doc_url: string;
   request_id: string;
 }
@@ -44,15 +78,17 @@ export class BookrailError extends Error {
   readonly type: ErrorType;
   readonly code: string;
   readonly param: string | undefined;
+  readonly fix: string | undefined;
   readonly status: number;
 
-  constructor(type: ErrorType, code: string, message: string, param?: string) {
+  constructor(type: ErrorType, code: string, message: string, param?: string, fix?: string) {
     super(message);
     this.name = 'BookrailError';
     this.type = type;
     this.code = code;
     this.param = param;
-    this.status = STATUS_BY_TYPE[type];
+    this.fix = fix;
+    this.status = statusForCode(code, type);
   }
 
   toPayload(requestId: string): ErrorPayload {
@@ -64,12 +100,18 @@ export class BookrailError extends Error {
       request_id: requestId,
     };
     if (this.param !== undefined) body.param = this.param;
+    if (this.fix !== undefined) body.fix = this.fix;
     return { error: body };
   }
 }
 
 export function statusForType(type: ErrorType): number {
   return STATUS_BY_TYPE[type];
+}
+
+/** The status of a code: the one its family implies, unless {@link STATUS_BY_CODE} names it. */
+export function statusForCode(code: string, type: ErrorType): number {
+  return STATUS_BY_CODE[code] ?? STATUS_BY_TYPE[type];
 }
 
 export const errors = {

@@ -51,7 +51,7 @@ The packages are `0.x`. What exists today: the engine, the API, the CLI, the MCP
 
 What does not exist, and is documented as not existing: payments (any `payment.mode` other than `none` is a `400`), rate limiting, scope enforcement on API keys, a dashboard, browser SDKs and UI components.
 
-A test key is issued by a person. Write to hello@bookrail.dev and say what you are building. There is no sign up form because there is nothing behind one yet, and we would rather say so than build a form that pretends.
+A test key takes two minutes and nobody in between: `npx bookrail signup` from the terminal, or the form at [bookrail.dev/signup](/signup), sends a link to your address and the key follows. A live key is still issued by a person: write to hello@bookrail.dev and say what you are building. There is no dashboard, and we would rather say so than build one that pretends. (Updated on 11 September 2026. When this article went out on 10 September 2026, the test key too came from a person.)
 
 ## What we would like from you
 

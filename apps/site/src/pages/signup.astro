@@ -1,0 +1,210 @@
+---
+/**
+ * The one form on this site.
+ *
+ * It posts one field to the API and nothing else: no cookie is set, no third party is called,
+ * nothing is stored in the browser. What comes back is "check your inbox", which is the whole
+ * page. The account is created only when the link in that message is opened, which is what
+ * makes an address somebody typed by mistake cost nothing.
+ *
+ * The API lives on another host, so the browser asks permission first; `/v1/signups` is the
+ * only part of the API that answers a cross origin request, and it answers this origin only.
+ *
+ * A live key is not here on purpose. It still comes from a person, and will until there is a
+ * paid plan behind it.
+ */
+import Base from '../layouts/Base.astro';
+import { CONTACT_EMAIL } from '../data/site';
+
+/** Build time value: the API this site talks to. A preview build points it somewhere else. */
+const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
+---
+
+<Base
+  title="Get a test key, Bookrail"
+  description="Type an address, open the link, get a Bookrail test key. No dashboard, no password, no waiting for a person."
+>
+  <div class="wrap prose">
+    <h1>Get a test key</h1>
+    <p>
+      Type an address. We send a link, you open it, and the key is yours: an account, a project
+      and one <code>sk_test_</code> key. It takes under two minutes and nobody has to read an
+      email at the other end.
+    </p>
+    <p>
+      Prefer the terminal? <code>npx bookrail signup</code> does the same thing and stores the
+      key for you.
+    </p>
+
+    <form id="signup-form" class="signup-form" novalidate>
+      <label class="field">
+        <span>Email address</span>
+        <input
+          id="signup-email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          placeholder="you@example.com"
+        />
+      </label>
+      <label class="field">
+        <span>Account name <em>(optional)</em></span>
+        <input id="signup-account" name="account_name" type="text" placeholder="Padel Roma" />
+      </label>
+      <button id="signup-submit" class="btn primary" type="submit">Send me a link</button>
+    </form>
+
+    <p id="signup-status" class="signup-status" role="status" aria-live="polite"></p>
+
+    <noscript>
+      <p>
+        This form needs JavaScript, because it posts to the API and there is no server behind
+        this page. Run <code>npx bookrail signup</code> instead: it asks for an address, sends
+        the same link, and stores the key for you.
+      </p>
+    </noscript>
+
+    <h2>What you get</h2>
+    <ul>
+      <li>A test key, immediately, with the full API behind it.</li>
+      <li>
+        No dashboard yet, and no password: the key is the account. Keep it somewhere safe, it is
+        shown once.
+      </li>
+      <li>
+        A <strong>live key</strong> still comes from a person. Write to
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and say what you are building.
+      </li>
+    </ul>
+    <p>
+      Next: the <a href="/docs/quickstart/">quickstart</a> takes you from that key to a
+      confirmed booking. What we store about the sign up itself is on the
+      <a href="/privacy">privacy page</a>.
+    </p>
+  </div>
+</Base>
+
+<style>
+  .signup-form {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 32rem;
+    margin: var(--space-6) 0;
+  }
+  .field {
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+  .field em {
+    font-style: normal;
+    color: var(--ink-3);
+  }
+  .field input {
+    height: 40px;
+    padding: 0 var(--space-3);
+    font: inherit;
+    font-size: var(--step-0);
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .signup-form button {
+    justify-self: start;
+    cursor: pointer;
+  }
+  .signup-form button[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .signup-status:empty {
+    display: none;
+  }
+  .signup-status {
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--card);
+  }
+  .signup-status[data-state='error'] {
+    border-color: var(--line-2);
+  }
+</style>
+
+<script is:inline define:vars={{ API_URL }}>
+  (function () {
+    const form = document.getElementById('signup-form');
+    const email = document.getElementById('signup-email');
+    const account = document.getElementById('signup-account');
+    const submit = document.getElementById('signup-submit');
+    const status = document.getElementById('signup-status');
+    if (!form || !email || !account || !submit || !status) return;
+
+    function say(text, state) {
+      status.textContent = text;
+      status.setAttribute('data-state', state);
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      const address = email.value.trim();
+      if (address === '') {
+        say('Type the address the link should go to.', 'error');
+        email.focus();
+        return;
+      }
+      const name = account.value.trim();
+      submit.setAttribute('disabled', 'disabled');
+      say('Sending...', 'busy');
+
+      fetch(API_URL + '/v1/signups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(
+          name === ''
+            ? { email: address, client: 'web' }
+            : { email: address, client: 'web', account_name: name },
+        ),
+      })
+        .then(function (response) {
+          return response.json().then(function (body) {
+            return { status: response.status, body: body };
+          });
+        })
+        .then(function (result) {
+          submit.removeAttribute('disabled');
+          if (result.status === 202) {
+            const until = result.body && result.body.expires_at ? result.body.expires_at : '';
+            say(
+              'Check your inbox. We sent a link to ' +
+                address +
+                '. Open it to finish' +
+                (until === '' ? '.' : '; it works until ' + until + '.'),
+              'sent',
+            );
+            form.reset();
+            return;
+          }
+          const error = (result.body && result.body.error) || {};
+          say(
+            (error.message || 'That did not work.') + (error.fix ? ' ' + error.fix : ''),
+            'error',
+          );
+        })
+        .catch(function () {
+          submit.removeAttribute('disabled');
+          say(
+            'The API could not be reached. Try again in a minute, or write to hello@bookrail.dev.',
+            'error',
+          );
+        });
+    });
+  })();
+</script>

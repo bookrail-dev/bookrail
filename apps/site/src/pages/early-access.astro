@@ -1,36 +1,57 @@
 ---
 /**
- * Where "Get an API key" and "Log in" go until the dashboard exists.
+ * What "early access" means now that a test key no longer needs anybody.
  *
- * There is no form because there is nothing behind a form: no account, no key issuing, no
- * session, and no endpoint on a static site to post to. A `mailto:` with the subject filled in
- * is the honest version of a waiting list, and the address is printed in full for the browsers
- * that do not open mail.
+ * The page used to be a waiting list with a `mailto:` on it, because there was no sign up and
+ * no dashboard. Half of that is fixed: `/signup` issues a test key by itself. The other half is
+ * still true, and this page is where it is said plainly: there is no dashboard, no login, and a
+ * live key still comes from a person.
  */
 import Base from '../layouts/Base.astro';
-import { CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_SUBJECT } from '../data/site';
+import { CONTACT_EMAIL, CONTACT_MAILTO } from '../data/site';
 ---
 
 <Base
   title="Early access, Bookrail"
-  description="Bookrail is not open for sign up yet. What exists today, and what has to exist before an API key does."
+  description="A Bookrail test key is self service. A live key still comes from a person, and there is no dashboard yet. What exists today, and what does not."
 >
   <div class="wrap prose">
     <h1>Early access</h1>
     <p>
-      There is no sign up yet, and no dashboard to log in to. Issuing an API key needs an account
-      and a project you can see, and neither exists outside a developer machine today.
+      A <strong>test key is self service</strong>: <a href="/signup">/signup</a> sends a link to
+      your address, and opening it creates the account, the project and the key. From a terminal,
+      <code>npx bookrail signup</code> does the same and stores the key for you.
     </p>
-    <p>What does exist, and what you can read right now:</p>
+    <p>What does not exist yet, said plainly:</p>
     <ul>
+      <li>
+        <strong>No dashboard and no login.</strong> The key is the account. There is no page that
+        lists your projects, rotates a key or shows a bill.
+      </li>
+      <li>
+        <strong>A live key comes from a person.</strong> There is no payment behind the plans
+        yet, so live is issued by hand: write to <a href={CONTACT_MAILTO}>{CONTACT_EMAIL}</a> and
+        say what you are building and roughly how many bookings a month it makes.
+      </li>
+      <li>
+        <strong>No payments.</strong> <code>payment.mode</code> other than <code>none</code> is
+        a <code>400 not_yet_supported</code>.
+      </li>
+    </ul>
+
+    <h2>What exists, and what you can read right now</h2>
+    <ul>
+      <li>
+        The <a href="/docs/quickstart/">quickstart</a>: from a key to a confirmed booking, with
+        the CLI, the SDK or plain HTTP.
+      </li>
       <li>
         The <a href="/docs/api/reference/">API reference</a>, generated from
         <a href="/openapi.json">the OpenAPI document</a> the server itself serves.
       </li>
       <li>
         The <a href="/docs/cli-basics/">CLI</a> and the
-        <a href="/docs/mcp/">MCP server</a>, both installable with <code>npx</code> once they are
-        published to npm.
+        <a href="/docs/mcp/">MCP server</a>, both installable with <code>npx</code>.
       </li>
       <li>
         The <a href="/docs/concepts/">data model</a>, the
@@ -38,16 +59,9 @@ import { CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_SUBJECT } from '../data/site';
         <a href="/docs/errors/">error catalogue</a>.
       </li>
     </ul>
-    <h2>Ask for early access</h2>
     <p>
-      There is no form here, because there is nothing behind one. Write to
-      <a href={CONTACT_MAILTO}>{CONTACT_EMAIL}</a>, subject <code>{CONTACT_SUBJECT}</code>, and say
-      what you are building and roughly how many bookings a month it makes. That is the whole
-      process, and it is answered by a person.
-    </p>
-    <p>
-      The address is <strong>{CONTACT_EMAIL}</strong>, in case your browser does not open mail
-      for you. Nothing on this site collects anything: no form, no analytics, no cookies.
+      To delete an account, write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>:
+      there is no command for it yet, and saying so is better than a page that pretends.
     </p>
   </div>
 </Base>

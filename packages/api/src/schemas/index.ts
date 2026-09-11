@@ -393,6 +393,63 @@ export const bootstrapSchema = z
   })
   .strict();
 
+// --- Sign up ------------------------------------------------------------------------------
+
+/**
+ * An email address, as strictly as an address can honestly be validated.
+ *
+ * One `@`, something on the left, and a domain with at least one dot on the right. Nothing
+ * further: every regular expression that claims to implement the grammar of an address either
+ * rejects valid ones or accepts invalid ones, and the only real test of an address is whether
+ * the message arrives, which is exactly what this endpoint is about to do. No library, for the
+ * same reason: this is four lines, and the delivery is the check.
+ *
+ * The value is trimmed and lower cased before it is used, so that two people who type the same
+ * address in different cases are one person. The database asserts the same thing with a CHECK,
+ * because the uniqueness of an address is a guarantee and a guarantee that depends on the
+ * caller having normalised its input is not one.
+ */
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(254)
+  .refine((value) => /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value), {
+    message: 'Must be an email address, for example you@example.com.',
+  })
+  .openapi({ type: 'string', format: 'email', example: 'you@example.com' });
+
+export const signupCreateSchema = z
+  .object({
+    email: emailSchema,
+    client: z.enum(['cli', 'web']).openapi({
+      description:
+        'Where the request came from. `cli` waits for the key on a poll; `web` is handed it in the confirm response.',
+    }),
+    account_name: nameSchema.optional(),
+    project_name: nameSchema.optional(),
+    default_timezone: timezoneSchema.optional(),
+    default_currency: currencySchema.optional(),
+  })
+  .strict();
+
+export const signupConfirmSchema = z
+  .object({
+    token: z.string().min(16).max(200).openapi({
+      description: 'The token from the confirmation link, taken out of its `#token=` fragment.',
+    }),
+  })
+  .strict();
+
+export const signupClaimSchema = z
+  .object({
+    poll_token: z.string().min(16).max(200).openapi({
+      description: 'The `poll_token` returned when the sign up was created.',
+    }),
+  })
+  .strict();
+
 // --- Availability -------------------------------------------------------------------------
 
 const quantitySchema = z.number().int().positive().max(100000);

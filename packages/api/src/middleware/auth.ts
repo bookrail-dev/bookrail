@@ -4,6 +4,7 @@ import { apiKeys, withAuthContext, withProjectContext } from '@bookrail/db';
 import { errors, type Environment } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
 import { parseApiKey } from '../keys.js';
+import { isSignupPath } from '../routes/signups.js';
 
 /** Exactly the columns `auth_lookup_api_key` returns (migration 0013). */
 interface ApiKeyRow {
@@ -57,6 +58,11 @@ function extractBearer(c: Context<AppEnv>): string {
  */
 export function authenticate(deps: AppDeps): MiddlewareHandler<AppEnv> {
   return async (c: Context<AppEnv>, next) => {
+    // The sign up endpoints, and nothing else. They are where a key comes from, so requiring
+    // one would be a circle. The test is an exact prefix (`/v1/signups`, or something under
+    // it): `/v1/signupsx` is a different path and still needs a key.
+    if (isSignupPath(c.req.path)) return next();
+
     const token = extractBearer(c);
     const parsed = parseApiKey(token);
     if (!parsed) {

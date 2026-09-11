@@ -262,6 +262,16 @@ describe('the pages the company owes a visitor', () => {
     expect(legal).not.toMatch(/\b0422\b/);
   });
 
+  it('says on /privacy what the sign up stores, and for how long', async () => {
+    const privacy = await read('privacy/index.html');
+    expect(privacy).toContain('When you sign up');
+    expect(privacy).toContain('6(1)(b)');
+    expect(privacy).toContain('Hostinger');
+    expect(privacy).toContain('7 days');
+    // The address of the caller is hashed, never written down as such, and the page says so.
+    expect(privacy).toContain('hash');
+  });
+
   it('says on /privacy exactly what this site does, which is a log line and nothing else', async () => {
     const privacy = await read('privacy/index.html');
     expect(privacy).toContain('MP Informatica Srl');
@@ -278,6 +288,108 @@ describe('the pages the company owes a visitor', () => {
       if (!html.includes('href="/privacy"') || !html.includes('href="/legal"')) missing.push(file);
     }
     expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * The two pages of the sign up: the form and the page the link in the message lands on.
+ *
+ * They are the only pages of this site that talk to anything at run time, so what they are
+ * checked for is exactly that: they exist, they are served the way nginx will serve them, they
+ * talk to the API and to nothing else, and they set no cookie and store nothing in the browser.
+ */
+describe('the sign up pages', () => {
+  it.each(['signup/index.html', 'signup/confirm/index.html'])('%s exists', (file) => {
+    expect(files, file).toContain(file);
+  });
+
+  it('answers 200 on /signup and /signup/confirm, the way nginx will serve them', async () => {
+    const server = await serveDist();
+    try {
+      for (const path of ['/signup', '/signup/', '/signup/confirm', '/signup/confirm/']) {
+        const response = await fetch(`${server.origin}${path}`);
+        expect(response.status, path).toBe(200);
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('has a form that posts to the API, and a button that says what it does', async () => {
+    const page = await read('signup/index.html');
+    expect(page).toContain('id="signup-form"');
+    expect(page).toContain('name="email"');
+    expect(page).toContain('Send me a link');
+    expect(page).toContain('/v1/signups');
+    expect(page).toContain('https://api.bookrail.dev');
+    // The page is about a **test** key, and it says where a live one comes from.
+    expect(page).toContain('hello@bookrail.dev');
+  });
+
+  it('reads the token from the fragment and offers to copy the key once', async () => {
+    const page = await read('signup/confirm/index.html');
+    expect(page).toContain('location.hash');
+    expect(page).toContain('/v1/signups/confirm');
+    expect(page).toContain('>Copy<');
+    expect(page).toContain('Your terminal has the key');
+    // The three things that can go wrong, each with a sentence of its own.
+    expect(page).toContain('email_taken');
+    expect(page).toContain('signup_expired');
+    expect(page).toContain('signup_already_confirmed');
+  });
+
+  it('keeps the key panel hidden until there is a key to show', async () => {
+    // The panel is a grid, and a `display` on the class beats the `hidden` attribute unless
+    // the stylesheet says otherwise. Without this rule the page showed two empty black boxes
+    // when the terminal, not the browser, had received the key (seen on 11 September 2026).
+    const page = await read('signup/confirm/index.html');
+    expect(page).toMatch(/id="confirm-key"[^>]*\bhidden\b/);
+    // Astro scopes the class as `.key-panel:where(.astro-xxx)[hidden]`.
+    expect(page).toMatch(/\.key-panel[^{,]*\[hidden\][^{]*\{[^}]*display:\s*none/);
+  });
+
+  it('tells a reader without JavaScript what to run instead', async () => {
+    for (const file of ['signup/index.html', 'signup/confirm/index.html']) {
+      const page = await read(file);
+      expect(page, file).toMatch(/<noscript>/);
+      expect(page.slice(page.indexOf('<noscript>')), file).toContain('npx bookrail signup');
+    }
+  });
+
+  it('stores nothing in the browser and calls nobody else', async () => {
+    for (const file of ['signup/index.html', 'signup/confirm/index.html']) {
+      const page = await read(file);
+      expect(page, file).not.toMatch(/document\.cookie/);
+      expect(page, file).not.toMatch(/localStorage|sessionStorage|indexedDB/);
+      const origins = [...page.matchAll(/https?:\/\/[a-z0-9.-]+/gi)].map((match) =>
+        (match[0] ?? '').toLowerCase(),
+      );
+      const foreign = origins.filter(
+        (origin) =>
+          !origin.startsWith('https://bookrail.dev') &&
+          !origin.startsWith('https://api.bookrail.dev') &&
+          !origin.startsWith('http://www.w3.org') &&
+          !origin.startsWith('https://www.w3.org'),
+      );
+      expect(foreign, file).toEqual([]);
+    }
+  });
+
+  /**
+   * The mailto that used to be the only way to a test key.
+   *
+   * The subject line is assembled from its parts rather than written out, the way every other
+   * guardian in this repository spells the thing it is looking for: a test that contains the
+   * string it forbids is itself the last occurrence of it, and makes a plain `grep` over the
+   * tree answer "found" for ever.
+   */
+  it('no longer sends anybody to a mailbox for a test key', async () => {
+    const gone = `subject=Bookrail%20early%20${['acce', 'ss'].join('')}`;
+    const guilty: string[] = [];
+    for (const file of textFiles) {
+      if ((await read(file)).includes(gone)) guilty.push(file);
+    }
+    expect(guilty).toEqual([]);
   });
 });
 

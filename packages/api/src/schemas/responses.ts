@@ -834,6 +834,80 @@ export type Deleted = z.infer<typeof deletedSchema>;
  * `ErrorPayload` of `@bookrail/shared`: a `type`, a machine `code`, a human `message`, the
  * offending `param` when one field is to blame, a `doc_url`, and the `request_id`.
  */
+// --- Sign up -----------------------------------------------------------------------------
+
+/**
+ * What the three sign up endpoints answer with.
+ *
+ * One schema for all three, with everything past `status` optional, because the three answers
+ * are three stages of the same object and a client that follows the flow reads the same fields
+ * in the same places. What is present depends on how far the sign up has got:
+ *
+ *   * `pending`      the link has been sent and nothing exists yet. `expires_at` says until when.
+ *   * `confirmed`    the account, the project and the key exist. The key itself is in
+ *                    `secret_key` for a browser, and `delivered_to: "cli"` for a terminal, which
+ *                    collects it from its own poll.
+ *   * `claimed`      the key has been handed over. It is never shown a second time.
+ *   * `email_taken`  the address already has a self service account. Nothing was created.
+ *   * `expired`      the hour ran out before anybody opened the link.
+ *
+ * `secret_key` appears in exactly two responses in the life of a sign up, and never twice for
+ * the same one: the confirm of a browser, or the first successful claim of a terminal.
+ */
+export const signupSchema = z
+  .object({
+    id: objectId('signup'),
+    object: z.literal('signup'),
+    status: z.enum(['pending', 'confirmed', 'claimed', 'email_taken', 'expired']),
+    email: z
+      .string()
+      .optional()
+      .openapi({ description: 'Echoed back so a client can show where the message went.' }),
+    expires_at: instantOutSchema
+      .optional()
+      .openapi({ description: 'When the confirmation link stops working.' }),
+    poll_token: z.string().optional().openapi({
+      description:
+        'Only for `client: "cli"`, and only in the answer that created the sign up: the token the terminal claims its key with.',
+    }),
+    delivered_to: z.literal('cli').optional().openapi({
+      description: 'Present when the key went to a waiting terminal instead of into this response.',
+    }),
+    account: z
+      .object({ id: objectId('account'), object: z.literal('account'), name: z.string() })
+      .strict()
+      .optional(),
+    project: z
+      .object({
+        id: objectId('project'),
+        object: z.literal('project'),
+        name: z.string(),
+        default_timezone: z.string(),
+        default_currency: z.string(),
+      })
+      .strict()
+      .optional(),
+    api_key: z
+      .object({
+        id: objectId('api_key'),
+        object: z.literal('api_key'),
+        environment: z.literal('test'),
+        kind: z.literal('secret'),
+        prefix: z.string(),
+      })
+      .strict()
+      .optional(),
+    secret_key: z.string().optional().openapi({
+      description:
+        'The test key, in clear text. Shown **once**: in the confirm of a browser, or in the first successful claim of a terminal. It is stored as a SHA-256 hash and cannot be shown again.',
+      example: 'sk_test_...',
+    }),
+  })
+  .strict()
+  .openapi('Signup');
+
+export type Signup = z.infer<typeof signupSchema>;
+
 export const errorSchema = z
   .object({
     error: z
@@ -858,6 +932,10 @@ export const errorSchema = z
           .string()
           .optional()
           .openapi({ description: 'The field or header the error is about, when there is one.' }),
+        fix: z.string().optional().openapi({
+          description:
+            'What to do next, when there is one thing to do. Present on the errors that are about the state of the deployment rather than about the request.',
+        }),
         doc_url: z.string(),
         request_id: z.string(),
       })

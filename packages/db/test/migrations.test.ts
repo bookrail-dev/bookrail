@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
-import { ALL_TABLES, PROJECT_TABLES } from '../src/schema/index.js';
+import { ALL_TABLES, DEFINER_ONLY_TABLES, PROJECT_TABLES } from '../src/schema/index.js';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,7 +46,7 @@ describe('migrations', () => {
     for (const table of ALL_TABLES) {
       expect(present.has(table), `missing table ${table}`).toBe(true);
     }
-    expect(ALL_TABLES.length).toBe(28);
+    expect(ALL_TABLES.length).toBe(29);
   });
 
   it('creates an application role that is neither superuser nor BYPASSRLS', async () => {
@@ -82,8 +82,13 @@ describe('migrations', () => {
         ORDER BY c.relname`,
     );
 
-    // api_keys is project scoped too, with the extra authentication-time lookup policy.
-    const expected = [...PROJECT_TABLES, 'api_keys'].sort();
+    // `api_keys` is project scoped too, with the extra authentication-time lookup policy.
+    // `signups` carries a `project_id` and is **not** a project table: the column is the project
+    // the sign up created, filled in by the confirm, and there is nothing to key a policy on
+    // because the row exists before the project does. It is here because it must still be
+    // enabled and forced, which the loop below checks; that it has no policy at all, and that
+    // the application role can touch none of it, is `signups.test.ts`.
+    const expected = [...PROJECT_TABLES, 'api_keys', ...DEFINER_ONLY_TABLES].sort();
     expect(rows.map((r) => r.relname)).toEqual(expected);
 
     for (const row of rows) {

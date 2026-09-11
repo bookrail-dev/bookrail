@@ -5,6 +5,7 @@ import { MemoryAvailabilityCache, type AvailabilityCache } from '@bookrail/engin
 import { silentLogger, type Logger } from '@bookrail/shared';
 import { createApp } from '../src/app.js';
 import type { AppEnv } from '../src/context.js';
+import { createLogMailer, type LogMailer } from '../src/mail/index.js';
 import { COVERAGE_FILE_ENV, takeContractViolations } from '../src/openapi/contract.js';
 import { COVERAGE_FILE } from './coverage-file.js';
 import { TEST_DB_NAME } from './db-name.js';
@@ -18,6 +19,10 @@ export const BOOTSTRAP_TOKEN = 'bootstrap-token-for-tests';
  * one on the same database, and obviously a test value.
  */
 export const WEBHOOK_SECRET_KEY = Buffer.alloc(32, 0x2b);
+
+/** Where the confirmation link points in a test, and the origin the sign up routes allow. */
+export const SITE_URL = 'https://bookrail.dev';
+export const SITE_ORIGIN = 'https://bookrail.dev';
 
 export interface ApiResponse<T = unknown> {
   status: number;
@@ -47,6 +52,15 @@ export interface Harness {
   logger: Logger;
   /** The key the app encrypts webhook secrets with, for a test that calls the worker directly. */
   webhookSecretKey: Buffer;
+  /**
+   * The mailer the app was built with, unless the test asked for none.
+   *
+   * It is the `log` one, which keeps every message it "sent" in memory, so a test reads the
+   * confirmation link out of the message the API actually produced rather than out of a value
+   * the test made up. `undefined` when the harness was built with `mailer: false`, which is how
+   * the `503 signup_disabled` answer is exercised.
+   */
+  mailer: LogMailer | undefined;
   close(): Promise<void>;
 }
 
@@ -65,6 +79,14 @@ export interface HarnessOptions {
    * only if it deliberately produces a response outside the contract. None does today.
    */
   contract?: boolean;
+  /**
+   * `false` builds the app with no mailer at all, which is a deployment that has not configured
+   * one: the three sign up endpoints then answer `503 signup_disabled`. `'failing'` builds one
+   * that refuses every message, which is a mail server that is down: `502 signup_email_failed`.
+   */
+  mailer?: false | 'failing';
+  /** The origin `/v1/signups` allows in a browser. Defaults to the production one. */
+  siteOrigin?: string;
 }
 
 /** Fails the test that produced the violation, naming the request. */
@@ -85,6 +107,13 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const cache = options.cache ?? new MemoryAvailabilityCache();
 
   const logger = options.logger ?? silentLogger;
+  const mailer: LogMailer | undefined =
+    options.mailer === false ? undefined : createLogMailer(logger);
+  if (options.mailer === 'failing' && mailer !== undefined) {
+    // A mail server that is down, which is the only way to reach `502 signup_email_failed`
+    // without one. Everything else about the request is real, the row included.
+    mailer.send = (): Promise<void> => Promise.reject(new Error('connection refused'));
+  }
   const contract = options.contract !== false;
   if (contract) process.env[COVERAGE_FILE_ENV] = COVERAGE_FILE;
   const app = createApp({
@@ -94,6 +123,12 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    mailer,
+    siteUrl: SITE_URL,
+    siteOrigin: options.siteOrigin ?? SITE_ORIGIN,
+    // `app.request` opens no socket, so without this every request would count against the
+    // single `unknown` bucket and the per caller limit would fire after ten tests.
+    trustForwardedFor: true,
     allowPrivateWebhookTargets: options.allowPrivateWebhookTargets === true,
     contractGuard: contract,
   });
@@ -152,6 +187,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     pools: { app: appPool, admin: adminPool },
     logger,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    mailer,
     async close(): Promise<void> {
       assertNoContractViolations('a request made outside harness.call');
       await cache.close();

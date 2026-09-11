@@ -1,0 +1,183 @@
+---
+/**
+ * Where the link in the confirmation message lands.
+ *
+ * The token arrives in the **fragment**, after the `#`, which a browser never sends to a
+ * server: it is not in this site's access log, not in a proxy log, and not in a `Referer`
+ * header. The page reads it out of `location.hash` and posts it to the API over TLS, which is
+ * the only hop it makes.
+ *
+ * The key comes back once. There is no way to ask for it again, because it is stored as a
+ * SHA-256 hash and nothing here or on the server can reproduce it, so the page says so plainly
+ * and offers a copy button rather than pretending the page can be reloaded.
+ *
+ * When the sign up came from a terminal the key is not here at all: it goes to the process that
+ * is waiting for it, and this page says the terminal has it.
+ */
+import Base from '../../layouts/Base.astro';
+import { CONTACT_EMAIL } from '../../data/site';
+
+const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
+---
+
+<Base
+  title="Confirm your key, Bookrail"
+  description="The last step of a Bookrail sign up: the confirmation link creates the account, the project and one test key."
+>
+  <div class="wrap prose">
+    <h1>Confirming</h1>
+    <p id="confirm-status" role="status" aria-live="polite">Checking the link...</p>
+
+    <noscript>
+      <p>
+        This page needs JavaScript: the token is in the part of the link after the
+        <code>#</code>, which a browser never sends to a server, so nothing here can read it
+        for you. Run <code>npx bookrail signup</code> instead and open the link it sends: the
+        terminal does the same thing and stores the key for you.
+      </p>
+    </noscript>
+
+    <div id="confirm-key" class="key-panel" hidden>
+      <p>
+        This is your test key. It is shown <strong>once</strong>: it is stored as a hash, so
+        nobody, us included, can show it to you again.
+      </p>
+      <pre class="key-value"><code id="confirm-secret"></code></pre>
+      <button id="confirm-copy" class="btn" type="button">Copy</button>
+      <p>Store it with the CLI:</p>
+      <pre class="key-value"><code id="confirm-command"></code></pre>
+      <p>
+        Then follow the <a href="/docs/quickstart/">quickstart</a>: it goes from this key to a
+        confirmed booking.
+      </p>
+    </div>
+
+    <p id="confirm-help" hidden>
+      A <strong>live key</strong> still comes from a person: write to
+      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and say what you are building.
+    </p>
+  </div>
+</Base>
+
+<style>
+  .key-panel {
+    display: grid;
+    gap: var(--space-4);
+    justify-items: start;
+    margin: var(--space-6) 0;
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--card);
+  }
+  /* `display: grid` above would otherwise beat the `hidden` attribute, and the panel would
+     show two empty boxes when the terminal, not this page, received the key. */
+  .key-panel[hidden] {
+    display: none;
+  }
+  .key-panel p {
+    margin: 0;
+  }
+  .key-value {
+    width: 100%;
+    margin: 0;
+    padding: var(--space-3);
+    overflow-x: auto;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: var(--radius-control);
+    font-family: var(--mono);
+    font-size: var(--step--1);
+  }
+  .key-panel button {
+    cursor: pointer;
+  }
+</style>
+
+<script is:inline define:vars={{ API_URL }}>
+  (function () {
+    const status = document.getElementById('confirm-status');
+    const panel = document.getElementById('confirm-key');
+    const secretEl = document.getElementById('confirm-secret');
+    const commandEl = document.getElementById('confirm-command');
+    const copy = document.getElementById('confirm-copy');
+    const help = document.getElementById('confirm-help');
+    if (!status || !panel || !secretEl || !commandEl || !copy || !help) return;
+
+    function say(text) {
+      status.textContent = text;
+    }
+
+    function withHelp(text) {
+      say(text);
+      help.hidden = false;
+    }
+
+    const hash = window.location.hash.replace(/^#/, '');
+    const token = new URLSearchParams(hash).get('token');
+    if (!token) {
+      withHelp(
+        'This page needs the link from the confirmation message. Start again at /signup.',
+      );
+      return;
+    }
+
+    fetch(API_URL + '/v1/signups/confirm', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: token }),
+    })
+      .then(function (response) {
+        return response.json().then(function (body) {
+          return { status: response.status, body: body };
+        });
+      })
+      .then(function (result) {
+        const body = result.body || {};
+        if (result.status === 200 && body.status === 'email_taken') {
+          withHelp(
+            'That address already has a Bookrail account, so nothing was created. Use the key you have, or write to ' +
+              'hello@bookrail.dev if you have lost it.',
+          );
+          return;
+        }
+        if (result.status === 200 && body.delivered_to === 'cli') {
+          say('Your terminal has the key. You can close this page.');
+          return;
+        }
+        if (result.status === 200 && body.secret_key) {
+          say('Done. Your account and your project exist.');
+          secretEl.textContent = body.secret_key;
+          commandEl.textContent = 'npx bookrail login --token ' + body.secret_key;
+          panel.hidden = false;
+          help.hidden = false;
+          return;
+        }
+        const error = body.error || {};
+        if (error.code === 'signup_expired') {
+          withHelp('That link has expired. A link works for one hour: start again at /signup.');
+          return;
+        }
+        if (error.code === 'signup_already_confirmed') {
+          withHelp(
+            'That link has already been used, and a key is shown once. Run bookrail signup again, or write to hello@bookrail.dev.',
+          );
+          return;
+        }
+        withHelp((error.message || 'That did not work.') + (error.fix ? ' ' + error.fix : ''));
+      })
+      .catch(function () {
+        withHelp(
+          'The API could not be reached. Try the link again in a minute, or write to hello@bookrail.dev.',
+        );
+      });
+
+    copy.addEventListener('click', function () {
+      const value = secretEl.textContent || '';
+      if (value === '' || !navigator.clipboard) return;
+      navigator.clipboard.writeText(value).then(function () {
+        copy.textContent = 'Copied';
+      });
+    });
+  })();
+</script>

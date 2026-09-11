@@ -82,10 +82,19 @@ export function webhookKeyMissing(): Error {
   );
 }
 
-export function encryptWebhookSecret(plaintext: string, key: Buffer, webhookId: string): string {
+/**
+ * The envelope, for any secret that has to come back out.
+ *
+ * There is now a second one: the test key a sign up mints for a terminal that is not the
+ * process asking. It waits, encrypted, for at most fifteen minutes, and the identifier of the
+ * key itself is its additional authenticated data, exactly as a webhook's identifier is for a
+ * signing secret. Same algorithm, same version prefix, same reasoning: a ciphertext moved to
+ * another row fails to decrypt instead of quietly handing somebody another account's key.
+ */
+export function encryptSecret(plaintext: string, key: Buffer, aad: string): string {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
-  cipher.setAAD(Buffer.from(webhookId, 'utf8'));
+  cipher.setAAD(Buffer.from(aad, 'utf8'));
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [
@@ -96,6 +105,10 @@ export function encryptWebhookSecret(plaintext: string, key: Buffer, webhookId: 
   ].join('.');
 }
 
+export function encryptWebhookSecret(plaintext: string, key: Buffer, webhookId: string): string {
+  return encryptSecret(plaintext, key, webhookId);
+}
+
 /**
  * The plaintext, or a throw.
  *
@@ -104,19 +117,23 @@ export function encryptWebhookSecret(plaintext: string, key: Buffer, webhookId: 
  * produce deliveries the receiver rejects, which is a far more confusing failure than a loud
  * one.
  */
-export function decryptWebhookSecret(envelope: string, key: Buffer, webhookId: string): string {
+export function decryptSecret(envelope: string, key: Buffer, aad: string): string {
   const parts = envelope.split('.');
   if (parts.length !== 4 || parts[0] !== ENVELOPE_VERSION) {
-    throw new Error(`Unrecognised webhook secret envelope for webhook ${webhookId}.`);
+    throw new Error(`Unrecognised secret envelope for ${aad}.`);
   }
   const iv = Buffer.from(parts[1] ?? '', 'base64url');
   const tag = Buffer.from(parts[2] ?? '', 'base64url');
   const ciphertext = Buffer.from(parts[3] ?? '', 'base64url');
   if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {
-    throw new Error(`Malformed webhook secret envelope for webhook ${webhookId}.`);
+    throw new Error(`Malformed secret envelope for ${aad}.`);
   }
   const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
-  decipher.setAAD(Buffer.from(webhookId, 'utf8'));
+  decipher.setAAD(Buffer.from(aad, 'utf8'));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+}
+
+export function decryptWebhookSecret(envelope: string, key: Buffer, webhookId: string): string {
+  return decryptSecret(envelope, key, webhookId);
 }

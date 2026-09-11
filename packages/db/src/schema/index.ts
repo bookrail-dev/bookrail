@@ -4,15 +4,24 @@ export * from './catalog.js';
 export * from './bookings.js';
 export * from './idempotency.js';
 export * from './outbox.js';
+export * from './signups.js';
 
 import * as controlPlane from './control-plane.js';
 import * as catalog from './catalog.js';
 import * as bookings from './bookings.js';
 import * as idempotency from './idempotency.js';
 import * as outbox from './outbox.js';
+import * as signups from './signups.js';
 
 /** Every table, in the shape Drizzle wants for `drizzle(pool, { schema })`. */
-export const schema = { ...controlPlane, ...catalog, ...bookings, ...idempotency, ...outbox };
+export const schema = {
+  ...controlPlane,
+  ...catalog,
+  ...bookings,
+  ...idempotency,
+  ...outbox,
+  ...signups,
+};
 
 /**
  * Tables scoped to a (project_id, environment) pair.
@@ -52,7 +61,21 @@ export const PROJECT_TABLES = [
 
 export const CONTROL_PLANE_TABLES = ['accounts', 'projects', 'api_keys'] as const;
 
-export const ALL_TABLES = [...CONTROL_PLANE_TABLES, ...PROJECT_TABLES] as const;
+/**
+ * Tables that belong to no project and that no role may touch directly.
+ *
+ * `signups` records the request for a test key that comes *before* an account exists, so there
+ * is no project to key a policy on. Rather than invent one, row security is enabled and forced
+ * and no policy is written: the application role sees nothing and can write nothing, and the
+ * four `SECURITY DEFINER` functions of migration 0021 are the only way in.
+ */
+export const DEFINER_ONLY_TABLES = ['signups'] as const;
+
+export const ALL_TABLES = [
+  ...CONTROL_PLANE_TABLES,
+  ...PROJECT_TABLES,
+  ...DEFINER_ONLY_TABLES,
+] as const;
 
 /** Append-only: the application role holds SELECT and INSERT and nothing else. */
 export const APPEND_ONLY_TABLES = ['events'] as const;

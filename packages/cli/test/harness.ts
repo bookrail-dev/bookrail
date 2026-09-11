@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
-import { createApp } from '@bookrail/api';
+import { createApp, createLogMailer, type LogMailer } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger } from '@bookrail/shared';
@@ -77,20 +77,45 @@ export interface Harness {
       stdin?: string;
       /** Interrupt (Ctrl-C) the invocation after this many milliseconds. */
       interruptAfterMs?: number;
+      /**
+       * Interrupt (Ctrl-C) the invocation as soon as this says so.
+       *
+       * A **condition**, not a delay, and the better of the two. The handler a long running
+       * command registers exists only once that command has got as far as its loop, and how
+       * long that takes is a real HTTP round trip plus a call into Postgres: a timer aimed at
+       * the middle of that window is right until the machine is loaded, and then fires into an
+       * empty list and loses the interrupt. The predicate is polled every few milliseconds and
+       * the interrupt is delivered once, when it holds **and** a handler is there to receive it.
+       */
+      interruptWhen?: () => boolean;
     },
   ): Promise<CliResult>;
   /** The isolated `$XDG_CONFIG_HOME` the credentials file lives in. */
   configHome: string;
+  /** The mail the API would have sent, kept in memory. `bookrail signup` reads its link here. */
+  mailer: LogMailer;
   close(): Promise<void>;
 }
 
-export async function createHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  /**
+   * Build the API with no mailer, which is a deployment that has not configured one: the three
+   * sign up endpoints then answer `503 signup_disabled` with the address to write to. It is how
+   * the CLI's handling of an error the server explains, and only the server can explain, is
+   * exercised.
+   */
+  mailer?: false;
+}
+
+export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
   // Small pools on purpose: `pnpm test` at the root runs the packages in parallel against a
   // Postgres with `max_connections = 20` on the development machine.
   const appPool = createPool({ connectionString: urls.app, max: 3 });
   const adminPool = createPool({ connectionString: urls.admin, max: 1 });
   const cache = new MemoryAvailabilityCache();
+  const mailer = createLogMailer(silentLogger);
+  const mounted = options.mailer === false ? undefined : mailer;
 
   const app = createApp({
     db: createDatabase(appPool),
@@ -102,6 +127,12 @@ export async function createHarness(): Promise<Harness> {
     // and to deliver to the `node:http` receiver `webhooks listen` opens on 127.0.0.1. The
     // second flag lives in `AppDeps` and is deliberately unreachable from the environment.
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    // `bookrail signup` runs against the real endpoints; the only thing replaced is the mail
+    // server, and the messages stay in memory so a test can read the link out of the one the
+    // API actually wrote.
+    mailer: mounted,
+    siteUrl: 'https://bookrail.dev',
+    siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
   });
 
@@ -181,6 +212,7 @@ export async function createHarness(): Promise<Harness> {
     seenActors,
     idempotencyKeys,
     configHome,
+    mailer,
     async workdir(): Promise<string> {
       counter += 1;
       return mkdtemp(join(root, `work-${counter}-`));
@@ -226,17 +258,30 @@ export async function createHarness(): Promise<Harness> {
           };
         },
       };
+      // A delay, when the caller named one, and otherwise the condition: `interruptWhen`
+      // subsumes it, and the two are never both given.
+      const after = options.interruptAfterMs;
+      const startedAt = Date.now();
+      const shouldInterrupt =
+        options.interruptWhen ??
+        (after === undefined ? undefined : () => Date.now() - startedAt >= after);
+      let interruptSent = false;
       const timer =
-        options.interruptAfterMs === undefined
+        shouldInterrupt === undefined
           ? null
-          : setTimeout(() => {
+          : setInterval(() => {
+              // Both halves matter: the condition the test named, and a handler to deliver to.
+              // Firing into an empty list would lose the interrupt silently, which is what a
+              // plain delay did.
+              if (interruptSent || interrupts.length === 0 || !shouldInterrupt()) return;
+              interruptSent = true;
               for (const handler of [...interrupts]) handler();
-            }, options.interruptAfterMs);
+            }, 5);
       let code: number;
       try {
         code = await run(args, io);
       } finally {
-        if (timer !== null) clearTimeout(timer);
+        if (timer !== null) clearInterval(timer);
       }
       return {
         code,

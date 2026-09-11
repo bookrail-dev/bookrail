@@ -21,6 +21,8 @@ The rules this CLI is built to, so that an agent can drive it without guessing.
 ## Recommended order of operations
 
 ```bash
+bookrail signup --email you@example.com --json   # only if there is no key yet: a person has
+                                                 # to open the link that arrives by email
 bookrail doctor --json                       # what is configured, what is missing
 bookrail init --template <vertical> --json   # write bookrail.config.ts
 bookrail push --dry-run --json               # read `data.plan` before applying

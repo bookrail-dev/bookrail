@@ -713,6 +713,66 @@ export interface paths {
     patch: operations['services.update'];
     trace?: never;
   };
+  '/v1/signups': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Ask for a test key
+     * @description Sends a confirmation link to the address. The answer is the same whether or not that address already has an account: the collision is reported at confirmation time, to whoever can read the mailbox. No API key.
+     */
+    post: operations['signups.create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/signups/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm a sign up and create the key
+     * @description Creates the account, the project and one test key, in one transaction. For `client: "web"` the key is in the response, once. For `client: "cli"` it waits for the terminal to claim it. No API key.
+     */
+    post: operations['signups.confirm'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/signups/{id}/claim': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Collect the key of a confirmed sign up
+     * @description What a waiting terminal polls. Answers `pending` until the link is opened, then the key, once. No API key.
+     */
+    post: operations['signups.claim'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/webhooks': {
     parameters: {
       query?: never;
@@ -1227,6 +1287,8 @@ export interface components {
         message: string;
         /** @description The field or header the error is about, when there is one. */
         param?: string;
+        /** @description What to do next, when there is one thing to do. Present on the errors that are about the state of the deployment rather than about the request. */
+        fix?: string;
         doc_url: string;
         request_id: string;
       };
@@ -1980,6 +2042,73 @@ export interface components {
       /** @enum {string} */
       consumes: 'per_unit' | 'whole';
       role: string | null;
+    };
+    Signup: {
+      /**
+       * @description Identifier of a signup, prefixed with `sgn_`.
+       * @example sgn_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      id: string;
+      /** @enum {string} */
+      object: 'signup';
+      /** @enum {string} */
+      status: 'pending' | 'confirmed' | 'claimed' | 'email_taken' | 'expired';
+      /** @description Echoed back so a client can show where the message went. */
+      email?: string;
+      /**
+       * Format: date-time
+       * @description When the confirmation link stops working.
+       * @example 2026-09-08T07:00:00Z
+       */
+      expires_at?: string;
+      /** @description Only for `client: "cli"`, and only in the answer that created the sign up: the token the terminal claims its key with. */
+      poll_token?: string;
+      /**
+       * @description Present when the key went to a waiting terminal instead of into this response.
+       * @enum {string}
+       */
+      delivered_to?: 'cli';
+      account?: {
+        /**
+         * @description Identifier of a account, prefixed with `acct_`.
+         * @example acct_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'account';
+        name: string;
+      };
+      project?: {
+        /**
+         * @description Identifier of a project, prefixed with `proj_`.
+         * @example proj_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'project';
+        name: string;
+        default_timezone: string;
+        default_currency: string;
+      };
+      api_key?: {
+        /**
+         * @description Identifier of a api_key, prefixed with `key_`.
+         * @example key_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'api_key';
+        /** @enum {string} */
+        environment: 'test';
+        /** @enum {string} */
+        kind: 'secret';
+        prefix: string;
+      };
+      /**
+       * @description The test key, in clear text. Shown **once**: in the confirm of a browser, or in the first successful claim of a terminal. It is stored as a SHA-256 hash and cannot be shown again.
+       * @example sk_test_...
+       */
+      secret_key?: string;
     };
     Webhook: {
       /**
@@ -7249,6 +7378,291 @@ export interface operations {
       };
       /** @description Error codes: `internal_error`. */
       500: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'signups.create': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /**
+           * Format: email
+           * @example you@example.com
+           */
+          email: string;
+          /**
+           * @description Where the request came from. `cli` waits for the key on a poll; `web` is handed it in the confirm response.
+           * @enum {string}
+           */
+          client: 'cli' | 'web';
+          account_name?: string;
+          project_name?: string;
+          /**
+           * @description IANA time zone name.
+           * @example Europe/Rome
+           */
+          default_timezone?: string;
+          /**
+           * @description Three letter ISO 4217 currency code.
+           * @example EUR
+           */
+          default_currency?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      202: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Signup'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_email_failed`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_disabled`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'signups.confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description The token from the confirmation link, taken out of its `#token=` fragment. */
+          token: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Signup'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_not_found`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_already_confirmed`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_expired`. */
+      410: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_disabled`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'signups.claim': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description The `poll_token` returned when the sign up was created. */
+          poll_token: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Signup'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `resource_missing`, `signup_not_found`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_secret_claimed`, `signup_secret_expired`. */
+      410: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': string;
+          'Bookrail-Version': string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `signup_disabled`. */
+      503: {
         headers: {
           'Bookrail-Request-Id': string;
           'Bookrail-Version': string;

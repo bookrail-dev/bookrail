@@ -61,6 +61,11 @@ export async function createHarness(): Promise<Harness> {
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    // This package has no method for the sign up endpoints, so there is nothing here to send:
+    // an SDK is constructed with a key, and those three are how a key comes into being.
+    mailer: undefined,
+    siteUrl: 'https://bookrail.dev',
+    siteOrigin: 'https://bookrail.dev',
     // The receiver below lives on 127.0.0.1, which the SSRF guard refuses in production.
     allowPrivateWebhookTargets: true,
   });

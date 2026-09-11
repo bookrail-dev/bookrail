@@ -11,17 +11,21 @@ by hand.
 
 **The whole walk took 21 seconds of machine time**: 18 seconds for the CLI section and 3
 seconds for the SDK one. The timings are at the bottom, step by step. What that number does
-not include is the part nobody can measure for you: reading this page, and the email that gets
-you a key. Budget ten minutes for the first run and one minute for every one after it.
+not include is the part nobody can measure for you: reading this page, and the minute it takes
+to open the confirmation link that gets you a key. Budget ten minutes for the first run and one
+minute for every one after it.
 
 ## What exists today, and what does not
 
 Bookrail is in early access, and the honest version of that is a short list.
 
 - **The API is live** at `https://api.bookrail.dev`. It is the same code the tests run against.
-- **A test key comes from a person.** There is no sign up and no dashboard yet, so write to
-  [hello@bookrail.dev](mailto:hello@bookrail.dev?subject=Bookrail%20early%20access) and say what
-  you are building. Keys are `sk_test_...`; the live environment is a separate key.
+- **A test key is self service.** Run `npx bookrail signup`, or open
+  [/signup](/signup), type an address and open the link we send: that creates the account, the
+  project and one `sk_test_...` key, in under two minutes and without writing to anybody. A
+  **live** key still comes from a person, so for that one write to
+  [hello@bookrail.dev](mailto:hello@bookrail.dev?subject=Bookrail%20live%20key) and say what you
+  are building.
 - **The packages are on npm.** `bookrail`, `@bookrail/node`, `@bookrail/mcp` and
   `@bookrail/webhook-signature` are published, Apache 2.0
   ([Open source](/docs/open-source/) says what is open and what is not), so the `npx` and
@@ -34,15 +38,18 @@ Bookrail is in early access, and the honest version of that is a short list.
 
 ## 1. With the CLI
 
-### Store the key
+### Get the key
 
 ```bash
-npx bookrail login
+npx bookrail signup
 ```
 
-It asks for the key, checks it against the API, and writes it with mode 600 to
-`~/.config/bookrail/credentials.json`. `--token -` reads it from standard input instead, which
-is what a script should do.
+It asks for an address, sends a link there, and waits. Open the link and the command stores the
+key with mode 600 in `~/.config/bookrail/credentials.json`. `--no-store` prints it once instead.
+
+If you already have a key, `npx bookrail login` stores it. It asks for the key, checks it
+against the API, and writes it to the same file. `--token -` reads it from standard input
+instead, which is what a script should do.
 
 ```
 Stored the test key for project Bookrail smoke (proj_01a07cb881bb73848d0745023ba7aa33) in
@@ -460,7 +467,7 @@ round trips. Nothing else is over two seconds.
 - [Concepts](/docs/concepts/): the model behind the config file, with the figures.
 - [The edge cases of booking](/docs/edge-cases/): what goes wrong in booking systems, what
   this one does about each case, and the test that proves it.
-- [API reference](/docs/api/reference/): all 67 operations, generated from the specification
+- [API reference](/docs/api/reference/): all 70 operations, generated from the specification
   the server serves.
 - [For AI agents](/docs/for-ai-agents/): the same loop, driven by a coding agent through the
   CLI or the MCP server.

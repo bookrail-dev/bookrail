@@ -39,6 +39,17 @@ export interface CliErrorOptions {
   requestId?: string | undefined;
   docUrl?: string | undefined;
   exitCode?: ExitCode;
+  /**
+   * The HTTP status, when the failure came from an answer rather than from the network.
+   *
+   * It is not printed and it is not part of the output contract: it exists so that a caller
+   * can tell "the service refused this for a moment" from "the service refused this for good"
+   * without parsing a message. `bookrail signup` is the one reader: a `429` in the middle of
+   * its poll is a pause, not the end.
+   */
+  status?: number | undefined;
+  /** Seconds from the `Retry-After` header, when the answer carried a usable one. */
+  retryAfterSeconds?: number | undefined;
 }
 
 export class CliError extends Error {
@@ -48,6 +59,8 @@ export class CliError extends Error {
   readonly requestId: string | undefined;
   readonly docUrl: string;
   readonly exitCode: ExitCode;
+  readonly status: number | undefined;
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(code: string, message: string, options: CliErrorOptions = {}) {
     super(message);
@@ -58,6 +71,8 @@ export class CliError extends Error {
     this.requestId = options.requestId;
     this.docUrl = options.docUrl ?? `${DOC_BASE_URL}#${code}`;
     this.exitCode = options.exitCode ?? EXIT.user;
+    this.status = options.status;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 
   toBody(): CliErrorBody {

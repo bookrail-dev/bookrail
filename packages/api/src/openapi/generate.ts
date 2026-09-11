@@ -21,7 +21,7 @@ import {
   OpenApiGeneratorV31,
   type RouteConfig,
 } from '@asteasolutions/zod-to-openapi';
-import { CURRENT_API_VERSION, statusForType, type ErrorType } from '@bookrail/shared';
+import { CURRENT_API_VERSION, statusForCode, type ErrorType } from '@bookrail/shared';
 import { ACTOR_HEADER, API_ACTORS } from '../context.js';
 import { IDEMPOTENCY_HEADER_NAME, REPLAYED_HEADER } from './headers.js';
 import { z } from '../zod.js';
@@ -44,7 +44,7 @@ import {
  * application version changes at every release. Keeping them in two fields is the only way a
  * client can tell "the contract I speak" from "the build that answered me".
  */
-export const APP_VERSION = '0.16.0';
+export const APP_VERSION = '0.17.0';
 
 export const OPENAPI_VERSION = '3.1.0';
 
@@ -63,11 +63,13 @@ const TAG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   bookings: 'The booking and its life cycle.',
   events: 'The append-only log of everything that happened.',
   webhooks: 'Delivery endpoints, their signing secret and their delivery log.',
+  signups: 'How a test key comes into being, without a key and without a person.',
 };
 
 /** The order tags appear in the document, and therefore in generated documentation. */
 const TAG_ORDER: readonly string[] = [
   'meta',
+  'signups',
   'project',
   'availability',
   'locations',
@@ -182,7 +184,7 @@ function errorResponsesOf(operation: OperationDefinition): Map<number, string[]>
         `Operation ${operation.operationId} declares the undocumented error code "${code}".`,
       );
     }
-    const status = statusForType(type);
+    const status = statusForCode(code, type);
     const bucket = byStatus.get(status) ?? [];
     bucket.push(code);
     byStatus.set(status, bucket);
@@ -254,6 +256,10 @@ export function buildOpenApiDocument(
       ...(operation.description === undefined ? {} : { description: operation.description }),
       tags: [...operation.tags],
       ...(operation.public ? { security: [] } : {}),
+      // Read by the SDK generator, which builds one method per operation and skips the ones
+      // marked here: an SDK is constructed with a key, and the sign up operations are how a
+      // key comes into being.
+      ...(operation.sdk === false ? { 'x-bookrail-sdk': false } : {}),
       request: {
         ...(params === undefined ? {} : { params }),
         ...(operation.query === undefined ? {} : { query: operation.query }),

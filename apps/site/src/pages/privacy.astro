@@ -13,7 +13,7 @@
 import Base from '../layouts/Base.astro';
 import { CONTACT_EMAIL } from '../data/site';
 
-const UPDATED = '8 September 2026';
+const UPDATED = '10 September 2026';
 ---
 
 <Base
@@ -53,6 +53,47 @@ const UPDATED = '8 September 2026';
       <li><strong>Recipients</strong>: none. There is no analytics provider, no CDN, no tag manager and no advertising network.</li>
     </ul>
 
+    <h2>When you sign up</h2>
+    <p>
+      The <a href="/signup">sign up form</a>, and <code>bookrail signup</code> in the terminal,
+      create an account from an email address. Nothing is created until the link we send is
+      opened, which is what makes an address typed by mistake cost nothing.
+    </p>
+    <ul>
+      <li><strong>Purpose</strong>: creating the account, the project and the test key you asked for.</li>
+      <li>
+        <strong>Legal basis</strong>: performance of a contract, Article 6(1)(b) GDPR: it is the
+        step that brings the contract into being at your request.
+      </li>
+      <li>
+        <strong>Data</strong>: the email address, a <strong>hash</strong> of the IP address the
+        request came from, and the account name if you typed one. The address the request came
+        from is never written down as such: the hash exists only so that two requests can be
+        counted against the same caller, which is what keeps the endpoint from being used to
+        send mail to strangers.
+      </li>
+      <li>
+        <strong>Retention</strong>: a request that is never confirmed is deleted after
+        <strong>7 days</strong>, hash included. Once an account exists, the address is kept as
+        the owner of that account, for as long as the account exists.
+      </li>
+      <li>
+        <strong>Recipients</strong>: Hostinger, which runs the mailbox that delivers the
+        confirmation message, inside the European Union. Nobody else. The message is sent from
+        an address that is not read, and it says so.
+      </li>
+      <li>
+        <strong>Deleting the account</strong>: write to
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. There is no command for it yet,
+        and saying so is better than a page that pretends there is.
+      </li>
+    </ul>
+    <p>
+      The confirmation link carries a token in the part of the URL after the <code>#</code>,
+      which a browser never sends to a server: it is not in the log of this website, and it is
+      not passed on to anywhere else.
+    </p>
+
     <h2>If you write to us</h2>
     <p>
       Mail sent to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> is processed for the
@@ -70,10 +111,10 @@ const UPDATED = '8 September 2026';
       running your bookings, and for nothing else.
     </p>
     <p>
-      Today the API is in early access, issued by hand and without a signed agreement in place.
-      The terms of service and the data processing agreement that complete this section are
-      being written and will be published here and linked from this page. Until they exist, do
-      not put personal data you cannot afford to lose into a test project.
+      Today the API is in early access and there is no signed agreement in place. The terms of
+      service and the data processing agreement that complete this section are being written and
+      will be published here and linked from this page. Until they exist, do not put personal
+      data you cannot afford to lose into a test project.
     </p>
 
     <h2>Your rights</h2>

@@ -7,7 +7,14 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface ApiClientOptions {
   baseUrl: string;
-  secretKey: string;
+  /**
+   * The secret key, when there is one.
+   *
+   * `undefined` sends no `Authorization` header at all, which is what the three `/v1/signups`
+   * endpoints want: they are where a key comes from, so requiring one would be a circle. Every
+   * other endpoint answers `401 missing_api_key` without it, which is the right answer.
+   */
+  secretKey?: string;
   environment: Environment;
   timeoutMs?: number;
   /** Injectable for the tests; defaults to the global `fetch` of Node 20. */
@@ -70,7 +77,7 @@ const PAGE_LIMIT = 100;
 export class ApiClient {
   readonly baseUrl: string;
   readonly environment: Environment;
-  private readonly secretKey: string;
+  private readonly secretKey: string | undefined;
   private readonly timeoutMs: number;
   private readonly doFetch: FetchLike;
   private readonly userAgent: string;
@@ -106,7 +113,7 @@ export class ApiClient {
     for (const value of options.expand ?? []) url.searchParams.append('expand[]', value);
 
     const headers: Record<string, string> = {
-      authorization: `Bearer ${this.secretKey}`,
+      ...(this.secretKey === undefined ? {} : { authorization: `Bearer ${this.secretKey}` }),
       accept: 'application/json',
       'bookrail-version': API_VERSION,
       'user-agent': this.userAgent,
@@ -156,7 +163,14 @@ export class ApiClient {
       }
     }
 
-    if (!response.ok) throw apiErrorToCliError(response.status, parsed, requestId);
+    if (!response.ok) {
+      throw apiErrorToCliError(
+        response.status,
+        parsed,
+        requestId,
+        response.headers.get('retry-after'),
+      );
+    }
     return { status: response.status, data: parsed as T, requestId, apiVersion };
   }
 

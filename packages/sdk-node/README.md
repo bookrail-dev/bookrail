@@ -203,7 +203,7 @@ and a refund is an expectation the API computes rather than money that moves.
 
 - [Quickstart](https://bookrail.dev/docs/quickstart/), timed against the production API.
 - [Concepts](https://bookrail.dev/docs/concepts/): the data model, with figures.
-- [API reference](https://bookrail.dev/docs/api/reference/): 67 operations, generated from
+- [API reference](https://bookrail.dev/docs/api/reference/): 70 operations, generated from
   the executable contract, `packages/api/openapi/openapi.json`, which this package's types are
   generated from too.
 - [Idempotency](https://bookrail.dev/docs/guides/idempotency/) and
@@ -211,8 +211,9 @@ and a refund is an expectation the API computes rather than money that moves.
 
 ## Status
 
-Early access. The API is live at `https://api.bookrail.dev`, keys are issued by hand
-(hello@bookrail.dev), and this package is on npm as
+Early access. The API is live at `https://api.bookrail.dev`, a **test key is self service**
+(`npx bookrail signup`, or [bookrail.dev/signup](https://bookrail.dev/signup)) while a **live
+key** still comes from a person (hello@bookrail.dev), and this package is on npm as
 [`@bookrail/node`](https://www.npmjs.com/package/@bookrail/node), Apache 2.0, with its source in
 [github.com/bookrail-dev/bookrail](https://github.com/bookrail-dev/bookrail) under
 `packages/sdk-node`.

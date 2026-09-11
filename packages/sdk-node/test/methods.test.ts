@@ -7,7 +7,13 @@ import { OPERATIONS } from './operations.js';
 const bookrail = new Bookrail('sk_test_0123456789abcdef');
 
 describe('the surface of the client', () => {
-  it('covers all 67 operations of the specification', () => {
+  /**
+   * Every operation the specification offers this package, which is all of them but the three
+   * sign up ones: they are marked `x-bookrail-sdk: false` because a client is constructed with
+   * a key and those three are how a key comes into being, so `test/operations.ts` filters them
+   * out. The number below is therefore still what it was before they existed.
+   */
+  it('covers all 67 operations the specification offers this package', () => {
     expect(OPERATIONS).toHaveLength(67);
     const missing: string[] = [];
     for (const operation of OPERATIONS) {

@@ -121,6 +121,26 @@ export async function purgeIdempotencyKeys(
   return rows[0]?.deleted ?? 0;
 }
 
+/**
+ * Clears the sign up rows nothing can use any more.
+ *
+ * Three things in one statement each, and all three are housekeeping rather than a decision:
+ * an envelope past its fifteen minutes is a key nobody may collect, an unconfirmed request past
+ * its hour is a link that no longer works, and a row older than a week is a record of somebody
+ * asking for a key that was either issued or abandoned. The last one is why this exists at all:
+ * the address in it is personal data, and keeping it after it has stopped being useful is the
+ * one thing a retention promise cannot survive.
+ *
+ * Cross project by nature, like the idempotency purge next to it, and for the same reason it
+ * runs through a `SECURITY DEFINER` function whose result is a count and nothing else.
+ */
+export async function purgeSignups(deps: { db: Database; logger: Logger }): Promise<number> {
+  const { rows } = await deps.db.execute<{ touched: number }>(
+    sql`SELECT signups_purge() AS touched`,
+  );
+  return rows[0]?.touched ?? 0;
+}
+
 // --- Automatic state transitions --------------------------------------------------
 
 /** How many bookings one project's tick moves. Keeps each transaction, and the tick, bounded. */

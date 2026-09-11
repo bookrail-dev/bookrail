@@ -57,8 +57,10 @@ What exists today:
   [`@bookrail/node`](https://www.npmjs.com/package/@bookrail/node),
   [`@bookrail/mcp`](https://www.npmjs.com/package/@bookrail/mcp) and
   [`@bookrail/webhook-signature`](https://www.npmjs.com/package/@bookrail/webhook-signature).
-- A **test key is issued by a person**: write to hello@bookrail.dev and say what you are
-  building. There is no sign up and no dashboard yet.
+- A **test key is self service**: `npx bookrail signup`, or
+  [bookrail.dev/signup](https://bookrail.dev/signup). It sends a link, you open it, and the
+  account, the project and the key exist. A **live key** still comes from a person: write to
+  hello@bookrail.dev and say what you are building. There is no dashboard yet.
 
 What does not exist, and is documented as not existing: payments (`payment.mode` other than
 `none` is a `400`), rate limiting, scope enforcement on API keys, the dashboard, browser SDKs,

@@ -140,7 +140,7 @@ describe('the OpenAPI document', () => {
         .map((operation) => operation.operationId)
         .filter((id): id is string => id !== undefined),
     );
-    expect(ids).toHaveLength(67);
+    expect(ids).toHaveLength(70);
 
     const pages = new Set(await readdir(join(distRoot, 'docs', 'api', 'reference', 'operations')));
     const missing = ids.filter((id) => !pages.has(id.toLowerCase().replace(/[^a-z0-9_]/g, '')));

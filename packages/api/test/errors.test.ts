@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CURRENT_API_VERSION } from '@bookrail/shared';
 import {
   createHarness,
+  SITE_ORIGIN,
+  SITE_URL,
   WEBHOOK_SECRET_KEY,
   type BootstrappedProject,
   type Harness,
@@ -208,6 +210,9 @@ describe('request logging', () => {
       cache: new NoAvailabilityCache(),
       bootstrapToken: 'bootstrap-token-for-tests',
       webhookSecretKey: WEBHOOK_SECRET_KEY,
+      mailer: undefined,
+      siteUrl: SITE_URL,
+      siteOrigin: SITE_ORIGIN,
     });
 
     try {

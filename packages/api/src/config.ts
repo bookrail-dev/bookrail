@@ -12,6 +12,7 @@ import {
   DEFAULT_RECONCILE_LIMIT,
   DEFAULT_RECONCILE_SCOPES,
 } from './jobs/reconcile.js';
+import { isMailerKind, MAILER_KINDS, type MailerKind } from './mail/index.js';
 import { parseWebhookSecretKey } from './webhooks/secrets.js';
 
 export interface ApiConfig {
@@ -85,7 +86,25 @@ export interface ApiConfig {
    * `AppDeps.allowPrivateWebhookTargets`.
    */
   webhookSecretKey: Buffer | undefined;
+  /**
+   * How the confirmation message of a sign up leaves this process.
+   *
+   * `undefined` (the variable unset) switches self service sign up off: the three endpoints
+   * answer `503 signup_disabled` with the address to write to, and the website says the same
+   * thing. That is a deployment choice, not a fault, so it is not an error at start-up.
+   */
+  mailer: MailerKind | undefined;
+  /** `smtps://user:password@host:465`. Required when the mailer is `smtp`. */
+  smtpUrl: string | undefined;
+  /** `Bookrail <noreply@bookrail.dev>`. Required when the mailer is `smtp`. */
+  mailFrom: string | undefined;
+  /** Where the confirmation link points, and where the pages that read it live. */
+  siteUrl: string;
+  /** The one browser origin allowed to call `/v1/signups`. */
+  siteOrigin: string;
 }
+
+export const DEFAULT_SITE_URL = 'https://bookrail.dev';
 
 const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
@@ -127,7 +146,54 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       DEFAULT_WEBHOOK_DELIVERY_INTERVAL_SECONDS,
     ),
     webhookSecretKey: parseWebhookSecretKey(env.WEBHOOK_SECRET_KEY),
+    mailer: resolveMailerKind(env),
+    smtpUrl: trimmed(env.SMTP_URL),
+    mailFrom: trimmed(env.MAIL_FROM),
+    siteUrl: trimSlash(trimmed(env.BOOKRAIL_SITE_URL) ?? DEFAULT_SITE_URL),
+    siteOrigin: trimSlash(trimmed(env.BOOKRAIL_SITE_ORIGIN) ?? DEFAULT_SITE_URL),
   };
+}
+
+/**
+ * Which mailer, and the one configuration this refuses to start with.
+ *
+ * `log` writes the confirmation link to the log and reports success. In production that is a
+ * sign up that looks like it works and sends nothing, which nobody notices until somebody
+ * checks a mailbox, so the process refuses to start rather than serve it. It is the same
+ * shape of guard the rest of this file uses for the dangerous defaults: loud at boot, never
+ * silent at run time.
+ */
+function resolveMailerKind(env: NodeJS.ProcessEnv): MailerKind | undefined {
+  const raw = trimmed(env.BOOKRAIL_MAILER)?.toLowerCase();
+  if (raw === undefined) return undefined;
+  if (!isMailerKind(raw)) {
+    throw new Error(
+      `BOOKRAIL_MAILER must be one of ${MAILER_KINDS.join(', ')}, or unset to switch sign up off. Got "${raw}".`,
+    );
+  }
+  if (raw === 'log' && env.NODE_ENV === 'production') {
+    throw new Error(
+      'BOOKRAIL_MAILER=log writes the confirmation link to the log and sends nothing, so it ' +
+        'must never run with NODE_ENV=production. Set BOOKRAIL_MAILER=smtp with SMTP_URL and ' +
+        'MAIL_FROM, or unset BOOKRAIL_MAILER to switch self service sign up off.',
+    );
+  }
+  if (
+    raw === 'smtp' &&
+    (trimmed(env.SMTP_URL) === undefined || trimmed(env.MAIL_FROM) === undefined)
+  ) {
+    throw new Error('BOOKRAIL_MAILER=smtp needs both SMTP_URL and MAIL_FROM to be set.');
+  }
+  return raw;
+}
+
+function trimmed(value: string | undefined): string | undefined {
+  const out = value?.trim();
+  return out === undefined || out === '' ? undefined : out;
+}
+
+function trimSlash(value: string): string {
+  return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
 const OFF = new Set(['off', 'false', '0', 'no']);

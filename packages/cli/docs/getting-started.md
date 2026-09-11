@@ -6,7 +6,7 @@ behind one HTTP API. This CLI describes a project as code and talks to that API.
 ## The loop
 
 ```bash
-bookrail login                       # store a sk_test_ key, mode 600
+bookrail signup                      # get a sk_test_ key by email, stored mode 600
 bookrail init --template padel       # write bookrail.config.ts
 bookrail push --dry-run              # see what would be created
 bookrail push                        # create it
@@ -33,9 +33,18 @@ unless you asked for it.
 
 ## Where the key comes from
 
+`bookrail signup` is the whole answer for a test key: it asks for an address, sends a link
+there, waits for you to open it, and stores what comes back. No dashboard, no password, and
+nobody to write to. `--no-store` prints the key once instead of writing it.
+
+A **live** key still comes from a person, because there is no payment behind the plans yet:
+write to hello@bookrail.dev, then `bookrail login --live --token sk_live_...`.
+
+Once there is a key, this is where a command looks for it:
+
 1. `BOOKRAIL_SECRET_KEY` in the environment, if set.
 2. `~/.config/bookrail/credentials.json` (or `$XDG_CONFIG_HOME/bookrail/credentials.json`),
-   written by `bookrail login` with mode 600.
+   written by `bookrail signup` and by `bookrail login` with mode 600.
 
 The key is never printed. `bookrail whoami` and `bookrail env` show it masked; `whoami` also
 names the project the key opens, its scopes and its `tenant_id`.

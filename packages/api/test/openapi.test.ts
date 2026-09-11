@@ -25,6 +25,7 @@ import {
   GLOBAL_ERROR_CODES,
   honoPathToOpenApi,
   OPERATIONS,
+  statusOfCode,
   UNSPECIFIED_ROUTES,
 } from '../src/openapi/registry.js';
 import { IDEMPOTENCY_HEADER, IDEMPOTENCY_HEADER_NAME } from '../src/openapi/headers.js';
@@ -52,6 +53,7 @@ interface Operation {
   parameters?: { name?: string; in?: string; $ref?: string }[];
   responses: Record<string, unknown>;
   security?: unknown[];
+  'x-bookrail-sdk'?: boolean;
 }
 
 const onDisk = JSON.parse(readFileSync(OPENAPI_PATH, 'utf8')) as Document;
@@ -177,26 +179,60 @@ describe('openapi document', () => {
     }
   });
 
-  it('only `GET /openapi.json` opts out of the bearer requirement', () => {
+  /**
+   * The specification itself, and the three sign up operations. Nothing else: every other
+   * operation of `/v1` is reached with a secret key, and an endpoint that quietly stopped
+   * requiring one would show up here.
+   */
+  const PUBLIC_PATHS = [
+    '/openapi.json',
+    '/v1/signups',
+    '/v1/signups/confirm',
+    '/v1/signups/{id}/claim',
+  ];
+
+  it('only the specification and the sign up endpoints opt out of the bearer requirement', () => {
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const isPublic = Array.isArray(operation.security) && operation.security.length === 0;
-        expect(isPublic, `${method.toUpperCase()} ${path}`).toBe(path === '/openapi.json');
+        expect(isPublic, `${method.toUpperCase()} ${path}`).toBe(PUBLIC_PATHS.includes(path));
       }
     }
   });
 
-  it('every POST of /v1 documents `Idempotency-Key`, and nothing else does', () => {
+  /**
+   * `Idempotency-Key` belongs to a POST that has a project to scope the claim to, which the
+   * sign up endpoints do not: there is no key, so there is no project, so there is no row of
+   * `idempotency_keys` that could hold one. The middleware ignores the header there and the
+   * document does not offer it.
+   */
+  it('every POST of /v1 documents `Idempotency-Key`, apart from the sign up ones', () => {
     expect(IDEMPOTENCY_HEADER_NAME.toLowerCase()).toBe(IDEMPOTENCY_HEADER);
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const refs = (operation.parameters ?? []).map((parameter) => parameter.$ref);
         const documented = refs.includes('#/components/parameters/IdempotencyKey');
         expect(documented, `${method.toUpperCase()} ${path}`).toBe(
-          method === 'post' && path.startsWith('/v1/'),
+          method === 'post' && path.startsWith('/v1/') && !path.startsWith('/v1/signups'),
         );
       }
     }
+  });
+
+  /**
+   * The SDK is built with a key, so the operations that mint one are marked out of it. The
+   * generator of `@bookrail/node` reads the flag from here rather than from a list of its own.
+   */
+  it('marks exactly the sign up operations as outside the SDK', () => {
+    const marked: string[] = [];
+    for (const [path, methods] of Object.entries(onDisk.paths)) {
+      for (const operation of Object.values(methods)) {
+        if (operation['x-bookrail-sdk'] === false) marked.push(path);
+      }
+    }
+    expect(marked.sort()).toEqual(
+      ['/v1/signups', '/v1/signups/confirm', '/v1/signups/{id}/claim'].sort(),
+    );
   });
 
   it('documents the pagination bounds `parseListParams` enforces', () => {
@@ -211,14 +247,14 @@ describe('openapi document', () => {
     expect(parameter!.schema.example).toBe(DEFAULT_LIST_LIMIT);
   });
 
-  it('covers the 66 operations of /v1, plus itself', () => {
+  it('covers the 69 operations of /v1, plus itself', () => {
     const operations = Object.values(onDisk.paths).reduce(
       (total, path) => total + Object.keys(path).length,
       0,
     );
     const v1 = OPERATIONS.filter((operation) => operation.path.startsWith('/v1/'));
-    expect(v1.length).toBe(66);
-    expect(operations).toBe(67);
+    expect(v1.length).toBe(69);
+    expect(operations).toBe(70);
   });
 });
 
@@ -300,6 +336,15 @@ describe('error codes', () => {
     'range_too_large',
     'timezone_missing',
     'invalid_range',
+    // Sign up codes
+    'signup_rate_limited',
+    'signup_not_found',
+    'signup_already_confirmed',
+    'signup_expired',
+    'signup_secret_claimed',
+    'signup_secret_expired',
+    'signup_disabled',
+    'signup_email_failed',
   ];
 
   /**
@@ -341,8 +386,29 @@ describe('error codes', () => {
   it('every declared code has a type, and therefore a status', () => {
     for (const code of Object.keys(ERROR_CODE_TYPES)) {
       expect(statusForType(ERROR_CODE_TYPES[code]!)).toBeGreaterThanOrEqual(400);
+      expect(statusOfCode(code)).toBeGreaterThanOrEqual(400);
     }
     expect([...Object.keys(ERROR_CODE_TYPES)].sort()).toEqual(EXPECTED);
+  });
+
+  /**
+   * The handful of codes whose status is not the one their family implies, and the reason each
+   * one has to be an exception: a link that has been used or has run out is Gone and not
+   * Conflict, a deployment with no mailer is Service Unavailable, and a mail server that
+   * refused the message is Bad Gateway. The table lives in `@bookrail/shared`, so the server
+   * and this document read the same one.
+   */
+  it('gives the sign up codes the statuses their families do not have', () => {
+    expect(statusOfCode('signup_expired')).toBe(410);
+    expect(statusOfCode('signup_secret_claimed')).toBe(410);
+    expect(statusOfCode('signup_secret_expired')).toBe(410);
+    expect(statusOfCode('signup_disabled')).toBe(503);
+    expect(statusOfCode('signup_email_failed')).toBe(502);
+    expect(statusOfCode('signup_rate_limited')).toBe(429);
+    expect(statusOfCode('signup_not_found')).toBe(404);
+    expect(statusOfCode('signup_already_confirmed')).toBe(409);
+    // The override is by name and changes nothing else: a conflict is still a 409.
+    expect(statusOfCode('slot_unavailable')).toBe(409);
   });
 
   it('every code produced by the source is documented', () => {

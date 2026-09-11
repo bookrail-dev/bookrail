@@ -10,6 +10,36 @@ The four published packages are versioned together: `bookrail`, `@bookrail/node`
 `@bookrail/mcp` and `@bookrail/webhook-signature`. `@bookrail/webhook-signature` is a
 dependency of the first two, so it is always published first or in the same batch.
 
+## 0.2.0
+
+Released on 11 September 2026. One new command, one new field, and nothing removed.
+
+### Added
+
+- **Self-service test keys.** `npx bookrail signup` sends a confirmation link to an address and
+  waits; opening the link creates an account, a project and one test key, which the terminal
+  stores the way `bookrail login` does. The same flow exists in the browser at
+  [bookrail.dev/signup](https://bookrail.dev/signup). A live key is still issued by a person:
+  write to hello@bookrail.dev. The three endpoints behind it (`POST /v1/signups`,
+  `POST /v1/signups/confirm`, `POST /v1/signups/{id}/claim`) take no API key, answer the same
+  way for a free and a taken address, and are the only part of the API with CORS.
+- **`fix` in the error envelope.** Every error may now carry an optional `fix` string next to
+  `message`: what to do about it, in one sentence. Eight new error codes come with the sign up
+  flow (`signup_rate_limited`, `signup_not_found`, `signup_already_confirmed`, `signup_expired`,
+  `signup_secret_claimed`, `signup_secret_expired`, `signup_disabled`, `signup_email_failed`), each
+  with its own HTTP status.
+- **`@bookrail/node`** knows the new `fix` field on `BookrailError` and the new error codes.
+  The sign up operations are deliberately not in the SDK (`x-bookrail-sdk: false` in the OpenAPI
+  document): they are for a terminal or a browser, not for an application server.
+
+### Changed
+
+- **The error envelope gained a field.** `fix` is optional and additive. A client that parses
+  the envelope with a strict schema (one that rejects unknown keys) must allow it; every other
+  client is unaffected.
+- **`@bookrail/mcp` and `@bookrail/webhook-signature`** have no functional change; they move to
+  0.2.0 because the four packages are versioned together.
+
 ## 0.1.0
 
 The first public release. Everything below already existed and was tested; this is the day it

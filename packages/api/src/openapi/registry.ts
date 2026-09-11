@@ -27,7 +27,7 @@
  * of the sixty-six eventually falls behind.
  */
 import type { RouteConfig } from '@asteasolutions/zod-to-openapi';
-import { statusForType, type ErrorType, type ObjectKind } from '@bookrail/shared';
+import { statusForCode, type ErrorType, type ObjectKind } from '@bookrail/shared';
 import { z } from '../zod.js';
 import {
   availabilityCheckSchema as availabilityCheckBodySchema,
@@ -57,6 +57,9 @@ import {
   scheduleUpdateSchema,
   serviceCreateSchema,
   serviceUpdateSchema,
+  signupClaimSchema,
+  signupConfirmSchema,
+  signupCreateSchema,
   webhookCreateSchema,
   webhookDeliveryListQuerySchema,
   webhookUpdateSchema,
@@ -83,6 +86,7 @@ import {
   scheduleExceptionSchema,
   scheduleSchema,
   serviceSchema,
+  signupSchema,
   webhookCreatedSchema,
   webhookDeliverySchema,
   webhookSchema,
@@ -117,6 +121,15 @@ export interface OperationDefinition {
   readonly expand?: readonly string[];
   /** Skips the bearer security requirement. Only `GET /openapi.json`. */
   readonly public?: boolean;
+  /**
+   * Keep this operation out of the generated SDK.
+   *
+   * The SDK is constructed with a key, and these three operations are how a key comes into
+   * being: a method for them would be a method nobody who has an SDK object can need. The flag
+   * travels into the document as `x-bookrail-sdk: false`, so the generator reads it from the
+   * specification rather than from a second list somebody has to keep in step.
+   */
+  readonly sdk?: false;
 }
 
 // --- The error taxonomy of the API -----------------------------------------------------------
@@ -180,12 +193,28 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   invalid_webhook_url: 'invalid_request',
   delivery_too_old: 'conflict',
   webhook_disabled: 'conflict',
+  /**
+   * Sign up: the three endpoints of `/v1/signups`, the only ones with no key in front of them.
+   *
+   * Three of these carry a status their family does not imply, named in `STATUS_BY_CODE` of
+   * `@bookrail/shared`: a link that has been used or has run out is `410 Gone`, a deployment
+   * with no mailer is `503`, and a mail server that refused the message is `502`. The family
+   * still decides the `type` in the body and the exit code a client maps it to.
+   */
+  signup_rate_limited: 'rate_limit',
+  signup_not_found: 'not_found',
+  signup_already_confirmed: 'conflict',
+  signup_expired: 'conflict',
+  signup_secret_claimed: 'conflict',
+  signup_secret_expired: 'conflict',
+  signup_disabled: 'internal',
+  signup_email_failed: 'internal',
 };
 
-export function statusForCode(code: string): number {
+export function statusOfCode(code: string): number {
   const type = ERROR_CODE_TYPES[code];
   if (type === undefined) throw new Error(`Undocumented error code: ${code}`);
-  return statusForType(type);
+  return statusForCode(code, type);
 }
 
 /** Produced by the middleware chain, so reachable from every authenticated operation. */
@@ -328,6 +357,78 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     responses: { 200: openApiDocumentSchema },
     errorCodes: [],
     public: true,
+  },
+
+  // --- Sign up --------------------------------------------------------------------------------
+  //
+  // The only operations of `/v1` with `security: []`, and the only ones kept out of the SDK: an
+  // SDK is constructed with a key, and these three are where a key comes from.
+  {
+    method: 'post',
+    path: '/v1/signups',
+    operationId: 'signups.create',
+    summary: 'Ask for a test key',
+    description:
+      'Sends a confirmation link to the address. The answer is the same whether or not that address already has an account: the collision is reported at confirmation time, to whoever can read the mailbox. No API key.',
+    tags: ['signups'],
+    body: signupCreateSchema,
+    responses: { 202: signupSchema },
+    errorCodes: [
+      'signup_rate_limited',
+      'signup_disabled',
+      'signup_email_failed',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/signups/confirm',
+    operationId: 'signups.confirm',
+    summary: 'Confirm a sign up and create the key',
+    description:
+      'Creates the account, the project and one test key, in one transaction. For `client: "web"` the key is in the response, once. For `client: "cli"` it waits for the terminal to claim it. No API key.',
+    tags: ['signups'],
+    body: signupConfirmSchema,
+    responses: { 200: signupSchema },
+    errorCodes: [
+      'signup_not_found',
+      'signup_already_confirmed',
+      'signup_expired',
+      'signup_disabled',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/signups/{id}/claim',
+    operationId: 'signups.claim',
+    summary: 'Collect the key of a confirmed sign up',
+    description:
+      'What a waiting terminal polls. Answers `pending` until the link is opened, then the key, once. No API key.',
+    tags: ['signups'],
+    pathParams: ID_PARAM('signup', 'sign up'),
+    body: signupClaimSchema,
+    responses: { 200: signupSchema },
+    errorCodes: [
+      'signup_not_found',
+      'signup_secret_claimed',
+      'signup_secret_expired',
+      'signup_disabled',
+      'resource_missing',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
   },
 
   // --- Project --------------------------------------------------------------------------------

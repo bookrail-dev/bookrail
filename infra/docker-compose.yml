@@ -9,6 +9,11 @@
 #   export DATABASE_URL=postgres://bookrail:bookrail@localhost:5432/bookrail_dev
 #   export REDIS_URL=redis://localhost:6379
 #
+# There is deliberately no mail server here. Development and the test suite use
+# `BOOKRAIL_MAILER=log`, which writes the confirmation link of a sign up to the log instead of
+# sending it: a third container to read one message out of would be a container to run, to
+# forget to run, and to explain.
+#
 # The versions are the ones CI runs (`.github/workflows/ci.yml`), so a failure here is a
 # failure there. Postgres 15 is the oldest release the schema can be applied to, because it
 # uses a list of columns in `ON DELETE SET NULL`.

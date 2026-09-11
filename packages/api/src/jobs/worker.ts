@@ -36,7 +36,12 @@
 import PgBoss from 'pg-boss';
 import type { Logger } from '@bookrail/shared';
 import type { AppDeps } from '../context.js';
-import { purgeIdempotencyKeys, runBookingTransitions, runHoldExpiry } from './tasks.js';
+import {
+  purgeIdempotencyKeys,
+  purgeSignups,
+  runBookingTransitions,
+  runHoldExpiry,
+} from './tasks.js';
 import { runIntegrityCheck, runOrphanReconciliation } from './reconcile.js';
 import { runWebhookDeliveries } from '../webhooks/dispatch.js';
 import { runWebhookOutbox } from '../webhooks/outbox.js';
@@ -337,6 +342,10 @@ export async function startWorker(
     try {
       const deleted = await purgeIdempotencyKeys(deps);
       if (deleted > 0) logger.info('idempotency_keys_purged', { deleted });
+      // The same hour, the same queue: a second housekeeping sweep of rows that belong to no
+      // project. Sign up rows carry an address, so they have a retention and this is it.
+      const signups = await purgeSignups(deps);
+      if (signups > 0) logger.info('signups_purged', { touched: signups });
     } catch (error) {
       logger.warn('idempotency_purge_failed', {
         error: error instanceof Error ? error.message : String(error),

@@ -19,6 +19,7 @@ import { resourceGroupsRoutes } from './routes/resource-groups.js';
 import { resourcesRoutes } from './routes/resources.js';
 import { schedulesRoutes } from './routes/schedules.js';
 import { servicesRoutes } from './routes/services.js';
+import { signupsRoutes } from './routes/signups.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 
 export function createApp(deps: AppDeps): Hono<AppEnv> {
@@ -57,6 +58,9 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   // Every POST of /v1 honours `Idempotency-Key`, availability included: an SDK with a retry
   // policy sends it on every write, and one endpoint answering differently would be a trap.
   v1.use('*', idempotency(deps));
+  // The one part of `/v1` with no key in front of it, and the reason both middlewares above
+  // carry an exemption: this is where a key comes from, so there cannot be one yet.
+  v1.route('/signups', signupsRoutes(deps));
   v1.route('/project', projectRoutes(deps));
   v1.route('/availability', availabilityRoutes(deps));
   v1.route('/locations', locationsRoutes(deps));

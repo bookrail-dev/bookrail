@@ -1,6 +1,7 @@
 import type { Database } from '@bookrail/db';
 import type { AvailabilityCache } from '@bookrail/engine';
 import type { Environment, Logger } from '@bookrail/shared';
+import type { Mailer } from './mail/index.js';
 
 export interface AuthContext {
   apiKeyId: string;
@@ -35,6 +36,30 @@ export interface AppDeps {
    * the only thing standing between a customer's endpoint and a forged booking.
    */
   webhookSecretKey: Buffer | undefined;
+  /**
+   * How the confirmation message of a sign up is sent.
+   *
+   * `undefined` means self service sign up is switched off, and the three `/v1/signups` routes
+   * answer `503 signup_disabled` with the address to write to instead. That is deliberate
+   * rather than a failure: a deployment with no mail configuration still serves the API, and
+   * the website still has something true to say on its sign up page.
+   */
+  mailer: Mailer | undefined;
+  /** Where the confirmation link points. `https://bookrail.dev` in production. */
+  siteUrl: string;
+  /** The one origin allowed to call `/v1/signups` from a browser. */
+  siteOrigin: string;
+  /**
+   * Read `X-Forwarded-For` as the caller's address even when the request arrived over no socket.
+   *
+   * **Deliberately not readable from the environment**, like `allowPrivateWebhookTargets` and
+   * `contractGuard`, and for the same kind of reason: it decides whether a limit counts what the
+   * caller says about itself. In a deployment the request always arrives over a socket, and the
+   * header is trusted only when that socket is loopback, which is where the reverse proxy is.
+   * The one caller with no socket is the API driven in process by a test, which is the only
+   * thing that passes this.
+   */
+  trustForwardedFor?: boolean;
   /**
    * Let webhooks point at loopback and private addresses.
    *

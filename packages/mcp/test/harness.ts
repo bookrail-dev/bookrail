@@ -85,6 +85,11 @@ export async function createHarness(): Promise<Harness> {
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    // There is no sign up tool and there will not be one: a sign up needs a person to open a
+    // link in a mailbox, and an agent has neither. Nothing here sends mail.
+    mailer: undefined,
+    siteUrl: 'https://bookrail.dev',
+    siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
   });
 

@@ -31,6 +31,7 @@ export const ID_PREFIXES = {
   event: 'evt',
   webhook: 'wh',
   webhook_delivery: 'whd',
+  signup: 'sgn',
 } as const;
 
 export type ObjectKind = keyof typeof ID_PREFIXES;

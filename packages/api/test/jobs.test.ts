@@ -19,6 +19,7 @@ import { createHarness, type BootstrappedProject, type Harness } from './harness
 import {
   DEFAULT_HOLD_EXPIRY_INTERVAL_SECONDS,
   purgeIdempotencyKeys,
+  purgeSignups,
   runBookingTransitions,
   runHoldExpiry,
   runIntegrityCheck,
@@ -242,7 +243,26 @@ describe('background jobs', () => {
     await expect(
       purgeIdempotencyKeys({ db: deps.db, logger: h.logger }),
     ).resolves.toBeGreaterThanOrEqual(0);
+    await expect(purgeSignups({ db: deps.db, logger: h.logger })).resolves.toBeGreaterThanOrEqual(
+      0,
+    );
     await expect(runIntegrityCheck(deps)).resolves.toBeDefined();
+  });
+
+  /**
+   * The sign up purge rides on the hourly queue, next to the idempotency one.
+   *
+   * Asserted on the file rather than by waiting for an hour: the two calls are in the same
+   * handler, so a change that dropped one would leave the address of somebody who never
+   * confirmed sitting in the table for ever, which is the one thing a retention promise cannot
+   * survive. What the purge actually does is proved in `signups.test.ts`, with the instant as a
+   * parameter and nothing waited for.
+   */
+  it('sweeps the sign up table on the same hourly job as the idempotency keys', async () => {
+    const worker = await readFile(new URL('../src/jobs/worker.ts', import.meta.url), 'utf8');
+    const handler = worker.slice(worker.indexOf('IDEMPOTENCY_PURGE_QUEUE, { batchSize: 1 }'));
+    expect(handler.slice(0, 600)).toContain('purgeSignups');
+    expect(worker).toContain("boss.schedule(IDEMPOTENCY_PURGE_QUEUE, '0 * * * *')");
   });
 
   it('runs the sweep on its own through pg-boss', async () => {

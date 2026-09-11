@@ -15,7 +15,7 @@ path is [`/llms.txt`](/llms.txt), [`/openapi.json`](/openapi.json) and
 | --- | --- |
 | [`/llms.txt`](/llms.txt) | One line per documentation page, with the markdown URL of each. |
 | [`/llms-full.txt`](/llms-full.txt) | Every documentation page concatenated, in markdown. |
-| [`/openapi.json`](/openapi.json) | OpenAPI 3.1, generated from the schemas that validate each request. 41 paths, 67 operations. |
+| [`/openapi.json`](/openapi.json) | OpenAPI 3.1, generated from the schemas that validate each request. 44 paths, 70 operations. |
 | [`/mcp/tools.json`](/mcp/tools.json) | Every MCP tool with its description, input schema and annotations, read from the running server. |
 | `<page>.md` | Every page written in markdown is also served as markdown at the same URL with `.md` on the end, for example [`/docs/errors.md`](/docs/errors.md). The generated API reference pages are not: read `/openapi.json` instead. |
 
@@ -37,8 +37,20 @@ leaves every other server alone. It never writes a key.
 
 The server reads `BOOKRAIL_SECRET_KEY` (or `BOOKRAIL_TEST_SECRET_KEY` and
 `BOOKRAIL_LIVE_SECRET_KEY`), `BOOKRAIL_API_URL`, and `BOOKRAIL_MCP_ALLOW_LIVE`. With no
-variables set it reads the same `~/.config/bookrail/credentials.json` that `bookrail login`
-writes.
+variables set it reads the same `~/.config/bookrail/credentials.json` that `bookrail signup`
+and `bookrail login` write.
+
+## Getting the key
+
+There is no tool for this and there will not be one: a sign up needs a person to open a link in
+a mailbox, and an agent has neither. Ask the person to run
+
+```bash
+npx bookrail signup --email you@example.com
+```
+
+and to open the link that arrives. The command waits, stores the key with mode 600, and every
+tool below then finds it. A **live** key still comes from a person at hello@bookrail.dev.
 
 ## The order of operations that works
 

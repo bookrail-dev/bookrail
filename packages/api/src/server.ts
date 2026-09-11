@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { createAvailabilityCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { startWorker, type Worker } from './jobs/index.js';
+import { createLogMailer, createSmtpMailer, type Mailer } from './mail/index.js';
 
 const config = loadConfig();
 const logger = createLogger({ level: config.logLevel, base: { service: 'bookrail-api' } });
@@ -33,6 +34,25 @@ const cache = createAvailabilityCache(config.redisUrl, logger);
 const db = createDatabase(appPool);
 const adminDb = adminPool === null ? db : createDatabase(adminPool);
 
+/**
+ * The mailer, or nothing at all.
+ *
+ * Nothing at all is a supported deployment: `/v1/signups` then answers `503 signup_disabled`
+ * with the address to write to, which is the state this product was in before self service
+ * existed and is still the truth for anybody self hosting without a mailbox. The one
+ * combination that cannot happen is `log` in production, and `loadConfig` has already refused
+ * to return from that.
+ */
+const mailer: Mailer | undefined =
+  config.mailer === undefined
+    ? undefined
+    : config.mailer === 'log'
+      ? createLogMailer(logger)
+      : await createSmtpMailer({
+          url: config.smtpUrl ?? '',
+          from: config.mailFrom ?? '',
+        });
+
 const app = createApp({
   db,
   adminDb,
@@ -40,6 +60,9 @@ const app = createApp({
   cache,
   bootstrapToken: config.bootstrapToken,
   webhookSecretKey: config.webhookSecretKey,
+  mailer,
+  siteUrl: config.siteUrl,
+  siteOrigin: config.siteOrigin,
 });
 
 /**
@@ -80,6 +103,7 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
     availability_cache: config.redisUrl === undefined ? 'memory' : 'redis',
     worker: config.worker ? config.holdExpiryIntervalSeconds : 'off',
     webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
+    mailer: config.mailer ?? 'off',
   });
 });
 
@@ -90,6 +114,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       appPool.end(),
       adminPool === null ? Promise.resolve() : adminPool.end(),
       cache.close(),
+      mailer === undefined ? Promise.resolve() : mailer.close(),
     ]).finally(() => process.exit(0));
   });
 }

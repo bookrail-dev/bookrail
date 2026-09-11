@@ -9,6 +9,15 @@ export interface ApiErrorBody {
   code: string;
   message: string;
   param?: string;
+  /**
+   * The operative sentence the **server** sent, when it sent one.
+   *
+   * Most `fix` values are ours (the table below), because the CLI knows what to run next and
+   * the API does not. A handful are the other way round: what to do about a deployment with no
+   * sign up, or a mail server that refused a message, is something only the server knows, and
+   * repeating its sentence here would mean maintaining it in two places.
+   */
+  fix?: string;
   doc_url?: string;
   request_id?: string;
 }
@@ -94,22 +103,61 @@ const FIX_BY_CODE: Record<string, string> = {
   delivery_too_old: 'Deliveries older than thirty days cannot be replayed.',
 };
 
-export function apiErrorToCliError(status: number, body: unknown, requestId?: string): CliError {
+/**
+ * `Retry-After` as a number of seconds, when the header carries one this side can use.
+ *
+ * The header has two forms: a count of seconds, and an HTTP date. Both are read; anything else,
+ * and anything absurd, yields `undefined` and the caller picks its own pause. The ceiling is
+ * five minutes: a proxy that asks a terminal to sleep for an hour is a proxy to give up on.
+ */
+export function parseRetryAfter(raw: string | null | undefined): number | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const value = raw.trim();
+  if (value === '') return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) {
+    return seconds >= 0 && seconds <= 300 ? Math.ceil(seconds) : undefined;
+  }
+  const at = Date.parse(value);
+  if (Number.isNaN(at)) return undefined;
+  const wait = Math.ceil((at - Date.now()) / 1000);
+  return wait > 0 && wait <= 300 ? wait : undefined;
+}
+
+export function apiErrorToCliError(
+  status: number,
+  body: unknown,
+  requestId?: string,
+  retryAfter?: string | null,
+): CliError {
+  const retryAfterSeconds = parseRetryAfter(retryAfter);
   const error = extractError(body);
   if (!error) {
+    // A body that is not our envelope: a proxy in the middle answered, and the commonest one is
+    // a rate limiter with a page of HTML. The status is carried on the error so that a caller
+    // which knows how to wait can, instead of treating a pause as the end of the world.
     return new CliError('http_error', `The API answered ${status} with an unexpected body.`, {
-      fix: 'Run `bookrail doctor --json` to check the API URL and the key.',
+      fix:
+        status === 429
+          ? 'Something between you and the API is rate limiting this. Wait a moment and try again.'
+          : 'Run `bookrail doctor --json` to check the API URL and the key.',
       requestId,
-      exitCode: status >= 500 ? EXIT.service : EXIT.user,
+      exitCode: status >= 500 || status === 429 ? EXIT.service : EXIT.user,
+      status,
+      retryAfterSeconds,
     });
   }
   const exitCode = EXIT_BY_TYPE[error.type] ?? (status >= 500 ? EXIT.service : EXIT.user);
   return new CliError(error.code, error.message, {
     param: error.param,
-    fix: FIX_BY_CODE[error.code],
+    // Ours first, the server's when we have nothing to add: the table below is written for the
+    // caller of a command, and it is the better answer wherever it has one.
+    fix: FIX_BY_CODE[error.code] ?? error.fix,
     requestId: error.request_id ?? requestId,
     docUrl: error.doc_url,
     exitCode,
+    status,
+    retryAfterSeconds,
   });
 }
 
@@ -124,6 +172,7 @@ function extractError(body: unknown): ApiErrorBody | null {
     code: candidate.code,
     message: candidate.message,
     ...(typeof candidate.param === 'string' ? { param: candidate.param } : {}),
+    ...(typeof candidate.fix === 'string' ? { fix: candidate.fix } : {}),
     ...(typeof candidate.doc_url === 'string' ? { doc_url: candidate.doc_url } : {}),
     ...(typeof candidate.request_id === 'string' ? { request_id: candidate.request_id } : {}),
   };

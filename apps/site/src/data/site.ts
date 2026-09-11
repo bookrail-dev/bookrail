@@ -13,9 +13,18 @@ export const TAGLINE = 'Booking infrastructure for developers.';
 export const DESCRIPTION =
   'Availability, resources, holds, bookings, policies and webhooks for anything bookable, behind one API. Capacity is enforced by Postgres, not by application code.';
 
-/** The one address on this site. There is no other, and no form that posts anywhere. */
+/**
+ * The address a person answers on, and the one thing it is now asked for.
+ *
+ * A **test** key needs nobody: `/signup` sends a link and the key comes back. A **live** key
+ * still comes from a person, and will until there is a paid plan behind it, so this is the
+ * address for that and for everything else a form cannot do.
+ *
+ * The confirmation message of a sign up is sent from a different mailbox, `noreply@`, which is
+ * not read; it says so, and points here.
+ */
 export const CONTACT_EMAIL = 'hello@bookrail.dev';
-export const CONTACT_SUBJECT = 'Bookrail early access';
+export const CONTACT_SUBJECT = 'Bookrail live key';
 export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
 
 export const NAV_LINKS = [

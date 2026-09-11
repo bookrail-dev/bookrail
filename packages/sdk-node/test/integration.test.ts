@@ -7,8 +7,10 @@
  * (no `fetch`, no SQL), which is the only way to know that the package a customer installs
  * can actually take a booking.
  *
- * The last test of the file is the one that matters most: every one of the 67 operations of the
- * registry has been hit, at least once, by these tests.
+ * The last test of the file is the one that matters most: every one of the 67 operations this
+ * package offers has been hit, at least once, by these tests. Those are the operations of the
+ * specification less the three sign up ones, which are marked out of the SDK because a client
+ * is constructed with a key and they are how a key comes into being.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type Bookrail from '../src/index.js';

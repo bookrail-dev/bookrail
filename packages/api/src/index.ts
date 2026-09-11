@@ -5,6 +5,8 @@ export * from './context.js';
 export * from './customers.js';
 export * from './jobs/index.js';
 export * from './keys.js';
+export * from './mail/index.js';
+export * from './mail/messages.js';
 export * from './middleware/idempotency.js';
 export * from './schemas/index.js';
 export * from './serialize.js';

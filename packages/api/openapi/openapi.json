@@ -4,7 +4,7 @@
     "title": "Bookrail API",
     "version": "2026-09-01",
     "description": "Booking infrastructure: availability, holds, bookings, their life cycle, and the events they emit.\n\nThis document is **generated** from the Zod schemas of the server and proved by a contract guard that\nvalidates every response of the test suite against the schema declared here. In case of a disagreement\nbetween this file and any prose documentation, this file is right.\n\n- Every instant is ISO 8601. Any explicit offset is accepted on input; every instant is returned in UTC.\n- Identifiers are prefixed (`bk_`, `res_`, `svc_`, …); the prefix says what the object is.\n- Lists are cursored: `?limit=&starting_after=`, never an offset, and never a total.\n- Every `POST /v1/...` honours `Idempotency-Key`. The same key within 24 hours replays the same response.",
-    "x-bookrail-app-version": "0.16.0"
+    "x-bookrail-app-version": "0.17.0"
   },
   "servers": [
     {
@@ -20,6 +20,10 @@
     {
       "name": "meta",
       "description": "The specification itself."
+    },
+    {
+      "name": "signups",
+      "description": "How a test key comes into being, without a key and without a person."
     },
     {
       "name": "project",
@@ -12010,6 +12014,632 @@
         }
       }
     },
+    "/v1/signups": {
+      "post": {
+        "operationId": "signups.create",
+        "summary": "Ask for a test key",
+        "description": "Sends a confirmation link to the address. The answer is the same whether or not that address already has an account: the collision is reported at confirmation time, to whoever can read the mailbox. No API key.",
+        "tags": ["signups"],
+        "security": [],
+        "x-bookrail-sdk": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "you@example.com"
+                  },
+                  "client": {
+                    "type": "string",
+                    "enum": ["cli", "web"],
+                    "description": "Where the request came from. `cli` waits for the key on a poll; `web` is handed it in the confirm response."
+                  },
+                  "account_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "project_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "default_timezone": {
+                    "type": "string",
+                    "description": "IANA time zone name.",
+                    "example": "Europe/Rome"
+                  },
+                  "default_currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$",
+                    "description": "Three letter ISO 4217 currency code.",
+                    "example": "EUR"
+                  }
+                },
+                "required": ["email", "client"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error codes: `signup_rate_limited`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error codes: `internal_error`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error codes: `signup_email_failed`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error codes: `signup_disabled`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/signups/confirm": {
+      "post": {
+        "operationId": "signups.confirm",
+        "summary": "Confirm a sign up and create the key",
+        "description": "Creates the account, the project and one test key, in one transaction. For `client: \"web\"` the key is in the response, once. For `client: \"cli\"` it waits for the terminal to claim it. No API key.",
+        "tags": ["signups"],
+        "security": [],
+        "x-bookrail-sdk": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 200,
+                    "description": "The token from the confirmation link, taken out of its `#token=` fragment."
+                  }
+                },
+                "required": ["token"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error codes: `signup_not_found`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error codes: `signup_already_confirmed`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error codes: `signup_expired`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error codes: `internal_error`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error codes: `signup_disabled`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/signups/{id}/claim": {
+      "post": {
+        "operationId": "signups.claim",
+        "summary": "Collect the key of a confirmed sign up",
+        "description": "What a waiting terminal polls. Answers `pending` until the link is opened, then the key, once. No API key.",
+        "tags": ["signups"],
+        "security": [],
+        "x-bookrail-sdk": false,
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Identifier of the sign up."
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "poll_token": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 200,
+                    "description": "The `poll_token` returned when the sign up was created."
+                  }
+                },
+                "required": ["poll_token"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error codes: `resource_missing`, `signup_not_found`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error codes: `signup_secret_claimed`, `signup_secret_expired`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error codes: `internal_error`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error codes: `signup_disabled`.",
+            "headers": {
+              "Bookrail-Request-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Identifier of this request. Quote it to support."
+                },
+                "required": true
+              },
+              "Bookrail-Version": {
+                "schema": {
+                  "type": "string",
+                  "description": "The API version this response was produced with."
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "webhooks.create",
@@ -14307,6 +14937,10 @@
                 "type": "string",
                 "description": "The field or header the error is about, when there is one."
               },
+              "fix": {
+                "type": "string",
+                "description": "What to do next, when there is one thing to do. Present on the errors that are about the state of the deployment rather than about the request."
+              },
               "doc_url": {
                 "type": "string"
               },
@@ -15909,6 +16543,125 @@
           "consumes",
           "role"
         ],
+        "additionalProperties": false
+      },
+      "Signup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^sgn_[0-9a-f]{32}$",
+            "description": "Identifier of a signup, prefixed with `sgn_`.",
+            "example": "sgn_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"
+          },
+          "object": {
+            "type": "string",
+            "enum": ["signup"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "claimed", "email_taken", "expired"]
+          },
+          "email": {
+            "type": "string",
+            "description": "Echoed back so a client can show where the message went."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the confirmation link stops working.",
+            "example": "2026-09-08T07:00:00Z"
+          },
+          "poll_token": {
+            "type": "string",
+            "description": "Only for `client: \"cli\"`, and only in the answer that created the sign up: the token the terminal claims its key with."
+          },
+          "delivered_to": {
+            "type": "string",
+            "enum": ["cli"],
+            "description": "Present when the key went to a waiting terminal instead of into this response."
+          },
+          "account": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^acct_[0-9a-f]{32}$",
+                "description": "Identifier of a account, prefixed with `acct_`.",
+                "example": "acct_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"
+              },
+              "object": {
+                "type": "string",
+                "enum": ["account"]
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "object", "name"],
+            "additionalProperties": false
+          },
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^proj_[0-9a-f]{32}$",
+                "description": "Identifier of a project, prefixed with `proj_`.",
+                "example": "proj_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"
+              },
+              "object": {
+                "type": "string",
+                "enum": ["project"]
+              },
+              "name": {
+                "type": "string"
+              },
+              "default_timezone": {
+                "type": "string"
+              },
+              "default_currency": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "object", "name", "default_timezone", "default_currency"],
+            "additionalProperties": false
+          },
+          "api_key": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{32}$",
+                "description": "Identifier of a api_key, prefixed with `key_`.",
+                "example": "key_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"
+              },
+              "object": {
+                "type": "string",
+                "enum": ["api_key"]
+              },
+              "environment": {
+                "type": "string",
+                "enum": ["test"]
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["secret"]
+              },
+              "prefix": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "object", "environment", "kind", "prefix"],
+            "additionalProperties": false
+          },
+          "secret_key": {
+            "type": "string",
+            "description": "The test key, in clear text. Shown **once**: in the confirm of a browser, or in the first successful claim of a terminal. It is stored as a SHA-256 hash and cannot be shown again.",
+            "example": "sk_test_..."
+          }
+        },
+        "required": ["id", "object", "status"],
         "additionalProperties": false
       },
       "Webhook": {

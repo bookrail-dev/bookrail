@@ -5,6 +5,7 @@ import type { Io } from './io.js';
 import { createPresenter, type CommandResult } from './output.js';
 import { CLI_VERSION } from './version.js';
 import { envCommand, login, logout, version, whoami } from './commands/auth.js';
+import { signup } from './commands/signup.js';
 import {
   createEntity,
   deleteEntity,
@@ -153,6 +154,29 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
     .option('--api-url <url>', 'Store a non-default API base URL alongside the key.')
     .option('--skip-verification', 'Do not call the API to check the key before storing it.')
     .action(action(io, outcome, (ctx, options) => login(ctx, options)));
+
+  program
+    .command('signup')
+    .description('Get a test key by email, without asking anybody.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Needs: an email address, from --email or from the terminal. No API key.',
+        'It sends a confirmation link, waits for you to open it, and stores the key.',
+        'Returns: the account, the project, the key prefix and where it was stored.',
+        'A live key still comes from a person: write to hello@bookrail.dev.',
+        'Next: `bookrail whoami`, then `bookrail init`.',
+      ].join('\n'),
+    )
+    .option('--email <address>', 'Where to send the confirmation link.')
+    .option('--account-name <name>', 'Name of the account. Defaults to the part before the @.')
+    .option('--project-name <name>', 'Name of the first project. Defaults to Default.')
+    .option('--timezone <zone>', 'Default time zone of the project. Defaults to UTC.')
+    .option('--currency <code>', 'Default currency of the project. Defaults to EUR.')
+    .option('--no-store', 'Print the key once instead of writing it to the credentials file.')
+    .option('--api-url <url>', 'Base URL of the API to sign up against.')
+    .action(action(io, outcome, (ctx, options) => signup(ctx, options)));
 
   program
     .command('logout')

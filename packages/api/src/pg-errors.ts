@@ -53,6 +53,46 @@ export function translatePgError(error: unknown): BookrailError | null {
     // not_null_violation
     case '23502':
       return errors.invalidRequest('A required field is missing.', undefined, 'parameter_missing');
+    /**
+     * The four refusals of the sign up functions (migration 0021).
+     *
+     * They arrive as SQLSTATE codes chosen for this purpose rather than as messages, so the
+     * mapping below is a switch on a value the database guarantees and not a match on prose.
+     * Each code names one refusal, so nothing here reads `pg.message`, which would be one
+     * translated or reworded string away from silently becoming a 500.
+     */
+    case 'P0429':
+      return new BookrailError(
+        'rate_limit',
+        'signup_rate_limited',
+        'Too many sign up requests for this address or from this caller. Try again tomorrow.',
+        undefined,
+        'Write to hello@bookrail.dev if you need a key sooner.',
+      );
+    case 'P0404':
+      return new BookrailError(
+        'not_found',
+        'signup_not_found',
+        'That sign up does not exist.',
+        undefined,
+        'Start again at https://bookrail.dev/signup, or run `bookrail signup`.',
+      );
+    case 'P0409':
+      return new BookrailError(
+        'conflict',
+        'signup_already_confirmed',
+        'That confirmation link has already been used.',
+        undefined,
+        'The key was already issued. Run `bookrail signup` again for a new one.',
+      );
+    case 'P0410':
+      return new BookrailError(
+        'conflict',
+        'signup_expired',
+        'That confirmation link has expired. A link is good for one hour.',
+        undefined,
+        'Start again at https://bookrail.dev/signup, or run `bookrail signup`.',
+      );
     // insufficient_privilege: e.g. an attempt to UPDATE the append-only events table.
     case '42501':
       return new BookrailError(

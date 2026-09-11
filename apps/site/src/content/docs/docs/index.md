@@ -31,9 +31,9 @@ events they emit, behind one HTTP API. It is the layer under a booking product, 
 The engine, the API, the CLI, the MCP server and the TypeScript SDK are written and tested
 against real Postgres. What does not exist yet, and is not documented as if it did:
 
-- **No way to get a key.** `api.bookrail.dev` is up and is the address in the `servers` block of
-  the OpenAPI document, but there is no dashboard and no sign-up: keys are issued by hand.
-  Ask for one on the early access page.
+- **No dashboard and no login.** A **test** key is self service (`npx bookrail signup`, or
+  [/signup](/signup)), but there is no page that lists your projects, rotates a key or shows a
+  bill, and a **live** key is still issued by hand: write to hello@bookrail.dev for that one.
 - **No payments.** `payment.mode` other than `none` is refused with `not_yet_supported`, and
   `amount_due` is always `0`.
 - **No rate limiting**, and no scope enforcement: API key scopes are stored but not checked.
