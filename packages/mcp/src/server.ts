@@ -14,7 +14,7 @@ import { registerObservabilityTools } from './tools/observability.js';
 import { registerProjectTools } from './tools/project.js';
 import type { Workspace } from './environment.js';
 
-export const MCP_VERSION = '0.3.0';
+export const MCP_VERSION = '0.3.1';
 
 export interface CreateServerOptions {
   /** The project directory: where `bookrail.config.ts` is looked for. Default: `process.cwd()`. */

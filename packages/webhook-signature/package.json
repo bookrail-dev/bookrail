@@ -1,6 +1,6 @@
 {
   "name": "@bookrail/webhook-signature",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Verify and sign Bookrail webhook payloads. Zero runtime dependencies: node:crypto only.",
   "license": "Apache-2.0",
   "author": "MP Informatica Srl",

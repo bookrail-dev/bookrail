@@ -10,9 +10,24 @@ The four published packages are versioned together: `bookrail`, `@bookrail/node`
 `@bookrail/mcp` and `@bookrail/webhook-signature`. `@bookrail/webhook-signature` is a
 dependency of the first two, so it is always published first or in the same batch.
 
+## 0.3.1
+
+Released on 14 September 2026, a few minutes after 0.3.0. The same code as 0.3.0, published
+correctly.
+
+### Fixed
+
+- **`bookrail@0.3.0`, `@bookrail/node@0.3.0` and `@bookrail/mcp@0.3.0` could not be installed.**
+  They were published with the dependency on `@bookrail/webhook-signature` still written as
+  `workspace:*`, the notation of the monorepo, which the registry does not understand: `npx
+  bookrail@0.3.0` fails with `Unsupported URL Type "workspace:"`. The three are deprecated on
+  the registry and 0.3.1 carries the resolved version. `@bookrail/webhook-signature@0.3.0` was
+  fine, and is republished as 0.3.1 only so that the four stay on one number.
+
 ## 0.3.0
 
-Released on 14 September 2026. One new limit, three new headers, and nothing removed.
+Released on 14 September 2026. One new limit, three new headers, and nothing removed. **Do not
+install this version of `bookrail`, `@bookrail/node` or `@bookrail/mcp`: see 0.3.1.**
 
 ### Added
 
