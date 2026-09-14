@@ -6,6 +6,7 @@ import { silentLogger, type Logger } from '@bookrail/shared';
 import { createApp } from '../src/app.js';
 import type { AppEnv } from '../src/context.js';
 import { createLogMailer, type LogMailer } from '../src/mail/index.js';
+import { MemoryRateLimiter, type RateLimiter } from '../src/rate-limit.js';
 import { COVERAGE_FILE_ENV, takeContractViolations } from '../src/openapi/contract.js';
 import { COVERAGE_FILE } from './coverage-file.js';
 import { TEST_DB_NAME } from './db-name.js';
@@ -52,6 +53,8 @@ export interface Harness {
   logger: Logger;
   /** The key the app encrypts webhook secrets with, for a test that calls the worker directly. */
   webhookSecretKey: Buffer;
+  /** The rate limiter the app was built with, `null` when the limit is off. */
+  rateLimiter: RateLimiter | null;
   /**
    * The mailer the app was built with, unless the test asked for none.
    *
@@ -87,6 +90,27 @@ export interface HarnessOptions {
   mailer?: false | 'failing';
   /** The origin `/v1/signups` allows in a browser. Defaults to the production one. */
   siteOrigin?: string;
+  /**
+   * Mount the per key rate limiter: this policy for test keys, and `live` for live ones.
+   *
+   * **Off by default**, which is what every other suite in this package needs: they fire hundreds
+   * of requests at one key inside a second, and with a limit in front of them they would be
+   * measuring the limiter. The suite that is about the limiter asks for it, with a ceiling low
+   * enough to reach in three calls.
+   *
+   * `live` defaults to the same numbers, because most of the tests here care about one key. The
+   * one that cares about the choice between the two policies gives the two environments different
+   * ceilings, so that a middleware reading the wrong one could not pass.
+   *
+   * `limiter` replaces the in-process one, which is how the Redis implementation and an
+   * unreachable Redis are exercised. The harness closes whichever limiter ends up mounted.
+   */
+  rateLimit?: {
+    rate: number;
+    burst: number;
+    live?: { rate: number; burst: number };
+    limiter?: RateLimiter;
+  };
 }
 
 /** Fails the test that produced the violation, naming the request. */
@@ -116,6 +140,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   }
   const contract = options.contract !== false;
   if (contract) process.env[COVERAGE_FILE_ENV] = COVERAGE_FILE;
+  const rateLimitPolicy = options.rateLimit;
+  const rateLimiter =
+    rateLimitPolicy === undefined ? null : (rateLimitPolicy.limiter ?? new MemoryRateLimiter());
   const app = createApp({
     db: createDatabase(appPool),
     adminDb: createDatabase(adminPool),
@@ -126,6 +153,20 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     mailer,
     siteUrl: SITE_URL,
     siteOrigin: options.siteOrigin ?? SITE_ORIGIN,
+    ...(rateLimitPolicy === undefined || rateLimiter === null
+      ? {}
+      : {
+          rateLimit: {
+            limiter: rateLimiter,
+            limits: {
+              test: { rate: rateLimitPolicy.rate, burst: rateLimitPolicy.burst },
+              live: rateLimitPolicy.live ?? {
+                rate: rateLimitPolicy.rate,
+                burst: rateLimitPolicy.burst,
+              },
+            },
+          },
+        }),
     // `app.request` opens no socket, so without this every request would count against the
     // single `unknown` bucket and the per caller limit would fire after ten tests.
     trustForwardedFor: true,
@@ -187,9 +228,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     pools: { app: appPool, admin: adminPool },
     logger,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    rateLimiter,
     mailer,
     async close(): Promise<void> {
       assertNoContractViolations('a request made outside harness.call');
+      if (rateLimiter !== null) await rateLimiter.close();
       await cache.close();
       await appPool.end();
       await adminPool.end();

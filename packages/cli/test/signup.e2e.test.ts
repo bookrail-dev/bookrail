@@ -15,6 +15,12 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  MAX_RATE_LIMIT_PAUSE_MS,
+  MIN_RATE_LIMIT_PAUSE_MS,
+  RATE_LIMIT_PAUSE_MS,
+  rateLimitPauseMs,
+} from '../src/commands/signup.js';
 import { createHarness, type Harness } from './harness.js';
 
 interface SignupData {
@@ -347,5 +353,29 @@ describe('bookrail signup against a deployment with no sign up', () => {
     expect(error?.code).toBe('signup_disabled');
     expect(error?.message).toContain('not enabled on this deployment');
     expect(error?.fix).toBe('Write to hello@bookrail.dev and say what you are building.');
+  });
+});
+
+/**
+ * How long the poll sleeps when something in the middle says «not so fast».
+ *
+ * The number is not ours: anything between the terminal and the API can write `Retry-After`, and
+ * a reverse proxy that answers sixty for a limit whose token comes back in one would park a sign
+ * up for a minute while the link in the mailbox is already valid. The cap is what keeps somebody
+ * else's arithmetic from becoming our waiting time.
+ */
+describe('the pause a Retry-After buys', () => {
+  it('waits as long as the answer asks, between a floor and a ceiling', () => {
+    expect(rateLimitPauseMs(undefined)).toBe(RATE_LIMIT_PAUSE_MS);
+    expect(rateLimitPauseMs(1)).toBe(1_000);
+    expect(rateLimitPauseMs(12)).toBe(12_000);
+    // The ceiling, and the two values worth naming: sixty is what the reverse proxy used to send
+    // for the wide zone, and three hundred is the largest `Retry-After` the client's own parser
+    // accepts, so it is the largest number that can ever reach this function from a header.
+    expect(rateLimitPauseMs(60)).toBe(MAX_RATE_LIMIT_PAUSE_MS);
+    expect(rateLimitPauseMs(300)).toBe(MAX_RATE_LIMIT_PAUSE_MS);
+    // And the floor. `Retry-After: 0` is legal, and without it the poll would become a tight loop
+    // of HTTP requests for as long as the sign up stays valid.
+    expect(rateLimitPauseMs(0)).toBe(MIN_RATE_LIMIT_PAUSE_MS);
   });
 });

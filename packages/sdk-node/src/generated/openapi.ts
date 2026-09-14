@@ -2249,7 +2249,24 @@ export interface components {
     IdempotencyKey: components['schemas']['IdempotencyKey'];
   };
   requestBodies: never;
-  headers: never;
+  headers: {
+    /** @description Identifier of this request. Quote it to support. */
+    BookrailRequestId: string;
+    /** @description The API version this response was produced with. */
+    BookrailVersion: string;
+    /** @description `true` when the body is the stored answer of an earlier request with the same `Idempotency-Key`. */
+    IdempotentReplayed: string;
+    /** @description Requests this key may have in flight at one instant: the burst of its policy. */
+    RateLimitLimit: string;
+    /** @description `unavailable` when no limit could be applied to this request, because the store that holds the counters did not answer. The three counters are then absent and the request was served. */
+    RateLimitPolicy: string;
+    /** @description Requests this key may still make right now, as a whole number. */
+    RateLimitRemaining: string;
+    /** @description Whole seconds until `RateLimit-Remaining` is back at `RateLimit-Limit`. */
+    RateLimitReset: string;
+    /** @description Whole seconds to wait before sending this request again. At least 1. */
+    RetryAfter: string;
+  };
   pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -2266,8 +2283,8 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -2329,9 +2346,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2341,8 +2362,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `invalid_range`, `parameter_invalid`, `parameter_missing`, `range_too_large`, `service_without_duration`, `timezone_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2352,8 +2377,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2363,8 +2392,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2374,8 +2407,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2385,8 +2438,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2430,9 +2487,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2442,8 +2503,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `invalid_range`, `parameter_invalid`, `parameter_missing`, `range_too_large`, `service_without_duration`, `timezone_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2453,8 +2518,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2464,8 +2533,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2475,8 +2548,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2486,8 +2579,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2516,8 +2613,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2527,8 +2628,12 @@ export interface operations {
       /** @description Error codes: `invalid_range`, `parameter_invalid`, `parameter_missing`, `range_too_large`, `service_without_duration`, `timezone_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2538,8 +2643,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2549,8 +2658,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2560,8 +2689,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2603,8 +2736,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2614,8 +2751,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2625,8 +2766,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2636,8 +2797,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2724,9 +2889,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2736,8 +2905,12 @@ export interface operations {
       /** @description Error codes: `duration_not_offered`, `hold_mismatch`, `idempotency_key_reused`, `invalid_body`, `not_yet_supported`, `parameter_invalid`, `parameter_missing`, `resource_not_eligible`, `service_without_duration`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2747,8 +2920,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2758,8 +2935,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2769,8 +2950,12 @@ export interface operations {
       /** @description Error codes: `hold_expired`, `hold_not_active`, `idempotency_key_in_progress`, `serialization_failure`, `slot_unavailable`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2780,8 +2965,28 @@ export interface operations {
       /** @description Error codes: `customer_limit_reached`, `min_notice_violated`, `outside_booking_window`, `start_not_on_grid`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2791,8 +2996,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2820,8 +3029,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2831,8 +3044,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2842,8 +3059,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2853,8 +3074,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2864,8 +3105,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2901,9 +3146,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2913,8 +3162,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2924,8 +3177,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2935,8 +3192,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2946,8 +3207,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -2957,8 +3222,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `no_show_too_early`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -2968,8 +3253,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3000,9 +3289,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3012,8 +3305,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3023,8 +3320,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3034,8 +3335,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3045,8 +3350,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3056,8 +3365,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `no_show_too_early`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3067,8 +3396,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3099,9 +3432,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3111,8 +3448,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3122,8 +3463,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3133,8 +3478,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3144,8 +3493,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3155,8 +3508,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `no_show_too_early`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3166,8 +3539,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3198,9 +3575,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3210,8 +3591,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3221,8 +3606,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3232,8 +3621,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3243,8 +3636,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3254,8 +3651,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `no_show_too_early`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3265,8 +3682,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3297,9 +3718,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3309,8 +3734,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3320,8 +3749,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3331,8 +3764,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3342,8 +3779,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3353,8 +3794,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `no_show_too_early`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3364,8 +3825,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3404,9 +3869,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3416,8 +3885,12 @@ export interface operations {
       /** @description Error codes: `duration_not_offered`, `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `resource_not_eligible`, `service_without_duration`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3427,8 +3900,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3438,8 +3915,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3449,8 +3930,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`, `slot_unavailable`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3460,8 +3945,28 @@ export interface operations {
       /** @description Error codes: `complete_too_early`, `customer_limit_reached`, `max_reschedules_reached`, `min_notice_violated`, `no_show_too_early`, `outside_booking_window`, `start_not_on_grid`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3471,8 +3976,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3500,8 +4009,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3511,8 +4024,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3522,8 +4039,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3533,8 +4070,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3580,9 +4121,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3592,9 +4137,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3604,8 +4153,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3615,8 +4168,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3626,8 +4183,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3637,8 +4214,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3664,8 +4245,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3675,8 +4260,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3686,8 +4275,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3697,8 +4290,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3708,8 +4321,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3735,8 +4352,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3746,8 +4367,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3757,8 +4382,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3768,8 +4397,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3779,8 +4428,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3827,8 +4480,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3838,8 +4495,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3849,8 +4510,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3860,8 +4525,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3871,8 +4556,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3903,8 +4592,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3914,8 +4607,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3925,8 +4622,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -3936,8 +4653,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3963,8 +4684,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3974,8 +4699,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3985,8 +4714,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -3996,8 +4729,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4007,8 +4760,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4087,9 +4844,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4099,8 +4860,12 @@ export interface operations {
       /** @description Error codes: `duration_not_offered`, `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `resource_not_eligible`, `service_without_duration`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4110,8 +4875,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4121,8 +4890,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4132,8 +4905,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `serialization_failure`, `slot_unavailable`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4143,8 +4920,28 @@ export interface operations {
       /** @description Error codes: `customer_limit_reached`, `min_notice_violated`, `outside_booking_window`, `start_not_on_grid`. */
       422: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4154,8 +4951,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4181,8 +4982,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4192,8 +4997,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4203,8 +5012,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4214,8 +5027,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4225,8 +5058,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4252,8 +5089,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4263,8 +5104,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4274,8 +5119,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4285,8 +5134,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4296,8 +5149,28 @@ export interface operations {
       /** @description Error codes: `hold_not_active`, `serialization_failure`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4307,8 +5180,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4335,8 +5212,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4346,8 +5227,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4357,8 +5242,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4368,8 +5273,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4413,9 +5322,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4425,8 +5338,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4436,8 +5353,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4447,8 +5368,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4458,8 +5399,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4485,8 +5430,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4496,8 +5445,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4507,8 +5460,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4518,8 +5475,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4529,8 +5506,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4556,8 +5537,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4567,8 +5552,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4578,8 +5567,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4589,8 +5582,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4600,8 +5613,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4646,8 +5663,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4657,8 +5678,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4668,8 +5693,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4679,8 +5708,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4690,8 +5739,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4718,8 +5771,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4729,8 +5786,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4740,8 +5801,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4751,8 +5832,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4828,9 +5913,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4840,8 +5929,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4851,8 +5944,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4862,8 +5959,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4873,8 +5990,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4900,8 +6021,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4911,8 +6036,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4922,8 +6051,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4933,8 +6066,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -4944,8 +6097,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4971,8 +6128,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4982,8 +6143,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -4993,8 +6158,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5004,8 +6173,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5015,8 +6204,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5093,8 +6286,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5104,8 +6301,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5115,8 +6316,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5126,8 +6331,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5137,8 +6362,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5162,8 +6391,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5173,8 +6406,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5184,8 +6421,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5195,8 +6452,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5224,8 +6485,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5235,8 +6500,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5246,8 +6515,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5257,8 +6546,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5301,9 +6594,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5313,8 +6610,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5324,8 +6625,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5335,8 +6640,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5346,8 +6671,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5375,8 +6704,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5386,8 +6719,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5397,8 +6734,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5408,8 +6749,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5419,8 +6780,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5446,8 +6811,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5457,8 +6826,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5468,8 +6841,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5479,8 +6856,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5490,8 +6887,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5535,8 +6936,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5546,8 +6951,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5557,8 +6966,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5568,8 +6981,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5579,8 +7012,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5608,8 +7045,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5619,8 +7060,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5630,8 +7075,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5641,8 +7106,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5695,9 +7164,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5707,8 +7180,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5718,8 +7195,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5729,8 +7210,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5740,8 +7241,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5769,8 +7274,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5780,8 +7289,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5791,8 +7304,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5802,8 +7319,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5813,8 +7350,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5840,8 +7381,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5851,8 +7396,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5862,8 +7411,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5873,8 +7426,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5884,8 +7457,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5939,8 +7516,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5950,8 +7531,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5961,8 +7546,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5972,8 +7561,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -5983,8 +7576,28 @@ export interface operations {
       /** @description Error codes: `slot_unavailable`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -5994,8 +7607,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6044,9 +7661,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6056,8 +7677,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6067,8 +7692,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6078,8 +7707,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6089,8 +7722,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `slot_unavailable`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6100,8 +7753,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6132,8 +7789,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6143,8 +7804,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6154,8 +7819,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6165,8 +7834,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6176,8 +7865,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6214,9 +7907,13 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6226,8 +7923,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6237,8 +7938,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6248,8 +7953,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6259,8 +7968,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6270,8 +7999,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6298,8 +8031,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6309,8 +8046,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6320,8 +8061,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6331,8 +8092,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6397,9 +8162,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6409,8 +8178,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6420,8 +8193,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6431,8 +8208,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6442,8 +8239,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6469,8 +8270,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6480,8 +8285,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6491,8 +8300,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6502,8 +8315,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6513,8 +8346,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6540,8 +8377,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6551,8 +8392,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6562,8 +8407,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6573,8 +8422,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6584,8 +8453,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6651,8 +8524,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6662,8 +8539,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6673,8 +8554,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6684,8 +8569,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6695,8 +8600,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6747,9 +8656,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6759,8 +8672,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6770,8 +8687,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6781,8 +8702,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6792,8 +8717,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6803,8 +8748,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6831,8 +8780,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6842,8 +8795,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6853,8 +8810,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6864,8 +8825,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6875,8 +8856,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6904,8 +8889,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6915,8 +8904,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -6926,8 +8919,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -6937,8 +8950,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7041,9 +9058,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7053,8 +9074,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7064,8 +9089,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7075,8 +9104,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7086,8 +9135,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7115,8 +9168,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7126,8 +9183,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7137,8 +9198,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7148,8 +9213,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7159,8 +9244,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7186,8 +9275,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7197,8 +9290,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7208,8 +9305,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7219,8 +9320,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7230,8 +9351,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7335,8 +9460,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7346,8 +9475,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7357,8 +9490,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7368,8 +9505,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7379,8 +9536,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7428,8 +9589,8 @@ export interface operations {
       /** @description Success. */
       202: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7439,8 +9600,8 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7450,8 +9611,8 @@ export interface operations {
       /** @description Error codes: `signup_rate_limited`. */
       429: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7461,8 +9622,8 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7472,8 +9633,8 @@ export interface operations {
       /** @description Error codes: `signup_email_failed`. */
       502: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7483,8 +9644,8 @@ export interface operations {
       /** @description Error codes: `signup_disabled`. */
       503: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7512,8 +9673,8 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7523,8 +9684,8 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7534,8 +9695,8 @@ export interface operations {
       /** @description Error codes: `signup_not_found`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7545,8 +9706,8 @@ export interface operations {
       /** @description Error codes: `signup_already_confirmed`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7556,8 +9717,8 @@ export interface operations {
       /** @description Error codes: `signup_expired`. */
       410: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7567,8 +9728,8 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7578,8 +9739,8 @@ export interface operations {
       /** @description Error codes: `signup_disabled`. */
       503: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7609,8 +9770,8 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7620,8 +9781,8 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7631,8 +9792,8 @@ export interface operations {
       /** @description Error codes: `resource_missing`, `signup_not_found`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7642,8 +9803,8 @@ export interface operations {
       /** @description Error codes: `signup_secret_claimed`, `signup_secret_expired`. */
       410: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7653,8 +9814,8 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7664,8 +9825,8 @@ export interface operations {
       /** @description Error codes: `signup_disabled`. */
       503: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -7692,8 +9853,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7703,8 +9868,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7714,8 +9883,28 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7725,8 +9914,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7763,9 +9956,13 @@ export interface operations {
       /** @description Created. */
       201: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7775,8 +9972,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `invalid_webhook_url`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7786,8 +9987,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7797,8 +10002,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7808,8 +10033,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7835,8 +10064,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7846,8 +10079,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7857,8 +10094,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7868,8 +10109,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7879,8 +10140,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7906,8 +10171,12 @@ export interface operations {
       /** @description Deleted. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7917,8 +10186,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7928,8 +10201,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7939,8 +10216,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -7950,8 +10247,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -7991,8 +10292,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8002,8 +10307,12 @@ export interface operations {
       /** @description Error codes: `invalid_body`, `invalid_webhook_url`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8013,8 +10322,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8024,8 +10337,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -8035,8 +10368,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8067,8 +10404,12 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8078,8 +10419,12 @@ export interface operations {
       /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8089,8 +10434,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8100,8 +10449,28 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -8111,8 +10480,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8144,9 +10517,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8156,8 +10533,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8167,8 +10548,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8178,8 +10563,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8189,8 +10578,28 @@ export interface operations {
       /** @description Error codes: `delivery_too_old`, `idempotency_key_in_progress`, `webhook_disabled`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -8200,8 +10609,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8232,9 +10645,13 @@ export interface operations {
       /** @description Success. */
       200: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
-          'Idempotent-Replayed'?: string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8244,8 +10661,12 @@ export interface operations {
       /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
       400: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8255,8 +10676,12 @@ export interface operations {
       /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
       401: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8266,8 +10691,12 @@ export interface operations {
       /** @description Error codes: `resource_missing`. */
       404: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {
@@ -8277,8 +10706,28 @@ export interface operations {
       /** @description Error codes: `idempotency_key_in_progress`, `webhook_disabled`. */
       409: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
         content: {
@@ -8288,8 +10737,12 @@ export interface operations {
       /** @description Error codes: `internal_error`. */
       500: {
         headers: {
-          'Bookrail-Request-Id': string;
-          'Bookrail-Version': string;
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
           [name: string]: unknown;
         };
         content: {

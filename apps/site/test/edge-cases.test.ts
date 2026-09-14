@@ -78,11 +78,11 @@ const CITATIONS = await citations();
 
 describe('the edge cases page', () => {
   it('cites the paragraphs it says it does', () => {
-    // Twenty-one cases, each with its own "Proved by.". An equality, not a floor: the page's
-    // own description counts them in words ("Twenty-one things that go wrong"), and a floor is
+    // Twenty-two cases, each with its own "Proved by.". An equality, not a floor: the page's
+    // own description counts them in words ("Twenty-two things that go wrong"), and a floor is
     // how that number came to be two behind the page. Add a case, change this number, change
     // the description. If a case loses its proof, this is the first thing that fails.
-    expect(CITATIONS.length).toBe(21);
+    expect(CITATIONS.length).toBe(22);
     for (const citation of CITATIONS) {
       expect(citation.files.length, citation.heading).toBeGreaterThan(0);
     }

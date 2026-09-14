@@ -8,7 +8,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { distRoot, serveDist, walk } from './helpers.js';
+import { distRoot, serveDist, siteRoot, walk } from './helpers.js';
 
 const files = await walk();
 const htmlFiles = files.filter((file) => file.endsWith('.html'));
@@ -74,6 +74,35 @@ describe('the house rules', () => {
       }
     }
     expect(guilty).toEqual([]);
+  });
+
+  /**
+   * A placeholder that survives a build becomes a sentence on a public page.
+   *
+   * `DEPLOY_DATE_021` did, and was replaced by hand because somebody remembered. The allow list is
+   * the way to keep that from being a matter of memory: a placeholder is legal only while it is
+   * written down, and a line that names a placeholder no longer in the build fails too, so the
+   * list cannot outlive the thing it excuses.
+   */
+  it('ships no unreplaced deploy date placeholder', async () => {
+    const allowed = (await readFile(join(siteRoot, 'test', 'pending-placeholders.txt'), 'utf8'))
+      .split('\n')
+      .map((line) => line.replace(/#.*$/, '').trim())
+      .filter((line) => line !== '');
+    const found = new Map<string, string[]>();
+    for (const file of textFiles) {
+      for (const match of (await read(file)).matchAll(/DEPLOY_DATE_[A-Za-z0-9_]*/g)) {
+        found.set(match[0], [...(found.get(match[0]) ?? []), file]);
+      }
+    }
+    // Nothing in the build that the list does not excuse, with the files named when it fails.
+    expect(
+      [...found]
+        .filter(([name]) => !allowed.includes(name))
+        .map(([name, where]) => `${name} in ${where.join(', ')}`),
+    ).toEqual([]);
+    // And nothing on the list that the build no longer has.
+    expect(allowed.filter((name) => !found.has(name))).toEqual([]);
   });
 
   it('has no emoji in the pages it writes itself', async () => {

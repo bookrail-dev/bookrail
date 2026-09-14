@@ -55,11 +55,43 @@ says what to do next.
 | `max_reschedules_reached` | policy_violation | The policy's limit. |
 | `range_too_large`, `invalid_range`, `timezone_missing` | invalid_request | Availability requests. |
 | `invalid_webhook_url` | invalid_request | Not public, or `http` on live. |
+| `rate_limited` | rate_limit | The key called faster than its ceiling. See below. |
+| `signup_rate_limited` | rate_limit | Too many sign up requests for one address, or from one caller. |
 
 Two codes that people expect and that do **not** exist: `capacity_exceeded` (a quantity above
 capacity is `slot_unavailable`, whose message is more precise) and `schedule_conflict` (a
 calendar change that invalidates a future booking is not an error: it emits a
 `booking.orphaned` event and leaves the booking alone).
+
+## Rate limits
+
+Every API key has a ceiling: **20 requests a second with bursts of 40** on a `sk_test_` key, **100
+a second with bursts of 500** on a `sk_live_` one. Every response carries the budget, so a client
+can pace itself instead of discovering the ceiling by hitting it:
+
+| Header | Meaning |
+|---|---|
+| `RateLimit-Limit` | The burst: the most this key may have in flight at one instant. |
+| `RateLimit-Remaining` | How many more requests would be accepted right now. |
+| `RateLimit-Reset` | Whole seconds until `RateLimit-Remaining` is back at `RateLimit-Limit`. |
+| `RateLimit-Policy` | Only ever `unavailable`, which means no limit could be applied and the request was served anyway. |
+
+Over the ceiling the answer is `429 rate_limited` with `Retry-After` in whole seconds, at least 1,
+and a `fix`. The CLI exits **3** for it, the family's code, because waiting and running the command
+again is the thing that works. The SDK (`@bookrail/node`) retries a `429` by itself, after the
+`Retry-After` the server sent.
+
+The bucket is the **key**, not the project: two keys of one project have two budgets, and a script
+hammering one of them does not throttle the other. A refusal costs nothing else, in particular it
+does not consume an `Idempotency-Key`: the same key on the retry runs the request for real.
+
+The sign up endpoints are the exception, because they have no key: they are limited by address, and
+by how many messages one mailbox may be sent. That limit is `signup_rate_limited`, and the reverse
+proxy in front of them answers with the same envelope when it refuses a burst of its own.
+`bookrail signup` treats such a refusal as a pause rather than a failure and waits for the
+`Retry-After` it was given, up to fifteen seconds: the number is written by whatever refused the
+request, which is not always this API, and a proxy asking for a minute should not park a sign up
+whose link is already valid.
 
 ## CLI-only codes
 

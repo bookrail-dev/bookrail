@@ -1,6 +1,6 @@
 ---
 title: 'The edge cases of booking'
-description: 'Twenty-one things that go wrong in booking systems, what Bookrail does about each one, and the test in the repository that proves it.'
+description: 'Twenty-two things that go wrong in booking systems, what Bookrail does about each one, and the test in the repository that proves it.'
 sidebar:
   order: 15
 ---
@@ -447,6 +447,39 @@ path`.
 [`packages/api/test/webhook-outbox.test.ts`](https://github.com/bookrail-dev/bookrail/blob/main/packages/api/test/webhook-outbox.test.ts)
 covers the cursor and the visibility horizon.
 
+### A client that calls faster than it is allowed to
+
+**What goes wrong.** A script in a loop, a retry storm, or a test suite left running overnight.
+Without a ceiling, one key is enough to make the process slow for every other key it shares, and
+with a naive ceiling (a counter per clock second) a caller gets twice its quota across the boundary
+between two seconds and then nothing at all for the rest of the second.
+
+**What Bookrail does.** A GCRA leaky bucket per API key, held in Redis as a single timestamp and
+evaluated by one Lua script, so two requests that arrive together cannot both be allowed. A
+`sk_test_` key may make 20 requests a second with bursts of 40; a `sk_live_` key 100 a second with
+bursts of 500. The bucket is the **key**, not the project and not the address, so two keys of one
+project cannot starve each other. Every response carries `RateLimit-Limit`, `RateLimit-Remaining`
+and `RateLimit-Reset` (whole seconds), including the ones that were served, so a client can pace
+itself before it runs out; a refusal is `429 rate_limited` with `Retry-After` and a `fix`. The limit
+sits in front of the `Idempotency-Key` middleware, so a refusal neither consumes a key nor becomes
+the stored answer a retry would be given for twenty-four hours. And if Redis stops answering the
+request is **served**, with `RateLimit-Policy: unavailable` instead of the counters: a rate limiter
+that turns into an outage is worse than no rate limiter.
+
+**Proved by.**
+[`packages/api/test/rate-limit.test.ts`](https://github.com/bookrail-dev/bookrail/blob/main/packages/api/test/rate-limit.test.ts):
+`lets exactly the burst through at one instant, and refuses the next`, `admits at most the burst
+plus one per interval over any window`, `never refuses a caller whose last accepted request is older
+than the drain time`, `admits exactly the burst of twenty simultaneous requests`, `computes what the
+arithmetic in memory computes, from the same stored value`.
+[`packages/api/test/rate-limit-api.test.ts`](https://github.com/bookrail-dev/bookrail/blob/main/packages/api/test/rate-limit-api.test.ts):
+`answers the next one with 429 rate_limited, Retry-After and the three counters`, `does not consume
+the key, so the retry runs for real`, `gives two keys of one project two buckets`, `reads the policy
+of the environment the key belongs to`, `leaves the routes that have no key alone`, `serves the
+request, says so, and complains once a minute`.
+[`packages/sdk-node/test/rate-limit.test.ts`](https://github.com/bookrail-dev/bookrail/blob/main/packages/sdk-node/test/rate-limit.test.ts):
+`waits out the refusal and gets the answer`.
+
 ### A webhook URL that points inside your network
 
 **What goes wrong.** A customer registers an endpoint on the cloud metadata address,
@@ -474,7 +507,8 @@ Cases the model describes and the system does not implement yet, so there is not
 - **Multi day bookings across a closure.** The `allow_closed_gaps` case is designed, not built.
 - **Anything to do with money.** `payment.mode` other than `none` is a `400`. Refunds are
   computed as expectations and no amount ever moves.
-- **Rate limiting.** There is none.
+- **Quotas per project.** How many resources, bookings or webhook endpoints one test account may
+  create is unbounded. The rate limit above bounds how *fast*, not how many.
 
 They will get an entry here when they get a test.
 

@@ -159,6 +159,15 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   insufficient_scope: 'permission',
   internal_error: 'internal',
   /**
+   * The per key ceiling of the rate limiter, on every operation that takes a key.
+   *
+   * Listed here rather than in the operation by operation lists below, and added by the generator
+   * through `COMMON_ERROR_CODES`, for the same reason as the authentication codes: it is produced
+   * by the middleware chain and not by a route, so every authenticated operation can answer it and
+   * repeating it seventy times would guarantee that one of the seventy fell behind.
+   */
+  rate_limited: 'rate_limit',
+  /**
    * A guard, not a code a caller can act on. The booking transaction refuses to run on a
    * superuser or `BYPASSRLS` connection (`packages/engine/src/booking/queries.ts`) and says so
    * with this code, which is why it is reported as an internal error.
@@ -225,6 +234,7 @@ export const COMMON_ERROR_CODES: readonly string[] = [
   'revoked_api_key',
   'unsupported_api_version',
   'parameter_invalid',
+  'rate_limited',
   'internal_error',
 ];
 

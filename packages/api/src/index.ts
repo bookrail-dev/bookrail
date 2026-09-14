@@ -8,6 +8,8 @@ export * from './keys.js';
 export * from './mail/index.js';
 export * from './mail/messages.js';
 export * from './middleware/idempotency.js';
+export * from './middleware/rate-limit.js';
+export * from './rate-limit.js';
 export * from './schemas/index.js';
 export * from './serialize.js';
 export * from './webhooks/index.js';

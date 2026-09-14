@@ -23,6 +23,14 @@ import {
 } from '@asteasolutions/zod-to-openapi';
 import { CURRENT_API_VERSION, statusForCode, type ErrorType } from '@bookrail/shared';
 import { ACTOR_HEADER, API_ACTORS } from '../context.js';
+import {
+  POLICY_UNAVAILABLE,
+  RATE_LIMIT_LIMIT_HEADER,
+  RATE_LIMIT_POLICY_HEADER,
+  RATE_LIMIT_REMAINING_HEADER,
+  RATE_LIMIT_RESET_HEADER,
+  RETRY_AFTER_HEADER,
+} from '../middleware/rate-limit.js';
 import { IDEMPOTENCY_HEADER_NAME, REPLAYED_HEADER } from './headers.js';
 import { z } from '../zod.js';
 import { errorSchema, type OpenApiDocument } from '../schemas/responses.js';
@@ -143,23 +151,106 @@ function commonRequestParameters(registry: OpenAPIRegistry): {
   return { version, actor, idempotency };
 }
 
-/** Headers every response carries, plus the one only a POST can carry. */
-function responseHeaders(idempotent: boolean): z.AnyZodObject {
-  const base = z.object({
-    'Bookrail-Request-Id': z
-      .string()
-      .openapi({ description: 'Identifier of this request. Quote it to support.' }),
-    'Bookrail-Version': z
-      .string()
-      .openapi({ description: 'The API version this response was produced with.' }),
-  });
-  if (!idempotent) return base;
-  return base.extend({
-    [REPLAYED_HEADER]: z.string().optional().openapi({
-      description:
-        '`true` when the body is the stored answer of an earlier request with the same `Idempotency-Key`.',
-    }),
-  });
+/**
+ * The response headers, registered once under `components/headers` and referenced from there.
+ *
+ * Registered rather than written inline because there are seventy-two operations and up to nine
+ * responses each: the three counters of the rate limiter inlined everywhere would be some eleven
+ * hundred copies of the same four lines in a file a person is expected to read. A `$ref` also
+ * says the thing that matters, which is that `RateLimit-Remaining` means the same on every
+ * endpoint.
+ *
+ * The two types are written out here rather than imported from `openapi3-ts`: that package is
+ * where the converter gets its OpenAPI types from, but it is the converter's dependency and not
+ * ours, and reaching through a package for a type is how a transitive version bump breaks a build
+ * that never asked for it. A reference is one field, and a map of them is a map.
+ */
+type HeaderRef = { $ref: string };
+type ResponseHeaders = Record<string, HeaderRef>;
+
+interface HeaderRefs {
+  requestId: HeaderRef;
+  version: HeaderRef;
+  replayed: HeaderRef;
+  limit: HeaderRef;
+  remaining: HeaderRef;
+  reset: HeaderRef;
+  policy: HeaderRef;
+  retryAfter: HeaderRef;
+}
+
+function registerResponseHeaders(registry: OpenAPIRegistry): HeaderRefs {
+  const header = (name: string, description: string, required: boolean): HeaderRef =>
+    registry.registerComponent('headers', name.replace(/-/g, ''), {
+      description,
+      required,
+      schema: { type: 'string' },
+    }).ref;
+
+  return {
+    requestId: header(
+      'Bookrail-Request-Id',
+      'Identifier of this request. Quote it to support.',
+      true,
+    ),
+    version: header('Bookrail-Version', 'The API version this response was produced with.', true),
+    replayed: header(
+      REPLAYED_HEADER,
+      '`true` when the body is the stored answer of an earlier request with the same `Idempotency-Key`.',
+      false,
+    ),
+    limit: header(
+      RATE_LIMIT_LIMIT_HEADER,
+      'Requests this key may have in flight at one instant: the burst of its policy.',
+      false,
+    ),
+    remaining: header(
+      RATE_LIMIT_REMAINING_HEADER,
+      'Requests this key may still make right now, as a whole number.',
+      false,
+    ),
+    reset: header(
+      RATE_LIMIT_RESET_HEADER,
+      'Whole seconds until `RateLimit-Remaining` is back at `RateLimit-Limit`.',
+      false,
+    ),
+    policy: header(
+      RATE_LIMIT_POLICY_HEADER,
+      `\`${POLICY_UNAVAILABLE}\` when no limit could be applied to this request, because the store that holds the counters did not answer. The three counters are then absent and the request was served.`,
+      false,
+    ),
+    retryAfter: header(
+      RETRY_AFTER_HEADER,
+      'Whole seconds to wait before sending this request again. At least 1.',
+      false,
+    ),
+  };
+}
+
+interface HeaderChoice {
+  /** A POST of `/v1`, which may answer with the stored body of an earlier identical request. */
+  idempotent?: boolean;
+  /** An operation that takes a key, and therefore counts against that key's ceiling. */
+  limited?: boolean;
+  /** The `429` of an operation that takes a key. */
+  retryAfter?: boolean;
+}
+
+/** Which of the registered headers a given response carries. */
+function responseHeaders(refs: HeaderRefs, choice: HeaderChoice): ResponseHeaders {
+  const headers: ResponseHeaders = {
+    'Bookrail-Request-Id': refs.requestId,
+    'Bookrail-Version': refs.version,
+  };
+  if (choice.idempotent === true) headers[REPLAYED_HEADER] = refs.replayed;
+  if (choice.limited === true) {
+    headers[RATE_LIMIT_LIMIT_HEADER] = refs.limit;
+    headers[RATE_LIMIT_REMAINING_HEADER] = refs.remaining;
+    headers[RATE_LIMIT_RESET_HEADER] = refs.reset;
+    headers[RATE_LIMIT_POLICY_HEADER] = refs.policy;
+  }
+  if (choice.retryAfter === true) headers[RETRY_AFTER_HEADER] = refs.retryAfter;
+  return headers;
 }
 
 // --- Errors ------------------------------------------------------------------------------------
@@ -213,6 +304,7 @@ export function buildOpenApiDocument(
 
   registry.register('Error', errorSchema);
   const parameters = commonRequestParameters(registry);
+  const headerRefs = registerResponseHeaders(registry);
 
   for (const operation of operations) {
     const headers = operation.public
@@ -232,18 +324,25 @@ export function buildOpenApiDocument(
             ),
           );
 
+    // Every operation that is not `public` is one that takes a key, and therefore one whose
+    // responses carry the counters of that key's bucket, the accepted ones included.
+    const limited = operation.public !== true;
+
     const responses: RouteConfig['responses'] = {};
     for (const [status, schema] of Object.entries(operation.responses)) {
       responses[status] = {
         description: successDescription(operation, Number(status)),
-        headers: responseHeaders(operation.idempotent === true),
+        headers: responseHeaders(headerRefs, {
+          idempotent: operation.idempotent === true,
+          limited,
+        }),
         content: { 'application/json': { schema } },
       };
     }
     for (const [status, codes] of [...errorResponsesOf(operation)].sort((a, b) => a[0] - b[0])) {
       responses[String(status)] = {
         description: `Error codes: ${codes.map((code) => `\`${code}\``).join(', ')}.`,
-        headers: responseHeaders(false),
+        headers: responseHeaders(headerRefs, { limited, retryAfter: limited && status === 429 }),
         content: { 'application/json': { schema: errorSchema } },
       };
     }
@@ -330,7 +429,7 @@ function canonicalise(document: Record<string, unknown>): OpenApiDocument {
       delete components[key];
       continue;
     }
-    if (key === 'schemas' || key === 'parameters') {
+    if (key === 'schemas' || key === 'parameters' || key === 'headers') {
       components[key] = sortByKey(value as Record<string, unknown>);
     }
   }

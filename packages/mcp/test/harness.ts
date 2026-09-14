@@ -5,7 +5,7 @@ import { serve, type ServerType } from '@hono/node-server';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { createApp } from '@bookrail/api';
+import { createApp, MemoryRateLimiter } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger as silentApiLogger } from '@bookrail/shared';
@@ -59,6 +59,13 @@ export interface Harness {
   workdir(): Promise<string>;
   bootstrap(name: string): Promise<Project>;
   /**
+   * Empties every rate limit bucket, so the next call starts from a full budget.
+   *
+   * A test that waited for the budget to come back instead would be asserting a clock: it would
+   * pass while the machine is idle and fail on the day the suite runs beside a build.
+   */
+  resetRateLimit(): void;
+  /**
    * Starts one MCP server and connects an in-process client to it over a linked pair of
    * in-memory transports: a real client speaking the real protocol to the real server, with
    * no process boundary and therefore no stdout in the picture at all.
@@ -72,11 +79,25 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-export async function createHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  /**
+   * Mount the per key rate limiter, with one ceiling: what a client does when it is refused
+   * does not depend on which environment the key belongs to, and the choice between the two
+   * policies is asserted where it is made, in `packages/api/test/rate-limit-api.test.ts`.
+   *
+   * Off by default: the flow suite makes a long sequence of calls with one key. The test that is
+   * about the limit asks for a ceiling it can reach in two calls, which is what
+   * `RATE_LIMIT_TEST_RPS` and `RATE_LIMIT_TEST_BURST` set on a deployment.
+   */
+  rateLimit?: { rate: number; burst: number };
+}
+
+export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
   const appPool = createPool({ connectionString: urls.app, max: 3 });
   const adminPool = createPool({ connectionString: urls.admin, max: 1 });
   const cache = new MemoryAvailabilityCache();
+  const rateLimiter = new MemoryRateLimiter();
 
   const app = createApp({
     db: createDatabase(appPool),
@@ -91,6 +112,14 @@ export async function createHarness(): Promise<Harness> {
     siteUrl: 'https://bookrail.dev',
     siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
+    ...(options.rateLimit === undefined
+      ? {}
+      : {
+          rateLimit: {
+            limiter: rateLimiter,
+            limits: { test: options.rateLimit, live: options.rateLimit },
+          },
+        }),
   });
 
   const seenKeys: string[] = [];
@@ -132,6 +161,9 @@ export async function createHarness(): Promise<Harness> {
     async workdir(): Promise<string> {
       counter += 1;
       return mkdtemp(join(root, `work-${counter}-`));
+    },
+    resetRateLimit(): void {
+      rateLimiter.clear();
     },
     async bootstrap(name): Promise<Project> {
       const response = await fetch(`${url}/internal/bootstrap`, {
@@ -209,6 +241,7 @@ export async function createHarness(): Promise<Harness> {
         }
       }
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rateLimiter.close();
       await cache.close();
       await appPool.end();
       await adminPool.end();

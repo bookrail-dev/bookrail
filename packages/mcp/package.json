@@ -1,6 +1,6 @@
 {
   "name": "@bookrail/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Bookrail MCP server: booking infrastructure for coding agents, over the Model Context Protocol.",
   "license": "Apache-2.0",
   "author": "MP Informatica Srl",

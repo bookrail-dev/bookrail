@@ -162,8 +162,14 @@ function emailFailed(): BookrailError {
 }
 
 /**
- * The four headers, as data, so that they can be put on a response that this middleware did not
+ * The five headers, as data, so that they can be put on a response that this middleware did not
  * build. See {@link cors}.
+ *
+ * `Access-Control-Max-Age` is the one that is not about permission but about arithmetic. Without
+ * it a browser remembers a preflight for a few seconds, so a visitor who mistypes an address and
+ * tries again a moment later pays for a second `OPTIONS`, and every submission of the form is two
+ * requests against the limit in front of these routes rather than one. Ten minutes is well inside
+ * what browsers cap it at, and nothing behind it changes more often than a deployment.
  */
 export function signupCorsHeaders(siteOrigin: string): Readonly<Record<string, string>> {
   return {
@@ -171,6 +177,7 @@ export function signupCorsHeaders(siteOrigin: string): Readonly<Record<string, s
     'Access-Control-Allow-Origin': siteOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '600',
   };
 }
 
@@ -178,10 +185,10 @@ export function signupCorsHeaders(siteOrigin: string): Readonly<Record<string, s
  * Cross origin access, for these routes and for nothing else.
  *
  * The sign up page of the website is on `bookrail.dev` and the API is on another host, so the
- * browser asks first. One origin, two methods, one request header, and a `Vary` so that a cache
- * in between never serves the answer for one origin to a request from another. The rest of
- * `/v1` gets no CORS headers at all: it is called with a secret key, and a secret key does not
- * belong in a browser.
+ * browser asks first. One origin, two methods, one request header, ten minutes of preflight
+ * cache, and a `Vary` so that a cache in between never serves the answer for one origin to a
+ * request from another. The rest of `/v1` gets no CORS headers at all: it is called with a secret
+ * key, and a secret key does not belong in a browser.
  *
  * **The headers go on after the response exists, not before.** Setting them with `c.header()`
  * puts them in the context's prepared set, which is applied only to responses the context

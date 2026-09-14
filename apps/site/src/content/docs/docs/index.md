@@ -36,7 +36,12 @@ against real Postgres. What does not exist yet, and is not documented as if it d
   bill, and a **live** key is still issued by hand: write to hello@bookrail.dev for that one.
 - **No payments.** `payment.mode` other than `none` is refused with `not_yet_supported`, and
   `amount_due` is always `0`.
-- **No rate limiting**, and no scope enforcement: API key scopes are stored but not checked.
+- **No scope enforcement**: API key scopes are stored but not checked, and there are no per
+  project quotas. There *is* a rate limit per key, which is the one ceiling that exists: 20
+  requests a second with bursts of 40 on a `sk_test_` key, 100 a second with bursts of 500 on a
+  `sk_live_` one. Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and
+  `RateLimit-Reset`; a refusal is `429 rate_limited` with `Retry-After`, and the SDK, the CLI and
+  the MCP server wait for it without being asked.
 
 ## Conventions
 

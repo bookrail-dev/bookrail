@@ -138,6 +138,7 @@ try {
     error.type;      // 'conflict' | 'invalid_request' | 'not_found' | …
     error.code;      // 'slot_unavailable'
     error.param;     // the field it is about, when there is one
+    error.fix;       // what to do next, when the API had one thing to say
     error.docUrl;
     error.requestId;
     error.status;
@@ -151,6 +152,14 @@ One class per family: `BookrailInvalidRequestError`, `BookrailAuthenticationErro
 `BookrailRateLimitError`, `BookrailPolicyViolationError`, `BookrailPaymentRequiredError`,
 `BookrailInternalError`, plus `BookrailConnectionError` (network, timeout, abort) and
 `BookrailSignatureVerificationError`.
+
+**`rate_limited`.** Every API key has a ceiling: 20 requests a second with bursts of 40 on a
+`sk_test_` key, 100 a second with bursts of 500 on a `sk_live_` one. Every response carries
+`RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (whole seconds), so you can pace
+yourself before you run out, and a refusal is a `429 rate_limited` with `Retry-After`. **This
+client already waits for you**: a `429` is retried after the `Retry-After` the server sent, up to
+`maxRetries` times, so you only see `BookrailRateLimitError` when the retries are spent or when
+you asked for none. Its `fix` says what to do, and `error.headers['retry-after']` says when.
 
 ## Webhooks
 

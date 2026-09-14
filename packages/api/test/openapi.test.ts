@@ -43,6 +43,8 @@ interface Document {
     schemas: Record<string, unknown>;
     parameters: Record<string, unknown>;
     securitySchemes: Record<string, unknown>;
+    /** Registered once and referenced from every response that carries them. */
+    headers: Record<string, { description: string; required: boolean }>;
   };
 }
 
@@ -51,7 +53,7 @@ interface Operation {
   summary: string;
   tags: string[];
   parameters?: { name?: string; in?: string; $ref?: string }[];
-  responses: Record<string, unknown>;
+  responses: Record<string, { headers: Record<string, unknown> }>;
   security?: unknown[];
   'x-bookrail-sdk'?: boolean;
 }
@@ -247,6 +249,62 @@ describe('openapi document', () => {
     expect(parameter!.schema.example).toBe(DEFAULT_LIST_LIMIT);
   });
 
+  /**
+   * The rate limit counters, documented once and referenced everywhere.
+   *
+   * Every operation that takes a key carries them on every response, successes included, because a
+   * client that only learns its budget when it has run out cannot pace itself. The four sign up
+   * and specification operations take no key and therefore have no bucket, so they carry none. The
+   * reference is the point: seventy-two operations times up to nine responses is not a place to
+   * repeat four lines of prose.
+   */
+  it('documents the rate limit headers once and references them from every keyed operation', () => {
+    const headers = onDisk.components.headers;
+    expect(Object.keys(headers).sort()).toEqual([
+      'BookrailRequestId',
+      'BookrailVersion',
+      'IdempotentReplayed',
+      'RateLimitLimit',
+      'RateLimitPolicy',
+      'RateLimitRemaining',
+      'RateLimitReset',
+      'RetryAfter',
+    ]);
+
+    const publicPaths = new Map(
+      OPERATIONS.filter((operation) => operation.public === true).map((operation) => [
+        `${operation.method} ${operation.path}`,
+        true,
+      ]),
+    );
+    let keyed = 0;
+    for (const [path, methods] of Object.entries(onDisk.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        const responses: Record<string, { headers: Record<string, unknown> }> = operation.responses;
+        const takesKey = !publicPaths.has(`${method} ${path}`);
+        for (const [status, response] of Object.entries(responses)) {
+          const names = Object.keys(response.headers);
+          const where = `${method} ${path} ${status}`;
+          expect(names, where).toContain('Bookrail-Request-Id');
+          if (takesKey) {
+            expect(names, where).toContain('RateLimit-Limit');
+            expect(names, where).toContain('RateLimit-Remaining');
+            expect(names, where).toContain('RateLimit-Reset');
+            expect(names, where).toContain('RateLimit-Policy');
+            expect(JSON.stringify(response.headers['RateLimit-Limit']), where).toBe(
+              '{"$ref":"#/components/headers/RateLimitLimit"}',
+            );
+          } else {
+            expect(names, where).not.toContain('RateLimit-Limit');
+          }
+        }
+        if (takesKey) keyed += 1;
+      }
+    }
+    // Seventy operations, less the specification itself and the three sign up ones.
+    expect(keyed).toBe(66);
+  });
+
   it('covers the 69 operations of /v1, plus itself', () => {
     const operations = Object.values(onDisk.paths).reduce(
       (total, path) => total + Object.keys(path).length,
@@ -336,6 +394,8 @@ describe('error codes', () => {
     'range_too_large',
     'timezone_missing',
     'invalid_range',
+    // Rate limiting
+    'rate_limited',
     // Sign up codes
     'signup_rate_limited',
     'signup_not_found',
@@ -405,6 +465,7 @@ describe('error codes', () => {
     expect(statusOfCode('signup_disabled')).toBe(503);
     expect(statusOfCode('signup_email_failed')).toBe(502);
     expect(statusOfCode('signup_rate_limited')).toBe(429);
+    expect(statusOfCode('rate_limited')).toBe(429);
     expect(statusOfCode('signup_not_found')).toBe(404);
     expect(statusOfCode('signup_already_confirmed')).toBe(409);
     // The override is by name and changes nothing else: a conflict is still a 409.
@@ -437,10 +498,15 @@ describe('error codes', () => {
       '404',
       '409',
       '422',
+      '429',
       '500',
     ]);
     expect(JSON.stringify(responses['409'])).toContain('slot_unavailable');
     expect(JSON.stringify(responses['422'])).toContain('start_not_on_grid');
+    // The rate limit is produced by the middleware chain, so it is on every operation that takes
+    // a key, and the `429` of such an operation also documents `Retry-After`.
+    expect(JSON.stringify(responses['429'])).toContain('rate_limited');
+    expect(Object.keys((responses['429'] as { headers: object }).headers)).toContain('Retry-After');
   });
 });
 

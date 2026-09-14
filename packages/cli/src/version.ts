@@ -7,7 +7,7 @@
  * compares this constant with what the server answers, so a drift is reported rather than
  * silently tolerated.
  */
-export const CLI_VERSION = '0.2.0';
+export const CLI_VERSION = '0.3.0';
 
 /** The API is versioned by date, sent as the `Bookrail-Version` header on every request. */
 export const API_VERSION = '2026-09-01';

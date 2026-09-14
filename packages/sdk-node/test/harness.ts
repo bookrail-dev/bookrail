@@ -10,7 +10,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { serve, type ServerType } from '@hono/node-server';
-import { createApp } from '@bookrail/api';
+import { createApp, MemoryRateLimiter } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger } from '@bookrail/shared';
@@ -48,11 +48,26 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-export async function createHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  /**
+   * Mount the per key rate limiter, with one ceiling: what a client does when it is refused
+   * does not depend on which environment the key belongs to, and the choice between the two
+   * policies is asserted where it is made, in `packages/api/test/rate-limit-api.test.ts`.
+   *
+   * Off by default: the round trip below makes several hundred calls with one key and would
+   * otherwise spend its time waiting. The suite that is about the limiter asks for a ceiling it
+   * can reach in three calls, which is what `RATE_LIMIT_TEST_RPS` and `RATE_LIMIT_TEST_BURST` set
+   * on a deployment.
+   */
+  rateLimit?: { rate: number; burst: number };
+}
+
+export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
   const appPool = createPool({ connectionString: urls.app, max: 4 });
   const adminPool = createPool({ connectionString: urls.admin, max: 1 });
   const cache = new MemoryAvailabilityCache();
+  const rateLimiter = new MemoryRateLimiter();
 
   const app = createApp({
     db: createDatabase(appPool),
@@ -68,6 +83,14 @@ export async function createHarness(): Promise<Harness> {
     siteOrigin: 'https://bookrail.dev',
     // The receiver below lives on 127.0.0.1, which the SSRF guard refuses in production.
     allowPrivateWebhookTargets: true,
+    ...(options.rateLimit === undefined
+      ? {}
+      : {
+          rateLimit: {
+            limiter: rateLimiter,
+            limits: { test: options.rateLimit, live: options.rateLimit },
+          },
+        }),
   });
 
   const seen: SeenRequest[] = [];
@@ -136,6 +159,7 @@ export async function createHarness(): Promise<Harness> {
     },
     async close(): Promise<void> {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rateLimiter.close();
       await cache.close();
       await appPool.end();
       await adminPool.end();

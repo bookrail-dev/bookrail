@@ -38,9 +38,10 @@ ship an app anybody books through.
   tools, an OpenAPI document generated from the schemas that validate each request, and every
   documentation page also served as plain markdown.
 
-Everything above exists and is tested today, and the API is live at `api.bookrail.dev`.
-Payments, rate limiting, scope enforcement on API keys and the dashboard do not exist; the site
-says so on the page where it would matter.
+Everything above exists and is tested today, and the API is live at `api.bookrail.dev`. Every key
+carries a rate limit (20 requests a second on test, 100 on live) with the `RateLimit-*` headers and
+a `429` the clients already wait for. Payments, scope enforcement on API keys, per project quotas
+and the dashboard do not exist; the site says so on the page where it would matter.
 
 ## The tone
 

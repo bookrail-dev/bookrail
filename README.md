@@ -62,8 +62,13 @@ What exists today:
   account, the project and the key exist. A **live key** still comes from a person: write to
   hello@bookrail.dev and say what you are building. There is no dashboard yet.
 
+Every API key has a **rate limit**: 20 requests a second with bursts of 40 on a `sk_test_` key,
+100 a second with bursts of 500 on a `sk_live_` one, with `RateLimit-Limit`, `RateLimit-Remaining`
+and `RateLimit-Reset` on every response and a `429 rate_limited` with `Retry-After` when a key runs
+out. The SDK, the CLI and the MCP server already wait for it.
+
 What does not exist, and is documented as not existing: payments (`payment.mode` other than
-`none` is a `400`), rate limiting, scope enforcement on API keys, the dashboard, browser SDKs,
+`none` is a `400`), scope enforcement on API keys, per project quotas, the dashboard, browser SDKs,
 and UI components.
 
 The version numbers say the same thing: the packages are `0.x`, the surface can still change,

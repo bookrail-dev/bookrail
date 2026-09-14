@@ -20,6 +20,7 @@ const RAW_BODY_LIMIT = 512;
 export interface BookrailErrorOptions {
   code: string;
   param?: string | undefined;
+  fix?: string | undefined;
   docUrl?: string | undefined;
   requestId?: string | undefined;
   status?: number | undefined;
@@ -35,6 +36,15 @@ export class BookrailError extends Error {
   readonly code: string;
   /** The field or header the error is about, when the API named one. */
   readonly param: string | undefined;
+  /**
+   * What to do next, when the API had one thing to say about it.
+   *
+   * Sent by the errors that are about the state of the deployment or of the caller's budget
+   * rather than about the request: a rate limit, a sign up that is switched off, a mail server
+   * that refused a message. Absent on everything else, which is most things, because `code` and
+   * `message` already say it.
+   */
+  readonly fix: string | undefined;
   /** Where the documentation explains this error. */
   readonly docUrl: string | undefined;
   /** `Bookrail-Request-Id`; quote it to support. */
@@ -54,6 +64,7 @@ export class BookrailError extends Error {
     this.type = type;
     this.code = options.code;
     this.param = options.param;
+    this.fix = options.fix;
     this.docUrl = options.docUrl;
     this.requestId = options.requestId;
     this.status = options.status;
@@ -195,6 +206,7 @@ export function errorFromResponse(
     const options: BookrailErrorOptions = {
       code: payload.code,
       param: payload.param,
+      fix: payload.fix,
       docUrl: payload.doc_url,
       requestId: payload.request_id ?? requestId,
       status,

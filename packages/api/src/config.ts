@@ -1,5 +1,6 @@
 import { resolveDatabaseUrls, type DatabaseUrls } from '@bookrail/db';
 import type { LogLevel } from '@bookrail/shared';
+import type { RateLimitPolicy } from './context.js';
 import {
   DEFAULT_HOLD_EXPIRY_INTERVAL_SECONDS,
   DEFAULT_WEBHOOK_DELIVERY_INTERVAL_SECONDS,
@@ -102,7 +103,34 @@ export interface ApiConfig {
   siteUrl: string;
   /** The one browser origin allowed to call `/v1/signups`. */
   siteOrigin: string;
+  /**
+   * The per key rate limit: whether it is applied at all, and the ceiling per environment.
+   *
+   * `enabled` is false only when `RATE_LIMIT=off`, which exists for development and for a test
+   * that is measuring something else. A deployment never sets it: `install-remote.sh` does not
+   * write the variable, so an API without it is an API with the limit on.
+   */
+  rateLimit: {
+    enabled: boolean;
+    test: RateLimitPolicy;
+    live: RateLimitPolicy;
+  };
 }
+
+/**
+ * The defaults, and where each number comes from.
+ *
+ * The test ceiling is the one the pricing table has always printed against the free tier, 20
+ * requests a second. The live one is the number the API reference has always printed, 100 a
+ * second with a burst of 500. Neither is a measurement: they are both far above anything a real
+ * integration does (a booking flow is a handful of calls per customer) and far below what one
+ * process can serve, so they bound a runaway script without being in anybody's way. The burst of
+ * a test key is twice its rate, which covers a cold start that sets up a project in one go.
+ */
+export const DEFAULT_RATE_LIMITS: Readonly<Record<'test' | 'live', RateLimitPolicy>> = {
+  test: { rate: 20, burst: 40 },
+  live: { rate: 100, burst: 500 },
+};
 
 export const DEFAULT_SITE_URL = 'https://bookrail.dev';
 
@@ -151,7 +179,55 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     mailFrom: trimmed(env.MAIL_FROM),
     siteUrl: trimSlash(trimmed(env.BOOKRAIL_SITE_URL) ?? DEFAULT_SITE_URL),
     siteOrigin: trimSlash(trimmed(env.BOOKRAIL_SITE_ORIGIN) ?? DEFAULT_SITE_URL),
+    rateLimit: {
+      enabled: !OFF.has((env.RATE_LIMIT ?? 'on').toLowerCase()),
+      test: rateLimitPolicy('TEST', env.RATE_LIMIT_TEST_RPS, env.RATE_LIMIT_TEST_BURST),
+      live: rateLimitPolicy('LIVE', env.RATE_LIMIT_LIVE_RPS, env.RATE_LIMIT_LIVE_BURST),
+    },
   };
+}
+
+/**
+ * The largest `rate * (burst + 1)` this limiter will start with.
+ *
+ * Not a product anybody wants, a product the **arithmetic** stops being exact above. The admission
+ * test allows a slack for the rounding of a timestamp, and that slack grows with the burst while
+ * the emission interval shrinks with the rate; past a certain product the slack is wider than half
+ * an interval and the limiter would admit `burst + 1` requests where `RateLimit-Limit` promises
+ * `burst`. `gcra` caps the slack at half an interval so that this can never happen, which is the
+ * belt; this is the braces, and it is here because a deployment should be told at boot that the
+ * numbers it asked for are outside the regime the promise was made in, rather than find out from a
+ * counter that is off by one.
+ *
+ * A million is forty times the busiest default (`100 * 501 = 50 100`) and a factor of two and a
+ * half below the point where the slack reaches an interval with today's clock. The threshold moves
+ * down as the epoch grows, which is another reason to keep the margin wide.
+ */
+export const MAX_RATE_LIMIT_PRODUCT = 1_000_000;
+
+/**
+ * One environment's policy: two positive integers, and a product small enough to be exact.
+ */
+function rateLimitPolicy(
+  environment: 'TEST' | 'LIVE',
+  rawRate: string | undefined,
+  rawBurst: string | undefined,
+): { rate: number; burst: number } {
+  const defaults = environment === 'TEST' ? DEFAULT_RATE_LIMITS.test : DEFAULT_RATE_LIMITS.live;
+  const rateName = `RATE_LIMIT_${environment}_RPS`;
+  const burstName = `RATE_LIMIT_${environment}_BURST`;
+  const rate = requiredPositiveInt(rateName, rawRate, defaults.rate);
+  const burst = requiredPositiveInt(burstName, rawBurst, defaults.burst);
+  const product = rate * (burst + 1);
+  if (product > MAX_RATE_LIMIT_PRODUCT) {
+    throw new Error(
+      `${rateName} times (${burstName} + 1) must be at most ${String(MAX_RATE_LIMIT_PRODUCT)}, ` +
+        `and ${String(rate)} times (${String(burst)} + 1) is ${String(product)}. ` +
+        'Above that the limiter can no longer promise exactly the burst it advertises. ' +
+        'Lower the rate, lower the burst, or run more processes behind the same Redis.',
+    );
+  }
+  return { rate, burst };
 }
 
 /**
@@ -201,4 +277,26 @@ const OFF = new Set(['off', 'false', '0', 'no']);
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * A positive integer, or a refusal to start.
+ *
+ * Unlike {@link positiveInt} above, a value that is set and wrong is an error and not a silent
+ * fallback. The difference is what the number controls: a sweep interval that quietly reverts to
+ * ten seconds is slower than intended and nothing else, while a rate limit that quietly reverts
+ * to its default is a deployment that believes it raised a ceiling and did not. The house rule for
+ * those is to be loud at boot, never silent at run time, which is what the mailer check does too.
+ *
+ * `burst >= 1` falls out of this: a burst of zero would refuse every request, including the first
+ * one, and a deployment asking for that is a deployment asking for a mistake.
+ */
+function requiredPositiveInt(name: string, value: string | undefined, fallback: number): number {
+  const raw = trimmed(value);
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer. Got "${raw}".`);
+  }
+  return parsed;
 }

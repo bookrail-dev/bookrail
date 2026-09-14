@@ -3,6 +3,7 @@ import { CURRENT_API_VERSION } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from './context.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotency } from './middleware/idempotency.js';
+import { rateLimit } from './middleware/rate-limit.js';
 import { errorHandler, notFoundHandler, requestContext } from './middleware/request.js';
 import { contractGuard } from './openapi/contract.js';
 import { openApiDocument } from './openapi/generate.js';
@@ -33,7 +34,22 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.notFound(notFoundHandler);
   app.onError(errorHandler(deps));
 
-  app.get('/health', (c) => c.json({ status: 'ok', api_version: CURRENT_API_VERSION }));
+  /**
+   * Liveness, and where the rate limit buckets of this process live.
+   *
+   * `rate_limiter` is `redis` when a Redis holds the buckets, `memory` when this process holds
+   * its own, and `off` when no limit is applied at all. It is here because the three are
+   * indistinguishable from outside and the difference matters: `memory` on a fleet of more than
+   * one process means the effective limit is the configured one times the number of processes,
+   * and `off` means there is none.
+   */
+  app.get('/health', (c) =>
+    c.json({
+      status: 'ok',
+      api_version: CURRENT_API_VERSION,
+      rate_limiter: deps.rateLimit === undefined ? 'off' : deps.rateLimit.limiter.kind,
+    }),
+  );
 
   /**
    * The specification of this API, generated from the same Zod schemas the routes validate and
@@ -55,10 +71,14 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
 
   const v1 = new Hono<AppEnv>();
   v1.use('*', authenticate(deps));
+  // After the key is known, because what is limited is the key; before the line below, because a
+  // `429` must never become the stored answer of an `Idempotency-Key` and a refused request must
+  // not burn one either.
+  v1.use('*', rateLimit(deps));
   // Every POST of /v1 honours `Idempotency-Key`, availability included: an SDK with a retry
   // policy sends it on every write, and one endpoint answering differently would be a trap.
   v1.use('*', idempotency(deps));
-  // The one part of `/v1` with no key in front of it, and the reason both middlewares above
+  // The one part of `/v1` with no key in front of it, and the reason all three middlewares above
   // carry an exemption: this is where a key comes from, so there cannot be one yet.
   v1.route('/signups', signupsRoutes(deps));
   v1.route('/project', projectRoutes(deps));

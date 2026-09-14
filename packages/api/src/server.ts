@@ -6,6 +6,7 @@ import { createAvailabilityCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { startWorker, type Worker } from './jobs/index.js';
 import { createLogMailer, createSmtpMailer, type Mailer } from './mail/index.js';
+import { createRateLimiter } from './rate-limit.js';
 
 const config = loadConfig();
 const logger = createLogger({ level: config.logLevel, base: { service: 'bookrail-api' } });
@@ -31,6 +32,17 @@ const adminPool =
     : createPool({ connectionString: config.urls.admin, max: 2 });
 
 const cache = createAvailabilityCache(config.redisUrl, logger);
+
+/**
+ * The rate limiter, on its own Redis connection.
+ *
+ * A second client rather than the cache's, because the two want opposite settings from the same
+ * server: the cache waits a second for an answer, since a miss costs a recomputation, and the
+ * limiter waits fifty milliseconds, since waiting buys it nothing. One connection cannot have
+ * both command timeouts, and the limiter is on the path of every single request.
+ */
+const rateLimiter = config.rateLimit.enabled ? createRateLimiter(config.redisUrl) : null;
+
 const db = createDatabase(appPool);
 const adminDb = adminPool === null ? db : createDatabase(adminPool);
 
@@ -63,6 +75,14 @@ const app = createApp({
   mailer,
   siteUrl: config.siteUrl,
   siteOrigin: config.siteOrigin,
+  ...(rateLimiter === null
+    ? {}
+    : {
+        rateLimit: {
+          limiter: rateLimiter,
+          limits: { test: config.rateLimit.test, live: config.rateLimit.live },
+        },
+      }),
 });
 
 /**
@@ -101,6 +121,9 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
     database: config.urls.databaseName,
     admin_pool: adminPool === null ? 'none' : 'open',
     availability_cache: config.redisUrl === undefined ? 'memory' : 'redis',
+    rate_limiter: rateLimiter === null ? 'off' : rateLimiter.kind,
+    rate_limit_test: `${String(config.rateLimit.test.rate)}/s burst ${String(config.rateLimit.test.burst)}`,
+    rate_limit_live: `${String(config.rateLimit.live.rate)}/s burst ${String(config.rateLimit.live.burst)}`,
     worker: config.worker ? config.holdExpiryIntervalSeconds : 'off',
     webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
     mailer: config.mailer ?? 'off',
@@ -114,6 +137,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       appPool.end(),
       adminPool === null ? Promise.resolve() : adminPool.end(),
       cache.close(),
+      rateLimiter === null ? Promise.resolve() : rateLimiter.close(),
       mailer === undefined ? Promise.resolve() : mailer.close(),
     ]).finally(() => process.exit(0));
   });

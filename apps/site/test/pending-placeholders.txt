@@ -1,0 +1,6 @@
+# Placeholders that may still be in the built site, one per line.
+#
+# A line here is a promise that somebody will replace the placeholder by hand at the next deploy,
+# not a permission to forget it: the test in `dist.test.ts` fails both when the site ships a
+# placeholder that is not listed here and when a line listed here appears nowhere in the build, so
+# the file cannot quietly rot. Empty it when the deploy is done and the real date is in.

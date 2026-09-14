@@ -2,6 +2,7 @@ import type { Database } from '@bookrail/db';
 import type { AvailabilityCache } from '@bookrail/engine';
 import type { Environment, Logger } from '@bookrail/shared';
 import type { Mailer } from './mail/index.js';
+import type { RateLimiter } from './rate-limit.js';
 
 export interface AuthContext {
   apiKeyId: string;
@@ -10,6 +11,27 @@ export interface AuthContext {
   kind: 'secret' | 'publishable';
   scopes: string[];
   tenantId: string | null;
+}
+
+/** One policy: how fast, and how much of it may arrive at once. */
+export interface RateLimitPolicy {
+  /** Requests a second, sustained. */
+  rate: number;
+  /** Requests accepted in one instant, which is also the value of `RateLimit-Limit`. */
+  burst: number;
+}
+
+export interface RateLimitSettings {
+  limiter: RateLimiter;
+  /**
+   * The policy per environment of the key, not per plan.
+   *
+   * There are no plans, so there is nothing to read one from; what there is instead is the one
+   * distinction that already exists and already means something, which is whether the key is a
+   * test key or a live one. A test key belongs to somebody exploring the API, a live key to
+   * somebody serving customers with it, and the second deserves the higher ceiling.
+   */
+  limits: Readonly<Record<Environment, RateLimitPolicy>>;
 }
 
 export interface AppDeps {
@@ -49,6 +71,15 @@ export interface AppDeps {
   siteUrl: string;
   /** The one origin allowed to call `/v1/signups` from a browser. */
   siteOrigin: string;
+  /**
+   * The per key rate limit, or nothing at all.
+   *
+   * `undefined` switches the middleware off completely: no Redis call, no header, no refusal.
+   * That is what `RATE_LIMIT=off` asks for, and it is the default of a test harness that is
+   * measuring something else, because a suite that fires hundreds of requests at one key in a
+   * second would otherwise be measuring the limiter.
+   */
+  rateLimit?: RateLimitSettings;
   /**
    * Read `X-Forwarded-For` as the caller's address even when the request arrived over no socket.
    *

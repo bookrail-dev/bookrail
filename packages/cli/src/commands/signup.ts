@@ -52,6 +52,35 @@ export const POLL_INTERVAL_MS = 2_000;
  */
 export const RATE_LIMIT_PAUSE_MS = 5_000;
 
+/**
+ * The longest pause a `Retry-After` may buy, in milliseconds.
+ *
+ * `Retry-After` is written by whatever refused the request, and that is not always this API: a
+ * company proxy, a home router or a reverse proxy in front of a deployment can all send one, and
+ * some of them say sixty seconds for a limit whose token comes back in one. A terminal that
+ * believes such a number sits there doing nothing while the link in the mailbox is already valid,
+ * which is how a sign up that takes two minutes starts taking three. Fifteen seconds is longer
+ * than any wait this API asks for and short enough that a person does not think it has hung; past
+ * it the loop simply asks again, and being refused again costs one request.
+ */
+export const MAX_RATE_LIMIT_PAUSE_MS = 15_000;
+
+/** The shortest pause, so that a `Retry-After: 0` from anywhere cannot become a tight loop. */
+export const MIN_RATE_LIMIT_PAUSE_MS = 1_000;
+
+/**
+ * How long to sleep after a `429`, from the `Retry-After` it carried, if it carried one.
+ *
+ * A floor as well as a ceiling. `Retry-After: 0` is a legal header and something in the middle can
+ * send it; without the floor the loop would ask again immediately and keep asking, turning a pause
+ * into a tight loop of HTTP requests for as long as the sign up is valid. One second is the
+ * smallest wait this API ever asks for, and the smallest that is worth calling a pause.
+ */
+export function rateLimitPauseMs(retryAfterSeconds: number | undefined): number {
+  const asked = (retryAfterSeconds ?? RATE_LIMIT_PAUSE_MS / 1000) * 1000;
+  return Math.min(Math.max(asked, MIN_RATE_LIMIT_PAUSE_MS), MAX_RATE_LIMIT_PAUSE_MS);
+}
+
 interface SignupBody {
   id: string;
   object: 'signup';
@@ -211,8 +240,7 @@ async function waitForKey(
         if (!(error instanceof CliError) || error.status !== 429) throw error;
         if (deadline !== null && Date.now() > deadline)
           return { id, object: 'signup', status: 'expired' };
-        const pause = (error.retryAfterSeconds ?? RATE_LIMIT_PAUSE_MS / 1000) * 1000;
-        await sleep(pause, () => stopped);
+        await sleep(rateLimitPauseMs(error.retryAfterSeconds), () => stopped);
         continue;
       }
       if (body.status !== 'pending') return body;

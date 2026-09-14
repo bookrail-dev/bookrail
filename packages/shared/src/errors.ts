@@ -130,6 +130,18 @@ export const errors = {
   conflict(message: string, code: string, param?: string): BookrailError {
     return new BookrailError('conflict', code, message, param);
   },
+  /**
+   * Too many requests from one API key.
+   *
+   * The one error of this family that the booking API itself produces: the sign up endpoints have
+   * `signup_rate_limited`, which is about an address and a mailbox, while this one is about a
+   * credential. It always carries a `fix`, because "wait" is exactly the kind of instruction a
+   * client cannot derive from a code it has never seen, and the response carries `Retry-After` so
+   * that the wait is a number and not a guess.
+   */
+  rateLimited(message: string, fix: string): BookrailError {
+    return new BookrailError('rate_limit', 'rate_limited', message, undefined, fix);
+  },
   internal(message = 'An unexpected error occurred.'): BookrailError {
     return new BookrailError('internal', 'internal_error', message);
   },

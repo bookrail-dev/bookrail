@@ -522,6 +522,23 @@ describe('the sign up endpoints and the rest of the API', () => {
   });
 
   /**
+   * A preflight the browser remembers is a request the limit in front of these routes never sees.
+   *
+   * Without this header a browser caches the answer for a few seconds at most, so every
+   * submission of the form is two requests rather than one, and the reverse proxy counts both
+   * against the same address. A refused `OPTIONS` is worse than a refused `POST`: a preflight
+   * answered with anything but a 2xx is a CORS failure whatever headers it carries, so the page
+   * cannot read the explanation and falls back to "The API could not be reached".
+   */
+  it('tells the browser to remember the preflight, so one submission is one request', async () => {
+    const preflight = await h.call('OPTIONS', '/v1/signups', {
+      headers: { origin: 'https://bookrail.dev' },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-max-age')).toBe('600');
+  });
+
+  /**
    * The half that matters most, and the half that was missing.
    *
    * A response without `Access-Control-Allow-Origin` is refused by the browser **before** the

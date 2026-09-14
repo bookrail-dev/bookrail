@@ -10,6 +10,58 @@ The four published packages are versioned together: `bookrail`, `@bookrail/node`
 `@bookrail/mcp` and `@bookrail/webhook-signature`. `@bookrail/webhook-signature` is a
 dependency of the first two, so it is always published first or in the same batch.
 
+## 0.3.0
+
+Released on 14 September 2026. One new limit, three new headers, and nothing removed.
+
+### Added
+
+- **A rate limit per API key, with the standard headers.** A `sk_test_` key may make **20 requests
+  a second with bursts of 40**; a `sk_live_` key **100 a second with bursts of 500**. Every
+  response of every endpoint that takes a key now carries `RateLimit-Limit` (the burst),
+  `RateLimit-Remaining` (a whole number) and `RateLimit-Reset` (whole seconds until the budget is
+  full again), so a client can pace itself instead of finding the ceiling by hitting it. Over the
+  ceiling the answer is `429` with the new code **`rate_limited`**, a `Retry-After` in whole
+  seconds (at least 1) and a `fix`. The bucket is the key, not the project: two keys of one
+  project have two budgets.
+- **`RateLimit-Policy: unavailable`**, on a response that was served because no limit could be
+  applied at all: the store that holds the counters did not answer, and an unreachable store must
+  not become an unreachable API. The three counters are absent on such a response.
+- **`@bookrail/node` waits for the limit by itself.** No new option and no change to the retry
+  policy: a `429` was already retried after the `Retry-After` the server sent, up to `maxRetries`
+  times. You see `BookrailRateLimitError` only when the retries are spent or when you asked for
+  none, and it now carries `fix` and the response headers.
+- **`bookrail`** prints the message and the fix and exits **3**, which is the exit code of the
+  `rate_limit` family and means "waiting and running this again may work". **`@bookrail/mcp`**
+  returns the structured error, with the fix, as it does for every other failure.
+
+### Changed
+
+- **A test key now has a ceiling.** Until this release there was none, and the documentation said
+  so. A script that called `POST /v1/availability` in a loop with a test key was limited only by
+  how fast one process could answer; it is now limited to 20 requests a second with bursts of 40.
+  Every client of ours already handles the refusal; a hand-written client should read
+  `Retry-After` rather than retry immediately.
+- **`429` from the reverse proxy is JSON.** The sign up endpoints are rate limited by address in
+  front of the API, and that refusal used to be a page of HTML with no CORS header, which a
+  browser would not let the sign up page read: the page then reported a network failure for a
+  refusal the server had explained. It is now the same error envelope as everything else, with
+  `code: "rate_limited"`, a `fix` and a `Retry-After`. It carries no `request_id`, because the
+  proxy has none to give. A CORS preflight is not counted against that limit and is never
+  refused, so a browser always gets far enough to read the answer, and the sign up endpoints send
+  `Access-Control-Max-Age: 600` so that one submission of a form costs one request and not two.
+- **`bookrail signup` waits at most fifteen seconds for any one `Retry-After`.** The command
+  treats a `429` while it polls as a pause rather than a failure, and it honours the wait the
+  answer asks for; that answer can come from anything between the terminal and the API, and a
+  proxy asking for a minute used to park a sign up for a minute while the link in the mailbox was
+  already valid. Past fifteen seconds it now simply asks again.
+
+### Fixed
+
+- **`error.fix` on `BookrailError`** in `@bookrail/node`. The field was documented for 0.2.0 and
+  the envelope carried it, but the client dropped it on the way into the error object, so a caller
+  could not read it. It is there now.
+
 ## 0.2.0
 
 Released on 11 September 2026. One new command, one new field, and nothing removed.
@@ -28,8 +80,9 @@ Released on 11 September 2026. One new command, one new field, and nothing remov
   flow (`signup_rate_limited`, `signup_not_found`, `signup_already_confirmed`, `signup_expired`,
   `signup_secret_claimed`, `signup_secret_expired`, `signup_disabled`, `signup_email_failed`), each
   with its own HTTP status.
-- **`@bookrail/node`** knows the new `fix` field on `BookrailError` and the new error codes.
-  The sign up operations are deliberately not in the SDK (`x-bookrail-sdk: false` in the OpenAPI
+- **`@bookrail/node`** knows the new error codes. (This entry originally also claimed the `fix`
+  field on `BookrailError`; in 0.2.0 the client dropped it, see 0.3.0 under Fixed.) The sign up
+  operations are deliberately not in the SDK (`x-bookrail-sdk: false` in the OpenAPI
   document): they are for a terminal or a browser, not for an application server.
 
 ### Changed

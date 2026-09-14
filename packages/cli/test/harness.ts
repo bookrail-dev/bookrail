@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
-import { createApp, createLogMailer, type LogMailer } from '@bookrail/api';
+import { createApp, createLogMailer, MemoryRateLimiter, type LogMailer } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger } from '@bookrail/shared';
@@ -59,6 +59,13 @@ export interface Harness {
   workdir(): Promise<string>;
   /** Creates an account, a project and its two secret keys. */
   bootstrap(name: string): Promise<Project>;
+  /**
+   * Empties every rate limit bucket, so the next call starts from a full budget.
+   *
+   * A test that waited for the budget to come back instead would be asserting a clock: it would
+   * pass while the machine is idle and fail on the day the suite runs beside a build.
+   */
+  resetRateLimit(): void;
   /** Runs the CLI in-process with an isolated home, cwd and environment. */
   cli(
     args: string[],
@@ -105,6 +112,16 @@ export interface HarnessOptions {
    * exercised.
    */
   mailer?: false;
+  /**
+   * Mount the per key rate limiter, with one ceiling: what a client does when it is refused
+   * does not depend on which environment the key belongs to, and the choice between the two
+   * policies is asserted where it is made, in `packages/api/test/rate-limit-api.test.ts`.
+   *
+   * Off by default: the operational suite makes hundreds of calls with one key and would spend
+   * its time waiting. The suite that is about the limit asks for a ceiling it can reach in two
+   * calls, which is what `RATE_LIMIT_TEST_RPS` and `RATE_LIMIT_TEST_BURST` set on a deployment.
+   */
+  rateLimit?: { rate: number; burst: number };
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -114,6 +131,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const appPool = createPool({ connectionString: urls.app, max: 3 });
   const adminPool = createPool({ connectionString: urls.admin, max: 1 });
   const cache = new MemoryAvailabilityCache();
+  const rateLimiter = new MemoryRateLimiter();
   const mailer = createLogMailer(silentLogger);
   const mounted = options.mailer === false ? undefined : mailer;
 
@@ -134,6 +152,14 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     siteUrl: 'https://bookrail.dev',
     siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
+    ...(options.rateLimit === undefined
+      ? {}
+      : {
+          rateLimit: {
+            limiter: rateLimiter,
+            limits: { test: options.rateLimit, live: options.rateLimit },
+          },
+        }),
   });
 
   const seenKeys: string[] = [];
@@ -218,6 +244,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       return mkdtemp(join(root, `work-${counter}-`));
     },
     bootstrap,
+    resetRateLimit(): void {
+      rateLimiter.clear();
+    },
     async cli(args, options = {}): Promise<CliResult> {
       let stdout = '';
       let stderr = '';
@@ -299,6 +328,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     },
     async close(): Promise<void> {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rateLimiter.close();
       await cache.close();
       await appPool.end();
       await adminPool.end();

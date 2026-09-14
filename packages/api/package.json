@@ -37,6 +37,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.11.10",
     "@types/smtp-server": "^3.5.13",
+    "fast-check": "^4.9.0",
     "prettier": "^3.4.2",
     "smtp-server": "^3.19.10",
     "tsx": "^4.19.2",

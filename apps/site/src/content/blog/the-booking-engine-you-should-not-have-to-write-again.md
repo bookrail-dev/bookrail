@@ -49,7 +49,7 @@ The quickstart, from a key to a confirmed booking, takes 21 seconds of machine t
 
 The packages are `0.x`. What exists today: the engine, the API, the CLI, the MCP server and the SDK, all tested against a real PostgreSQL with no mocks, about 1,500 tests. The API is live. The documentation is live.
 
-What does not exist, and is documented as not existing: payments (any `payment.mode` other than `none` is a `400`), rate limiting, scope enforcement on API keys, a dashboard, browser SDKs and UI components.
+What does not exist, and is documented as not existing: payments (any `payment.mode` other than `none` is a `400`), scope enforcement on API keys, a dashboard, browser SDKs and UI components. (Updated on 14 September 2026: rate limiting was on this list when the article went out, and it now exists, per key, with `RateLimit-*` headers and a `429` that the SDK waits out.)
 
 A test key takes two minutes and nobody in between: `npx bookrail signup` from the terminal, or the form at [bookrail.dev/signup](/signup), sends a link to your address and the key follows. A live key is still issued by a person: write to hello@bookrail.dev and say what you are building. There is no dashboard, and we would rather say so than build one that pretends. (Updated on 11 September 2026. When this article went out on 10 September 2026, the test key too came from a person.)
 
