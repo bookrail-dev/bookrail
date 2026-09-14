@@ -10,7 +10,7 @@
  * back is the exact body the proxy now returns. What the page must show is the sentence the server
  * wrote, not the network failure sentence.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
@@ -39,11 +39,14 @@ const NGINX_CLAIM_429 = JSON.stringify({
   },
 });
 
-/** The template the two bodies above are copied from, read rather than remembered. */
-const NGINX_CONF = readFileSync(
-  join(repoRoot, 'infra', 'deploy', 'remote', 'nginx-api.conf'),
-  'utf8',
-);
+/**
+ * The template the two bodies above are copied from, read rather than remembered. The deployment
+ * directory is not part of the public repository (the release scripts describe one machine), so
+ * a clone of that repository has the two bodies and not the file: there, the checks on the file
+ * are skipped and the browser tests still run.
+ */
+const NGINX_CONF_PATH = join(repoRoot, 'infra', 'deploy', 'remote', 'nginx-api.conf');
+const NGINX_CONF = existsSync(NGINX_CONF_PATH) ? readFileSync(NGINX_CONF_PATH, 'utf8') : null;
 
 /** What the API itself answers when a key has run out of budget. */
 const API_429 = JSON.stringify({
@@ -198,28 +201,31 @@ describe('a 429 from the API itself', () => {
  * address directly. The real proof is `nginx -t` and a burst of `OPTIONS` against the running
  * deployment, which is part of the release checklist.
  */
-describe('the reverse proxy configuration these bodies come from', () => {
-  it('does not count a preflight against either sign up zone', () => {
-    expect(NGINX_CONF).toContain('map $request_method $signup_limit_key {');
-    expect(NGINX_CONF).toMatch(/map \$request_method \$signup_limit_key \{[^}]*OPTIONS\s+"";/);
-    expect(NGINX_CONF).toMatch(
-      /map \$request_method \$signup_limit_key \{[^}]*default\s+\$binary_remote_addr;/,
-    );
-    expect(NGINX_CONF).toContain('limit_req_zone $signup_limit_key zone=signups:1m');
-    expect(NGINX_CONF).toContain('limit_req_zone $signup_limit_key zone=signup_claim:1m');
-    // And no zone left counting addresses directly, which is what the two lines above replaced.
-    expect(NGINX_CONF).not.toContain('limit_req_zone $binary_remote_addr');
-  });
+describe.skipIf(NGINX_CONF === null)(
+  'the reverse proxy configuration these bodies come from',
+  () => {
+    it('does not count a preflight against either sign up zone', () => {
+      expect(NGINX_CONF).toContain('map $request_method $signup_limit_key {');
+      expect(NGINX_CONF).toMatch(/map \$request_method \$signup_limit_key \{[^}]*OPTIONS\s+"";/);
+      expect(NGINX_CONF).toMatch(
+        /map \$request_method \$signup_limit_key \{[^}]*default\s+\$binary_remote_addr;/,
+      );
+      expect(NGINX_CONF).toContain('limit_req_zone $signup_limit_key zone=signups:1m');
+      expect(NGINX_CONF).toContain('limit_req_zone $signup_limit_key zone=signup_claim:1m');
+      // And no zone left counting addresses directly, which is what the two lines above replaced.
+      expect(NGINX_CONF).not.toContain('limit_req_zone $binary_remote_addr');
+    });
 
-  it('answers each zone with a body that is true for that zone', () => {
-    expect(NGINX_CONF).toContain(`return 429 '${NGINX_429}';`);
-    expect(NGINX_CONF).toContain(`return 429 '${NGINX_CLAIM_429}';`);
-    // Twelve seconds is when five a minute gives a token back, two seconds is when sixty does.
-    expect(NGINX_CONF).toContain('add_header Retry-After 12 always;');
-    expect(NGINX_CONF).toContain('add_header Retry-After 2 always;');
-    // The claim endpoint is the one that points at the second page.
-    expect(NGINX_CONF).toMatch(
-      /location ~ \^\/v1\/signups\/\[\^\/\]\+\/claim\$ \{[^}]*error_page 429 = @claim_rate_limited;/,
-    );
-  });
-});
+    it('answers each zone with a body that is true for that zone', () => {
+      expect(NGINX_CONF).toContain(`return 429 '${NGINX_429}';`);
+      expect(NGINX_CONF).toContain(`return 429 '${NGINX_CLAIM_429}';`);
+      // Twelve seconds is when five a minute gives a token back, two seconds is when sixty does.
+      expect(NGINX_CONF).toContain('add_header Retry-After 12 always;');
+      expect(NGINX_CONF).toContain('add_header Retry-After 2 always;');
+      // The claim endpoint is the one that points at the second page.
+      expect(NGINX_CONF).toMatch(
+        /location ~ \^\/v1\/signups\/\[\^\/\]\+\/claim\$ \{[^}]*error_page 429 = @claim_rate_limited;/,
+      );
+    });
+  },
+);
