@@ -1,12 +1,14 @@
 /**
- * The background worker: pg-boss, seven queues, and the reasons for all of them.
+ * The background worker: pg-boss, eight queues, and the reasons for all of them.
  *
  * The cadences are a hold expiry every ten seconds, the automatic booking transitions every
  * thirty, the webhook outbox every five, the webhook delivery sweep every second, an hourly
- * cleanup of `Idempotency-Key` rows, and the two nightly reconciliations (the integrity check
- * and the orphan sweep). pg-boss keeps the queue in Postgres, which is the point: there is no
- * second datastore to lose, and a job and the rows it will touch live in the same database and
- * the same backup.
+ * cleanup of `Idempotency-Key` rows, the two nightly reconciliations (the integrity check and
+ * the orphan sweep), and the usage digest at seven in the morning, which is the only job here
+ * that sends a message to a person and the only one whose cron is in a local time zone.
+ *
+ * pg-boss keeps the queue in Postgres, which is the point: there is no second datastore to
+ * lose, and a job and the rows it will touch live in the same database and the same backup.
  *
  * **Ten seconds is not a cron.** Cron's finest grain is one minute, so the expiry loop is a
  * job that re-arms itself: each run queues the next one with `startAfter`. The queue's policy
@@ -43,8 +45,10 @@ import {
   runHoldExpiry,
 } from './tasks.js';
 import { runIntegrityCheck, runOrphanReconciliation } from './reconcile.js';
+import { DIGEST_TIMEZONE, runUsageDigest, type UsageDigestOptions } from './usage-digest.js';
 import { runWebhookDeliveries } from '../webhooks/dispatch.js';
 import { runWebhookOutbox } from '../webhooks/outbox.js';
+import type { Mailer } from '../mail/index.js';
 
 export const HOLD_EXPIRY_QUEUE = 'hold-expiry';
 export const IDEMPOTENCY_PURGE_QUEUE = 'idempotency-purge';
@@ -53,6 +57,19 @@ export const WEBHOOK_OUTBOX_QUEUE = 'webhook-outbox';
 export const WEBHOOK_DELIVERY_QUEUE = 'webhook-delivery';
 export const INTEGRITY_CHECK_QUEUE = 'integrity-check';
 export const ORPHAN_RECONCILE_QUEUE = 'orphan-reconcile';
+export const USAGE_DIGEST_QUEUE = 'usage-digest';
+
+/**
+ * When the daily usage digest goes out: 07:00 in the founder's own time zone.
+ *
+ * The only cron here that is **not** in UTC, and the reason is what it is for: it is a message
+ * a person reads over coffee, so the hour has to mean the same thing in March and in November.
+ * pg-boss 10 takes a `tz` on a schedule and hands it to `cron-parser`, so the expression is
+ * evaluated in Europe/Rome and the job moves with the clock rather than drifting an hour twice
+ * a year. The two reconciliations stay in UTC because nobody reads them.
+ */
+export const DEFAULT_USAGE_DIGEST_CRON = '0 7 * * *';
+export const USAGE_DIGEST_TIMEZONE = DIGEST_TIMEZONE;
 
 /**
  * The two reconciliations run nightly, at an hour nobody is booking.
@@ -125,6 +142,52 @@ export interface WorkerOptions {
    * the environment on purpose (`AppDeps.allowPrivateWebhookTargets`).
    */
   allowPrivateWebhookTargets?: boolean;
+  /**
+   * The daily usage digest, or nothing at all.
+   *
+   * Absent means the queue is not created and nothing is scheduled: a deployment without
+   * `USAGE_DIGEST_TO` has nowhere to send a digest, and a queue that exists with no handler
+   * would be a job piling up against a schedule nobody reads.
+   *
+   * It rides on the options rather than on `deps` so that the worker's dependency set stays
+   * the four things every sweep needs. The mailer belongs to this job and to no other: it is
+   * the second message this product sends, after the sign up confirmation, and the first one
+   * the worker sends at all.
+   */
+  usageDigest?: WorkerUsageDigest;
+  /**
+   * What to say at start-up when {@link usageDigest} is absent.
+   *
+   * The caller knows **which** of the two variables is missing; this object only knows that it
+   * did not get a digest to run. Passing the sentence in is what keeps the log line true
+   * (`usageDigestOffReason`).
+   */
+  usageDigestOffReason?: string;
+}
+
+export interface WorkerUsageDigest extends Omit<UsageDigestOptions, 'now'> {
+  /** How the message leaves the process. The worker holds no mailer without this. */
+  mailer: Mailer;
+  /** `0 7 * * *` unless a deployment says otherwise. */
+  cron?: string;
+}
+
+/**
+ * Why there is no digest, in the words of the variable that is missing.
+ *
+ * Two different omissions switch the job off and they are fixed in two different files, so one
+ * message for both is a message that sends the reader to the wrong place. `install-remote.sh`
+ * produces the second one by itself on a first run: it always writes `USAGE_DIGEST_TO` and
+ * leaves `BOOKRAIL_MAILER` empty until root has put the mailbox password in.
+ */
+export function usageDigestOffReason(options: {
+  to: string | undefined;
+  mailer: Mailer | undefined;
+}): string | null {
+  const missing: string[] = [];
+  if (options.to === undefined || options.to === '') missing.push('USAGE_DIGEST_TO is not set');
+  if (options.mailer === undefined) missing.push('BOOKRAIL_MAILER is not set');
+  return missing.length === 0 ? null : missing.join(' and ');
 }
 
 export interface Worker {
@@ -207,6 +270,14 @@ export async function startWorker(
     policy: 'short',
     retryLimit: 0,
   });
+  const digest = options.usageDigest;
+  if (digest !== undefined) {
+    await boss.createQueue(USAGE_DIGEST_QUEUE, {
+      name: USAGE_DIGEST_QUEUE,
+      policy: 'short',
+      retryLimit: 0,
+    });
+  }
 
   const rearm = async (queue: string, seconds: number, name: string): Promise<void> => {
     try {
@@ -353,6 +424,22 @@ export async function startWorker(
     }
   });
 
+  // The only job here that sends a message to a person, and the only one whose failure is
+  // invisible from the outside: nobody is waiting on an HTTP response for it. So everything it
+  // can do wrong is a log line, and the line that says it did go out is an `info` of its own
+  // (`runUsageDigest`), which is what makes "no digest this morning" a question with an answer.
+  if (digest !== undefined) {
+    await boss.work(USAGE_DIGEST_QUEUE, { batchSize: 1 }, async () => {
+      try {
+        await runUsageDigest({ db: deps.db, logger, mailer: digest.mailer }, digest);
+      } catch (error) {
+        logger.warn('usage_digest_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+  }
+
   if (options.schedule !== false) {
     // The watchdog. `short` makes it a no-op whenever the loop is already armed, so its only
     // effect is to restart a loop that was somehow lost.
@@ -369,6 +456,25 @@ export async function startWorker(
       ORPHAN_RECONCILE_QUEUE,
       options.orphanReconcileCron ?? DEFAULT_ORPHAN_RECONCILE_CRON,
     );
+    if (digest !== undefined) {
+      const cron = digest.cron ?? DEFAULT_USAGE_DIGEST_CRON;
+      const tz = digest.timezone ?? USAGE_DIGEST_TIMEZONE;
+      await boss.schedule(USAGE_DIGEST_QUEUE, cron, {}, { tz });
+      logger.info('usage_digest_scheduled', { cron, tz, to: digest.to });
+    }
+  } else if (digest !== undefined) {
+    // Scheduling is off for this process (a test, or a second worker), so the queue exists and
+    // nothing arms it. Said out loud, because the alternative is a worker that looks configured
+    // and never sends: the two `usage_digest_*` lines have to cover every case between them.
+    logger.info('usage_digest_unscheduled', { to: digest.to, reason: 'scheduling is off' });
+  }
+  if (digest === undefined) {
+    // One line at start-up, so that a worker which sends no digest says so where a worker that
+    // stopped sending one would say nothing. The reason comes from the caller, which is the only
+    // place that can tell `USAGE_DIGEST_TO` from `BOOKRAIL_MAILER`.
+    logger.info('usage_digest_off', {
+      reason: options.usageDigestOffReason ?? 'USAGE_DIGEST_TO is not set',
+    });
   }
 
   // The first ticks: immediate, so a process that has just started does not wait for the

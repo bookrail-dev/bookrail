@@ -7,6 +7,7 @@ import { createApp } from '../src/app.js';
 import type { AppEnv } from '../src/context.js';
 import { createLogMailer, type LogMailer } from '../src/mail/index.js';
 import { MemoryRateLimiter, type RateLimiter } from '../src/rate-limit.js';
+import type { UsageCounters } from '../src/usage-counters.js';
 import { COVERAGE_FILE_ENV, takeContractViolations } from '../src/openapi/contract.js';
 import { COVERAGE_FILE } from './coverage-file.js';
 import { TEST_DB_NAME } from './db-name.js';
@@ -111,6 +112,21 @@ export interface HarnessOptions {
     live?: { rate: number; burst: number };
     limiter?: RateLimiter;
   };
+  /**
+   * Count every authenticated request into these counters.
+   *
+   * Off by default, like the rate limit and for the same reason: a suite that is about
+   * something else should not be writing to Redis after every call. The one suite that is
+   * about the counters passes a real one.
+   */
+  usageCounters?: UsageCounters;
+  /**
+   * `false` builds the app with **no** `WEBHOOK_SECRET_KEY`, which is a deployment that forgot
+   * one: `POST /v1/webhooks` then answers `500 internal` rather than storing a signing secret
+   * in the clear (`src/routes/webhooks.ts`). It is the one honest 500 in this API, which is
+   * what the usage counter suite needs to see a `err5xx` without inventing a route.
+   */
+  webhookSecretKey?: false;
 }
 
 /** Fails the test that produced the violation, naming the request. */
@@ -149,7 +165,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     logger,
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
-    webhookSecretKey: WEBHOOK_SECRET_KEY,
+    webhookSecretKey: options.webhookSecretKey === false ? undefined : WEBHOOK_SECRET_KEY,
+    ...(options.usageCounters === undefined ? {} : { usageCounters: options.usageCounters }),
     mailer,
     siteUrl: SITE_URL,
     siteOrigin: options.siteOrigin ?? SITE_ORIGIN,

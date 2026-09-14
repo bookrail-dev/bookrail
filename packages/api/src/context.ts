@@ -3,6 +3,7 @@ import type { AvailabilityCache } from '@bookrail/engine';
 import type { Environment, Logger } from '@bookrail/shared';
 import type { Mailer } from './mail/index.js';
 import type { RateLimiter } from './rate-limit.js';
+import type { UsageCounters } from './usage-counters.js';
 
 export interface AuthContext {
   apiKeyId: string;
@@ -80,6 +81,15 @@ export interface AppDeps {
    * second would otherwise be measuring the limiter.
    */
   rateLimit?: RateLimitSettings;
+  /**
+   * Where the per project request counters of the daily digest are kept, or nothing.
+   *
+   * `undefined` means nothing is counted: a deployment with no `REDIS_URL`, and every test
+   * that is about something else. The digest then prints that the counts are unavailable
+   * rather than printing zero, because an absence and a zero are the two answers a daily
+   * report must never confuse (`src/usage-counters.ts`).
+   */
+  usageCounters?: UsageCounters;
   /**
    * Read `X-Forwarded-For` as the caller's address even when the request arrived over no socket.
    *

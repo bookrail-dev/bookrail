@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RATE_LIMITS, loadConfig, MAX_RATE_LIMIT_PRODUCT } from '../src/config.js';
+import { DEFAULT_USAGE_DIGEST_CRON } from '../src/jobs/worker.js';
 
 const BASE = {
   DATABASE_URL: 'postgres://localhost:5432/bookrail_test_api',
@@ -65,6 +66,44 @@ describe('the mailer configuration', () => {
     // The trailing slash goes, so that the link is never built with two of them.
     expect(config.siteUrl).toBe('https://staging.example.com');
     expect(config.siteOrigin).toBe('http://localhost:4321');
+  });
+});
+
+describe('the usage digest configuration', () => {
+  /**
+   * No default address, and that is the point: the digest says who signed up and which keys
+   * were used, so a deployment that has not named a mailbox must send it nowhere rather than
+   * somewhere plausible.
+   */
+  it('is off until an address is named', () => {
+    const config = loadConfig({ ...BASE });
+    expect(config.usageDigestTo).toBeUndefined();
+    expect(config.usageDigestCron).toBe(DEFAULT_USAGE_DIGEST_CRON);
+  });
+
+  it('reads the address and the cron the deployment sets', () => {
+    const config = loadConfig({
+      ...BASE,
+      USAGE_DIGEST_TO: 'hello@bookrail.dev',
+      USAGE_DIGEST_CRON: '30 6 * * *',
+    });
+    expect(config.usageDigestTo).toBe('hello@bookrail.dev');
+    expect(config.usageDigestCron).toBe('30 6 * * *');
+  });
+
+  /**
+   * The worker reads the same three mail variables as the API, through this same function, so
+   * the refusal that keeps `log` out of production is the same refusal in both processes.
+   */
+  it('gives the worker the same mailer rules as the API', () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        NODE_ENV: 'production',
+        BOOKRAIL_MAILER: 'log',
+        USAGE_DIGEST_TO: 'hello@bookrail.dev',
+      }),
+    ).toThrow(/BOOKRAIL_MAILER=log/);
   });
 });
 

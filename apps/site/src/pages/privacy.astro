@@ -13,7 +13,7 @@
 import Base from '../layouts/Base.astro';
 import { CONTACT_EMAIL } from '../data/site';
 
-const UPDATED = '10 September 2026';
+const UPDATED = '14 September 2026';
 ---
 
 <Base
@@ -81,6 +81,18 @@ const UPDATED = '10 September 2026';
         <strong>Recipients</strong>: Hostinger, which runs the mailbox that delivers the
         confirmation message, inside the European Union. Nobody else. The message is sent from
         an address that is not read, and it says so.
+      </li>
+      <li>
+        <strong>Internal notice</strong>: once a day, an automatic summary of what happened on
+        the service is sent to our own mailbox at
+        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, on the same mail system as
+        above. It lists the accounts created, every sign up of the last day and the keys that
+        were used, plus per project request counts. It is how one person running a service finds
+        out that somebody is using it. An <strong>email address</strong> appears only for an
+        account that exists and for a sign up that was completed. A sign up that was never
+        completed appears <strong>without its address</strong>: only the time, the status,
+        whether it came from the website or the terminal, and the account and project names that
+        were typed into the form. Nobody outside the company receives this message.
       </li>
       <li>
         <strong>Deleting the account</strong>: write to

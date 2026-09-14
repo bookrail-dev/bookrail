@@ -3,10 +3,12 @@ import type { LogLevel } from '@bookrail/shared';
 import type { RateLimitPolicy } from './context.js';
 import {
   DEFAULT_HOLD_EXPIRY_INTERVAL_SECONDS,
+  DEFAULT_INTEGRITY_CHECK_CRON,
+  DEFAULT_ORPHAN_RECONCILE_CRON,
+  DEFAULT_USAGE_DIGEST_CRON,
   DEFAULT_WEBHOOK_DELIVERY_INTERVAL_SECONDS,
   DEFAULT_WEBHOOK_OUTBOX_INTERVAL_SECONDS,
 } from './jobs/worker.js';
-import { DEFAULT_INTEGRITY_CHECK_CRON, DEFAULT_ORPHAN_RECONCILE_CRON } from './jobs/worker.js';
 import {
   DEFAULT_INTEGRITY_MAX_WINDOWS,
   DEFAULT_RECONCILE_HORIZON_DAYS,
@@ -99,6 +101,16 @@ export interface ApiConfig {
   smtpUrl: string | undefined;
   /** `Bookrail <noreply@bookrail.dev>`. Required when the mailer is `smtp`. */
   mailFrom: string | undefined;
+  /**
+   * Where the daily usage digest goes, and whether it exists at all.
+   *
+   * `undefined` (the variable unset) means the worker does not register the job: there is no
+   * default address, because a report about who is using the service must never be sent to a
+   * mailbox nobody chose. A deployment that wants one sets it to an address it reads.
+   */
+  usageDigestTo: string | undefined;
+  /** When the digest runs, in Europe/Rome. `0 7 * * *` unless a deployment says otherwise. */
+  usageDigestCron: string;
   /** Where the confirmation link points, and where the pages that read it live. */
   siteUrl: string;
   /** The one browser origin allowed to call `/v1/signups`. */
@@ -177,6 +189,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     mailer: resolveMailerKind(env),
     smtpUrl: trimmed(env.SMTP_URL),
     mailFrom: trimmed(env.MAIL_FROM),
+    usageDigestTo: trimmed(env.USAGE_DIGEST_TO),
+    usageDigestCron: trimmed(env.USAGE_DIGEST_CRON) ?? DEFAULT_USAGE_DIGEST_CRON,
     siteUrl: trimSlash(trimmed(env.BOOKRAIL_SITE_URL) ?? DEFAULT_SITE_URL),
     siteOrigin: trimSlash(trimmed(env.BOOKRAIL_SITE_ORIGIN) ?? DEFAULT_SITE_URL),
     rateLimit: {

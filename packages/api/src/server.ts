@@ -1,12 +1,14 @@
+import { hostname } from 'node:os';
 import { serve } from '@hono/node-server';
 import { createDatabase, createPool } from '@bookrail/db';
 import { createLogger } from '@bookrail/shared';
 import { createApp } from './app.js';
 import { createAvailabilityCache } from './cache.js';
 import { loadConfig } from './config.js';
-import { startWorker, type Worker } from './jobs/index.js';
+import { startWorker, usageDigestOffReason, type Worker } from './jobs/index.js';
 import { createLogMailer, createSmtpMailer, type Mailer } from './mail/index.js';
 import { createRateLimiter } from './rate-limit.js';
+import { createUsageCounters, createUsageRedis } from './usage-counters.js';
 
 const config = loadConfig();
 const logger = createLogger({ level: config.logLevel, base: { service: 'bookrail-api' } });
@@ -43,6 +45,16 @@ const cache = createAvailabilityCache(config.redisUrl, logger);
  */
 const rateLimiter = config.rateLimit.enabled ? createRateLimiter(config.redisUrl) : null;
 
+/**
+ * The per project request counters of the daily digest, on a connection of their own.
+ *
+ * A third Redis client, and the reason is the one that already gave the limiter a second one:
+ * these three clients want three different command timeouts against the same server, and one
+ * connection cannot have three. Nothing is counted without `REDIS_URL`, and the digest says so
+ * rather than printing a zero.
+ */
+const usageCounters = createUsageCounters(config.redisUrl);
+
 const db = createDatabase(appPool);
 const adminDb = adminPool === null ? db : createDatabase(adminPool);
 
@@ -75,6 +87,7 @@ const app = createApp({
   mailer,
   siteUrl: config.siteUrl,
   siteOrigin: config.siteOrigin,
+  usageCounters,
   ...(rateLimiter === null
     ? {}
     : {
@@ -96,6 +109,17 @@ const app = createApp({
  * queue's `short` policy admits one queued job per name whatever the number of instances.
  */
 let worker: Worker | null = null;
+/**
+ * The digest's own reader, opened only by the process that actually runs the job.
+ *
+ * In production this is the worker process and not this one (`BOOKRAIL_WORKER=off` in
+ * `api.env`), so an API replica opens nothing. A single process deployment runs both, and the
+ * queue's `short` policy means several of them still send one message.
+ */
+const usageRedis =
+  config.worker && config.usageDigestTo !== undefined && mailer !== undefined
+    ? createUsageRedis(config.redisUrl)
+    : undefined;
 if (config.worker) {
   worker = await startWorker(
     { db, cache, logger, webhookSecretKey: config.webhookSecretKey },
@@ -110,6 +134,20 @@ if (config.worker) {
       orphanReconcileHorizonDays: config.orphanReconcileHorizonDays,
       orphanReconcileLimit: config.orphanReconcileLimit,
       orphanReconcileScopes: config.orphanReconcileScopes,
+      ...(config.usageDigestTo === undefined || mailer === undefined
+        ? {
+            usageDigestOffReason:
+              usageDigestOffReason({ to: config.usageDigestTo, mailer }) ?? undefined,
+          }
+        : {
+            usageDigest: {
+              to: config.usageDigestTo,
+              cron: config.usageDigestCron,
+              host: hostname(),
+              mailer,
+              usageRedis,
+            },
+          }),
     },
   );
 }
@@ -127,6 +165,8 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
     worker: config.worker ? config.holdExpiryIntervalSeconds : 'off',
     webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
     mailer: config.mailer ?? 'off',
+    usage_counters: usageCounters.kind,
+    usage_digest: config.usageDigestTo === undefined ? 'off' : config.usageDigestCron,
   });
 });
 
@@ -138,6 +178,8 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       adminPool === null ? Promise.resolve() : adminPool.end(),
       cache.close(),
       rateLimiter === null ? Promise.resolve() : rateLimiter.close(),
+      usageCounters.close(),
+      usageRedis === undefined ? Promise.resolve() : usageRedis.quit().then(() => undefined),
       mailer === undefined ? Promise.resolve() : mailer.close(),
     ]).finally(() => process.exit(0));
   });

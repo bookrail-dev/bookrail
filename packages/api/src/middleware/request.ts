@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
+import { ThrottledWarner } from '@bookrail/engine';
 import {
   API_VERSION_HEADER,
   CURRENT_API_VERSION,
@@ -10,6 +11,10 @@ import {
 } from '@bookrail/shared';
 import { ACTOR_HEADER, API_ACTORS, type ApiActor, type AppDeps, type AppEnv } from '../context.js';
 import { translatePgError } from '../pg-errors.js';
+import { utcDay } from '../usage-counters.js';
+
+/** How often a degraded usage counter may complain. One line a minute, per process. */
+export const USAGE_WARN_WINDOW_MS = 60_000;
 
 function toBookrailError(error: unknown, deps: AppDeps, requestId: string): BookrailError {
   if (error instanceof BookrailError) return error;
@@ -40,6 +45,8 @@ function errorResponse(error: BookrailError, requestId: string, apiVersion: stri
  * Bodies are never logged.
  */
 export function requestContext(deps: AppDeps): MiddlewareHandler<AppEnv> {
+  const usageWarner = new ThrottledWarner(deps.logger, USAGE_WARN_WINDOW_MS);
+
   return async (c: Context<AppEnv>, next) => {
     const requestId = newRequestId();
     c.set('requestId', requestId);
@@ -102,6 +109,34 @@ export function requestContext(deps: AppDeps): MiddlewareHandler<AppEnv> {
       api_key_id: auth?.apiKeyId ?? null,
       error_code: failed?.code ?? c.get('errorCode') ?? null,
     });
+
+    /**
+     * The daily usage counters, after the answer and off the critical path.
+     *
+     * Node has no `waitUntil`: there is no runtime here that keeps a promise alive after the
+     * response, because the process is still running anyway. So this is a promise nobody
+     * awaits, with a `catch` that logs at most once a minute, which is the same shape the rate
+     * limiter uses for the same reason. What must not happen is the opposite one: an `await`
+     * here would put a Redis round trip between the last byte of the response and the return
+     * of the handler, on every single request, to maintain a number read once a day.
+     *
+     * Only a request that carried a key is counted. A request with no key has no project to
+     * attribute it to, and inventing a bucket for it (`unknown`, the address, the route) would
+     * be a second thing to explain in a message whose whole value is that it needs none.
+     *
+     * The day is the day the request **arrived**, computed once, so a request served across
+     * midnight lands where it started rather than where it finished.
+     */
+    if (auth !== undefined && deps.usageCounters !== undefined) {
+      void deps.usageCounters
+        .record(utcDay(startedAt), auth.projectId, auth.environment, c.res.status)
+        .catch((error: unknown) => {
+          usageWarner.warn('usage_counters_degraded', {
+            counters: deps.usageCounters?.kind ?? 'off',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+    }
   };
 }
 
