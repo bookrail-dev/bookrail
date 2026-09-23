@@ -209,3 +209,104 @@ describe('the rate limit configuration', () => {
     ).toThrow(/must be at most 1000000/);
   });
 });
+
+/**
+ * The Stripe platform configuration, and the two mistakes it refuses to start with.
+ *
+ * Both are mistakes a person makes by hand, in a file whose lines are adjacent and whose names
+ * are symmetrical, and the cost of each is a promise broken silently: a swapped pair publishes
+ * the platform's **secret** key in the `publishable_key` of every `GET /v1/stripe`, and a key
+ * of the wrong mode makes an environment look configured while no payment in it could ever
+ * work.
+ */
+describe('the Stripe platform configuration', () => {
+  const TEST_ENV = {
+    STRIPE_CLIENT_ID_TEST: 'ca_TestApplication',
+    STRIPE_SECRET_KEY_TEST: 'rk_test_platform',
+    STRIPE_PUBLISHABLE_KEY_TEST: 'pk_test_platform',
+  } satisfies NodeJS.ProcessEnv;
+
+  it('is off when neither environment has its three variables', () => {
+    expect(loadConfig(BASE).stripe).toBeNull();
+  });
+
+  it('carries a client id per environment, because a Stripe application has a mode', () => {
+    const config = loadConfig({
+      ...BASE,
+      ...TEST_ENV,
+      STRIPE_CLIENT_ID_LIVE: 'ca_LiveApplication',
+      STRIPE_SECRET_KEY_LIVE: 'sk_live_platform',
+      STRIPE_PUBLISHABLE_KEY_LIVE: 'pk_live_platform',
+    }).stripe;
+    expect(config?.environments.test?.clientId).toBe('ca_TestApplication');
+    expect(config?.environments.live?.clientId).toBe('ca_LiveApplication');
+    expect(config?.redirectUrl).toBe('https://api.bookrail.dev/v1/stripe/callback');
+  });
+
+  it('serves one environment while the other has nothing', () => {
+    const config = loadConfig({ ...BASE, ...TEST_ENV }).stripe;
+    expect(config?.environments.test).not.toBeNull();
+    expect(config?.environments.live).toBeNull();
+  });
+
+  it('refuses to start on one or two variables out of three', () => {
+    for (const missing of [
+      'STRIPE_CLIENT_ID_TEST',
+      'STRIPE_SECRET_KEY_TEST',
+      'STRIPE_PUBLISHABLE_KEY_TEST',
+    ] as const) {
+      const partial: NodeJS.ProcessEnv = { ...BASE, ...TEST_ENV };
+      delete partial[missing];
+      expect(() => loadConfig(partial), missing).toThrow(/have to be set together/);
+    }
+  });
+
+  it('refuses the secret and the publishable key swapped, and names neither value', () => {
+    let message = '';
+    try {
+      loadConfig({
+        ...BASE,
+        ...TEST_ENV,
+        STRIPE_SECRET_KEY_TEST: 'pk_test_platform',
+        STRIPE_PUBLISHABLE_KEY_TEST: 'rk_test_platform',
+      });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('STRIPE_SECRET_KEY_TEST');
+    expect(message).toContain('STRIPE_PUBLISHABLE_KEY_TEST');
+    // The variable, never the value: an error message ends up in a journal.
+    expect(message).not.toContain('pk_test_platform');
+    expect(message).not.toContain('rk_test_platform');
+  });
+
+  it('refuses a key of the wrong mode in either direction', () => {
+    expect(() =>
+      loadConfig({ ...BASE, ...TEST_ENV, STRIPE_SECRET_KEY_TEST: 'rk_live_platform' }),
+    ).toThrow(/STRIPE_SECRET_KEY_TEST must be a test mode secret or restricted key/);
+    expect(() =>
+      loadConfig({ ...BASE, ...TEST_ENV, STRIPE_PUBLISHABLE_KEY_TEST: 'pk_live_platform' }),
+    ).toThrow(/STRIPE_PUBLISHABLE_KEY_TEST must be a test mode publishable key/);
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        STRIPE_CLIENT_ID_LIVE: 'ca_LiveApplication',
+        STRIPE_SECRET_KEY_LIVE: 'rk_test_platform',
+        STRIPE_PUBLISHABLE_KEY_LIVE: 'pk_live_platform',
+      }),
+    ).toThrow(/STRIPE_SECRET_KEY_LIVE must be a live mode secret or restricted key/);
+  });
+
+  it('accepts both a full secret key and a restricted one', () => {
+    for (const secretKey of ['sk_test_platform', 'rk_test_platform']) {
+      const config = loadConfig({ ...BASE, ...TEST_ENV, STRIPE_SECRET_KEY_TEST: secretKey }).stripe;
+      expect(config?.environments.test?.secretKey).toBe(secretKey);
+    }
+  });
+
+  it('refuses a client id that is not a ca_', () => {
+    expect(() =>
+      loadConfig({ ...BASE, ...TEST_ENV, STRIPE_CLIENT_ID_TEST: 'acct_NotAnApplication' }),
+    ).toThrow(/STRIPE_CLIENT_ID_TEST must be a Stripe Connect client id/);
+  });
+});

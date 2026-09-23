@@ -75,6 +75,12 @@ export type Schedule = components['schemas']['Schedule'];
 export type ScheduleException = components['schemas']['ScheduleException'];
 export type ScheduleRule = components['schemas']['ScheduleRule'];
 export type Service = components['schemas']['Service'];
+export type Payment = components['schemas']['Payment'];
+export type PaymentIntent = components['schemas']['PaymentIntent'];
+/** What `bookings.create` answers: a booking, plus the intent when it took a payment. */
+export type BookingCreated = components['schemas']['BookingCreated'];
+export type StripeConnection = components['schemas']['StripeConnection'];
+export type StripeConnectLink = components['schemas']['StripeConnectLink'];
 export type ServiceRequirement = components['schemas']['ServiceRequirement'];
 export type Webhook = components['schemas']['Webhook'];
 export type WebhookCreated = components['schemas']['WebhookCreated'];
@@ -133,6 +139,7 @@ export type HoldCreateParams = BodyOf<operations['holds.create']>;
 
 export type BookingCreateParams = BodyOf<operations['bookings.create']>;
 export type BookingListParams = QueryOf<operations['bookings.list']>;
+export type PaymentListParams = QueryOf<operations['payments.list']>;
 export type BookingConfirmParams = BodyOf<operations['bookings.confirm']>;
 export type BookingCancelParams = BodyOf<operations['bookings.cancel']>;
 export type BookingRescheduleParams = BodyOf<operations['bookings.reschedule']>;

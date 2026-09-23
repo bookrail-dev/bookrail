@@ -10,6 +10,35 @@ The four published packages are versioned together: `bookrail`, `@bookrail/node`
 `@bookrail/mcp` and `@bookrail/webhook-signature`. `@bookrail/webhook-signature` is a
 dependency of the first two, so it is always published first or in the same batch.
 
+## Unreleased
+
+Stripe payments on the customer's own Stripe account (API 2026-09-01, server release of
+23 September 2026). The packages on npm are still 0.3.1; the next published version carries
+the commands below.
+
+### Added
+
+- **`bookrail stripe connect`, `stripe status`, `stripe disconnect`.** Connect the project's own
+  Stripe account through Stripe Connect OAuth. Bookrail never sees a key of yours: it stores
+  the account id and charges on it with `Stripe-Account`. `doctor` reports the connection.
+- **`bookrail bookings create --payment deposit|full`.** The booking is created `pending` with a
+  PaymentIntent on the connected account; the response carries `payment_intent` with the
+  `client_secret` once, the connected account id and the platform's publishable key for
+  Stripe.js. The booking is confirmed by Stripe's webhook, and cancelled by itself after thirty
+  minutes if nobody pays.
+- **`bookrail payments get` and `payments list`**, `expand[]=payments` on a booking, and the
+  events `payment.succeeded`, `payment.failed` and `payment.refunded`. A cancellation queues the
+  refund the policy promises, and the refund is executed on Stripe.
+- **`@bookrail/node`:** `client.stripe` (`connect`, `retrieve`, `disconnect`) and
+  `client.payments` (`retrieve`, `list`); `bookings.create` returns the `payment_intent`.
+- **`@bookrail/mcp`:** `stripe_status`, `stripe_connect`, `bookrail_payment_get`,
+  `bookrail_payment_list`; `bookings_create` accepts `payment_mode`.
+
+### Changed
+
+- Rescheduling a booking that has a payment is refused with `422 reschedule_not_supported`:
+  cancel it, which refunds it according to the policy, and create a new one.
+
 ## 0.3.1
 
 Released on 14 September 2026, a few minutes after 0.3.0. The same code as 0.3.0, published

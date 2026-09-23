@@ -40,6 +40,11 @@ export const DOC_BASE_URL = 'https://bookrail.dev/docs/errors';
  * exists and is temporarily not serving), and a mail server that refused the message is `502`
  * (this service is fine, the one behind it is not).
  *
+ * The Stripe connection endpoints add three of the same shape. A deployment with no platform
+ * credentials is `503` (the endpoint exists and is not serving), and the two ways a call to
+ * Stripe can fail, a refusal we did not expect and no answer at all, are `502` (this service is
+ * fine, the one behind it is not).
+ *
  * The family still decides everything else: the `type` in the body, the exit code a client
  * maps it to, and the way it reads in the reference. Only the status is overridden, by name,
  * in one table, so that the server and the specification cannot disagree about it.
@@ -50,6 +55,10 @@ export const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   signup_secret_expired: 410,
   signup_disabled: 503,
   signup_email_failed: 502,
+  stripe_not_configured: 503,
+  stripe_provider_error: 502,
+  stripe_unreachable: 502,
+  payload_too_large: 413,
 };
 
 export interface ErrorBody {

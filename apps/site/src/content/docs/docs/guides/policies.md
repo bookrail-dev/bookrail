@@ -12,9 +12,11 @@ Two things about it are worth reading before anything else.
 
 1. **The policy is frozen into the booking at the moment of sale**, as `policy_snapshot`. The
    live policy is irrelevant to a booking that already exists.
-2. **No money moves.** There is no payment provider yet. Everything below is computed and
-   written as an expectation, and `amount_refunded` never changes on its own. The section at
-   the bottom says exactly which fields are real numbers and which are intentions.
+2. **Money moves only for a booking that was paid.** A booking created with `payment.mode` of
+   `deposit` or `full` is charged through Stripe, and a cancellation then sends the refund this
+   policy promises. A booking created with `payment.mode: "none"` has nothing to give back, so
+   everything below stays an expectation. Either way `amount_refunded` changes only when Stripe
+   confirms the refund, never on its own. See [Payments with Stripe](/docs/guides/stripe/).
 
 ## The shape of a policy
 
@@ -82,10 +84,14 @@ price            30.00 EUR
 refund           100% (0 minor units expected)
 
 Next steps
-  - The refund is an expectation, not a movement: payments do not exist yet, so `amount_refunded` is untouched.
+  - The policy promises no refund at this distance from the start, so nothing is queued.
+  - Read it back: `bookrail bookings get bk_... --json`.
 ```
 
-100 percent of nothing is nothing, and the CLI says both parts.
+100 percent of nothing is nothing: this booking was created with `payment.mode: "none"`, so
+`amount_paid` is 0 and `floor(0 x 100 / 100)` is 0 too. Had it been created with
+`payment.mode: "deposit"`, the same cancellation would have queued a real refund and sent it to
+Stripe. See [Payments with Stripe](/docs/guides/stripe/).
 
 ## Reschedule: a fee, and a limit
 

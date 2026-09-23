@@ -158,7 +158,14 @@ describe('booking transitions', () => {
 
   it('exposes the documented transition matrix, and nothing more', () => {
     expect(TRANSITIONS).toEqual({
-      pending: { confirm: 'confirmed', cancel: 'cancelled', reschedule: 'rescheduled' },
+      pending: {
+        confirm: 'confirmed',
+        cancel: 'cancelled',
+        reschedule: 'rescheduled',
+        // Only the scheduler fires it, at `payment_expires_at`. It is not in
+        // `HTTP_TRANSITION_ACTIONS`, so no route exposes it.
+        expire_payment: 'cancelled',
+      },
       confirmed: {
         cancel: 'cancelled',
         reschedule: 'rescheduled',

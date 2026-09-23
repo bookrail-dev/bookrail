@@ -32,6 +32,8 @@ export const ID_PREFIXES = {
   webhook: 'wh',
   webhook_delivery: 'whd',
   signup: 'sgn',
+  /** The link between one project, one environment and one payment provider account. */
+  payment_provider_connection: 'pcn',
 } as const;
 
 export type ObjectKind = keyof typeof ID_PREFIXES;

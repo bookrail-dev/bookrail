@@ -29,11 +29,39 @@ npx bookrail bookings create --service svc_... --start 2026-09-14T18:00:00+02:00
 | Objects | `locations`, `resources`, `resource_groups`, `schedules`, `services`, `policies`, `customers` |
 | Operating | `availability` (with `next`, `check`, `--explain`), `holds`, `bookings` (create, get, list, confirm, cancel, reschedule, check-in, no-show, complete) |
 | Events | `webhooks` (including `listen`), `events list --follow` |
+| Payments | `stripe connect`, `stripe status`, `stripe disconnect --yes`, `payments get`, `payments list` |
 | Offline | `schema`, `examples`, `docs` |
 | Agents | `mcp install --client claude-code \| cursor \| vscode \| windsurf \| generic` |
 
 `bookrail --help` and `bookrail <command> --help` are the reference, and the site publishes
 exactly that output at [bookrail.dev/docs/cli](https://bookrail.dev/docs/cli/).
+
+## Connecting Stripe
+
+`bookrail stripe connect` prints a Stripe authorisation link, opens it in your browser, and
+waits until you have authorised. Your Stripe account stays yours: charges are made directly on
+it and Bookrail never sees or stores a Stripe key of yours, so there is nothing to paste.
+`--no-open` on a machine with no desktop, `--no-wait` in a script, `stripe status` to read the
+account back, `stripe disconnect --yes` to revoke.
+
+## Taking a deposit
+
+```bash
+bookrail bookings create --service svc_... --start 2026-10-05T09:00:00+02:00 --payment deposit
+```
+
+`--payment deposit` uses the `deposit` rule of the policy, `--payment full` charges the whole
+price. The booking is created `pending` and holds its slot, and the output carries the
+`client_secret`, the account and the platform publishable key to pass to Stripe.js. The secret
+is shown **once** and is stored nowhere: `bookrail payments get pay_...` reads it back from
+Stripe for as long as the payment is pending.
+
+`bookrail payments list --booking bk_...` shows what has been charged and what has gone back.
+A refund is what `bookrail bookings cancel` does, according to your policy; there is no
+`payments refund`, because there is no endpoint behind it.
+
+Not here yet: a deferred balance, saved cards, charging a no-show, and rescheduling a booking
+that has money on it.
 
 ## Configuration as code
 

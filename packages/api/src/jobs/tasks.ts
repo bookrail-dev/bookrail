@@ -141,6 +141,25 @@ export async function purgeSignups(deps: { db: Database; logger: Logger }): Prom
   return rows[0]?.touched ?? 0;
 }
 
+/**
+ * Deletes the Stripe OAuth states whose fifteen minutes have run out.
+ *
+ * Cross project by nature, like the two purges above, and for the same reason it goes through a
+ * `SECURITY DEFINER` function whose result is a count and nothing else. Unlike the sign up
+ * purge this is tidiness rather than retention: a state row carries no address and no secret,
+ * only a digest of a value that is already useless. What it prevents is an unbounded table of
+ * rows nothing will ever read.
+ */
+export async function purgeStripeOauthStates(deps: {
+  db: Database;
+  logger: Logger;
+}): Promise<number> {
+  const { rows } = await deps.db.execute<{ deleted: number }>(
+    sql`SELECT stripe_oauth_states_purge() AS deleted`,
+  );
+  return rows[0]?.deleted ?? 0;
+}
+
 // --- Automatic state transitions --------------------------------------------------
 
 /** How many bookings one project's tick moves. Keeps each transaction, and the tick, bounded. */

@@ -1,6 +1,7 @@
 import type { Database } from '@bookrail/db';
 import type { AvailabilityCache } from '@bookrail/engine';
 import type { Environment, Logger } from '@bookrail/shared';
+import type { StripePlatformConfig } from './config.js';
 import type { Mailer } from './mail/index.js';
 import type { RateLimiter } from './rate-limit.js';
 import type { UsageCounters } from './usage-counters.js';
@@ -70,6 +71,28 @@ export interface AppDeps {
   mailer: Mailer | undefined;
   /** Where the confirmation link points. `https://bookrail.dev` in production. */
   siteUrl: string;
+  /**
+   * The Stripe platform credentials, or nothing at all.
+   *
+   * `undefined` (and `null`) is a deployment that is not a Connect platform: the four
+   * `/v1/stripe` routes exist all the same and answer `503 stripe_not_configured` with the
+   * variables to set. The routes do not disappear, because the specification and the SDK must
+   * not change shape depending on how a deployment is configured.
+   *
+   * The secret keys in here are the **platform's**, never a customer's: Bookrail acts for a
+   * connected account with its own key plus a `Stripe-Account` header, and no key of a
+   * customer's is ever received, stored or asked for.
+   */
+  stripe?: StripePlatformConfig | null;
+  /**
+   * How many minutes a booking waits for its payment before the scheduler cancels it.
+   *
+   * Thirty unless a deployment says otherwise (`DEFAULT_PAYMENT_TIMEOUT_MINUTES`). It is on the
+   * dependencies rather than read where it is used because it is a number two very different
+   * places have to agree on: the creation writes `payment_expires_at` from it, and a test
+   * measures the transition at that instant.
+   */
+  paymentTimeoutMinutes: number;
   /** The one origin allowed to call `/v1/signups` from a browser. */
   siteOrigin: string;
   /**

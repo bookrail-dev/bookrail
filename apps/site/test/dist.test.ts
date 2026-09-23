@@ -186,6 +186,11 @@ describe('no third party', () => {
       'https://api.bookrail.dev',
       'http://localhost',
       'http://127.0.0.1',
+      // Printed by the API reference and by the Stripe guide: the shape of the authorisation
+      // URL that `POST /v1/stripe/connect` returns. It is an example in the specification and a
+      // sentence in a guide, never a link the page follows, and the test below proves that no
+      // script, stylesheet or font is loaded from it.
+      'https://connect.stripe.com',
     ];
     const found = new Set<string>();
     for (const file of htmlFiles) {

@@ -66,8 +66,11 @@ export type BookingStatus =
  *
  * `start` is not `check_in`: a booking that starts because the policy says so has not been
  * checked in, and `checked_in_at` has to keep meaning "somebody turned up".
+ *
+ * `expire_payment` (migration 0024) is the fourth: a `pending` booking whose payment never
+ * arrived is cancelled at `payment_expires_at`, because a pending booking holds its slot.
  */
-export type AutomaticTransition = 'start' | 'complete' | 'no_show';
+export type AutomaticTransition = 'start' | 'complete' | 'no_show' | 'expire_payment';
 
 export const bookings = pgTable(
   'bookings',
@@ -98,6 +101,14 @@ export const bookings = pgTable(
     amountPaid: integer('amount_paid').notNull().default(0),
     amountDue: integer('amount_due').notNull().default(0),
     amountRefunded: integer('amount_refunded').notNull().default(0),
+    /**
+     * When a `pending` booking waiting for its payment is cancelled (migration 0024).
+     *
+     * `null` on every other booking, and cleared the instant the payment succeeds. A pending
+     * booking occupies its slot exactly like a confirmed one, so without this a customer who
+     * closed the browser would hold it for ever.
+     */
+    paymentExpiresAt: timestamp('payment_expires_at', { withTimezone: true }),
     policySnapshot: jsonb('policy_snapshot'),
     source: text('source').notNull().default('api').$type<'api' | 'widget' | 'portal' | 'import'>(),
     cancelledBy: text('cancelled_by').$type<'customer' | 'provider' | 'system'>(),
@@ -222,21 +233,41 @@ export const payments = pgTable(
     bookingId: uuid('booking_id'),
     provider: text('provider').notNull(),
     providerPaymentId: text('provider_payment_id'),
-    type: text('type').notNull().$type<'deposit' | 'full' | 'balance' | 'no_show_fee' | 'refund'>(),
+    type: text('type').notNull().$type<PaymentType>(),
     amount: integer('amount').notNull(),
     currency: text('currency').notNull(),
-    status: text('status')
-      .notNull()
-      .default('pending')
-      .$type<'pending' | 'succeeded' | 'failed' | 'refunded' | 'cancelled'>(),
+    status: text('status').notNull().default('pending').$type<PaymentStatus>(),
+    /** The connected account the intent lives on: `acct_...` (migration 0024). */
+    providerAccountId: text('provider_account_id').notNull(),
+    /** A refund points at the payment it gives back; `null` on everything else. */
+    parentPaymentId: uuid('parent_payment_id'),
+    /** Cumulative, written only by the webhook receiver from what Stripe says about the charge. */
+    amountRefunded: integer('amount_refunded').notNull().default(0),
+    failureCode: text('failure_code'),
+    failureMessage: text('failure_message'),
+    /** A call this row still owes the provider. Drained by the `payment-actions` queue. */
+    pendingAction: text('pending_action').$type<PendingPaymentAction>(),
+    pendingActionAttempts: integer('pending_action_attempts').notNull().default(0),
+    pendingActionNextAt: timestamp('pending_action_next_at', { withTimezone: true }),
+    pendingActionError: text('pending_action_error'),
     metadata: jsonb('metadata').notNull().default({}),
     ...timestampColumns(),
   },
   (t) => [
     index('payments_booking_idx').on(t.bookingId),
     index('payments_scope_idx').on(t.projectId, t.environment),
+    index('payments_parent_idx').on(t.parentPaymentId),
   ],
 );
+
+/** The two calls a payment row can owe Stripe. See migration 0024. */
+export type PendingPaymentAction = 'cancel_intent' | 'create_refund';
+
+/** `payments.type`: what a row of money is. */
+export type PaymentType = 'deposit' | 'full' | 'balance' | 'no_show_fee' | 'refund';
+
+/** `payments.status`. `pending` covers every Stripe state that is not final. */
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded' | 'cancelled';
 
 export const events = pgTable(
   'events',

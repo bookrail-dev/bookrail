@@ -69,9 +69,11 @@ const TAG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   customers: 'The people bookings are made for.',
   holds: 'Capacity taken for a few minutes, before it becomes a booking.',
   bookings: 'The booking and its life cycle.',
+  payments: 'The money of a booking: the deposit or the full price, and the refunds.',
   events: 'The append-only log of everything that happened.',
   webhooks: 'Delivery endpoints, their signing secret and their delivery log.',
   signups: 'How a test key comes into being, without a key and without a person.',
+  stripe: "The customer's own Stripe account, connected to their project over OAuth.",
 };
 
 /** The order tags appear in the document, and therefore in generated documentation. */
@@ -79,6 +81,7 @@ const TAG_ORDER: readonly string[] = [
   'meta',
   'signups',
   'project',
+  'stripe',
   'availability',
   'locations',
   'resources',
@@ -89,6 +92,7 @@ const TAG_ORDER: readonly string[] = [
   'customers',
   'holds',
   'bookings',
+  'payments',
   'events',
   'webhooks',
 ];

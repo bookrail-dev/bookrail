@@ -6,6 +6,7 @@ import { createPresenter, type CommandResult } from './output.js';
 import { CLI_VERSION } from './version.js';
 import { envCommand, login, logout, version, whoami } from './commands/auth.js';
 import { signup } from './commands/signup.js';
+import { stripeConnect, stripeDisconnect, stripeStatus } from './commands/stripe.js';
 import {
   createEntity,
   deleteEntity,
@@ -36,6 +37,7 @@ import {
   bookingReschedule,
   TRANSITIONS,
 } from './commands/bookings.js';
+import { paymentGet, paymentList } from './commands/payments.js';
 import { eventGet, eventList } from './commands/events.js';
 import { webhooksListen } from './commands/listen.js';
 import {
@@ -565,6 +567,8 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
         'Needs: --service and --start; --hold converts an existing hold instead of taking',
         'new capacity, and the service, instant, duration and quantity must match it.',
         'Returns: the booking, confirmed (or pending when the policy requires a confirmation).',
+        'With --payment deposit|full the booking is pending, a Stripe PaymentIntent is created',
+        'on your connected account, and the answer carries the client_secret **once**.',
         'Carries an Idempotency-Key: a retry replays the answer instead of booking twice.',
       ].join('\n'),
     )
@@ -574,6 +578,10 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
     .option('--quantity <n>', 'Units to book.')
     .option('--resource <id>', 'Force a resource. Repeatable.', collect, [])
     .option('--hold <id>', 'Convert this hold.')
+    .option(
+      '--payment <mode>',
+      'none (default), deposit or full. Takes the money on your connected Stripe account.',
+    )
     .option('--customer <id>', 'An existing customer.')
     .option('--customer-email <email>', 'Create or find a customer by email.')
     .option('--customer-name <name>', 'Name of the inline customer.')
@@ -651,8 +659,9 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
       [
         '',
         'Asks for confirmation on a terminal; anywhere else it needs --yes.',
-        'Returns: the booking, with refund_percent and refund_amount_expected. No money moves:',
-        'payments do not exist yet, so amount_refunded is untouched.',
+        'Returns: the booking, with refund_percent and refund_amount_expected. When the booking',
+        'was paid, a refund payment is queued in the same transaction and sent to Stripe within',
+        'ten seconds; amount_refunded moves only once Stripe confirms it.',
       ].join('\n'),
     )
     .option('--reason <text>', 'Recorded on the booking.')
@@ -682,6 +691,104 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
         bookingReschedule(ctx, args[0] as string, options),
       ),
     );
+
+  const payments = program
+    .command('payments')
+    .description('Read the money of a booking: the deposit or the full price, and the refunds.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Sub-commands: get <id>, list.',
+        'There is nothing to create here: a payment is made by `bookrail bookings create',
+        '--payment`, and a refund by `bookrail bookings cancel`, which follows your policy.',
+        ENV_NOTE,
+      ].join('\n'),
+    );
+
+  payments
+    .command('get <id>')
+    .description('Read one payment, with its client secret when it is still open.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Needs: a pay_... id. Returns: the payment, plus client_secret and provider_status read',
+        'from Stripe when the payment is still pending. Bookrail stores no client secret, so',
+        'this is the only way to get one back after the booking was created.',
+      ].join('\n'),
+    )
+    .action(action(io, outcome, (ctx, _options, args) => paymentGet(ctx, args[0] as string)));
+
+  payments
+    .command('list')
+    .description('List payments, filtered and paginated.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Needs: nothing; every filter is optional and they are ANDed.',
+        'Never calls Stripe, so client_secret is always empty here.',
+      ].join('\n'),
+    )
+    .option('--booking <id>', 'Only the payments of this booking.')
+    .option('--status <status>', 'pending|succeeded|failed|refunded|cancelled.')
+    .option('--type <type>', 'deposit|full|balance|no_show_fee|refund.')
+    .option('--limit <n>', 'Page size, 1 to 100. Default 20.')
+    .option('--starting-after <id>', 'Cursor: the id of the last item of the previous page.')
+    .option('--all', 'Follow the cursor to the end.')
+    .action(action(io, outcome, (ctx, options) => paymentList(ctx, options)));
+
+  // --- the Stripe connection ----------------------------------------------------------------
+
+  const stripe = program
+    .command('stripe')
+    .description('Connect the project to your own Stripe account, and see or end the link.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Sub-commands: connect, status, disconnect.',
+        'Your Stripe account stays yours: charges are made on it directly and Bookrail never',
+        'sees or stores a Stripe key of yours. There is nothing to paste here. ' + ENV_NOTE,
+      ].join('\n'),
+    );
+
+  stripe
+    .command('connect')
+    .description('Open the Stripe authorisation page and wait for it to be completed.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Needs: a key, and a browser signed in to the Stripe account you want to connect.',
+        'Returns: the stripe_connection once it exists. The link works for fifteen minutes.',
+        'Use --no-open on a machine with no desktop, and --no-wait in a script.',
+      ].join('\n'),
+    )
+    .option('--no-open', 'Print the link instead of opening a browser.')
+    .option('--no-wait', 'Return as soon as the link exists, without waiting for it to be used.')
+    .action(action(io, outcome, (ctx, options) => stripeConnect(ctx, options)));
+
+  stripe
+    .command('status')
+    .description('Which Stripe account this project charges on, and whether it can charge.')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Returns: status (connected | not_connected | disconnected), the acct_ id, the platform',
+        'publishable key for Stripe.js, and charges_enabled. charges_enabled is null when the',
+        'account is not connected and when Stripe did not answer in time: null is not false.',
+      ].join('\n'),
+    )
+    .action(action(io, outcome, (ctx) => stripeStatus(ctx)));
+
+  stripe
+    .command('disconnect')
+    .description("Revoke Bookrail's access to the connected account. Requires --yes.")
+    .option('--yes', 'Confirm the disconnection.')
+    .action(action(io, outcome, (ctx, options) => stripeDisconnect(ctx, options)));
 
   const webhooks = program
     .command('webhooks')

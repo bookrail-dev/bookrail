@@ -195,11 +195,29 @@ export async function seedProjectData(
 
   const paymentId = id();
   await client.query(
-    `INSERT INTO payments (id, project_id, environment, booking_id, provider, type, amount, currency)
-     VALUES ($1, $2, $3, $4, 'stripe', 'deposit', 2500, 'EUR')`,
-    [paymentId, ...scope, bookingId],
+    `INSERT INTO payments (id, project_id, environment, booking_id, provider, provider_account_id,
+                           type, amount, currency)
+     VALUES ($1, $2, $3, $4, 'stripe', $5, 'deposit', 2500, 'EUR')`,
+    [paymentId, ...scope, bookingId, `acct_${paymentId.replaceAll('-', '')}`],
   );
   rows.payments = paymentId;
+
+  // One incoming provider event, attributed to this project. The identifier is global (the
+  // unique is on `(provider, provider_event_id)` alone), so it is derived from the row id.
+  const providerEventId = id();
+  await client.query(
+    `INSERT INTO payment_provider_events (id, project_id, environment, provider,
+                                          provider_event_id, type, provider_account_id,
+                                          processed_at, outcome)
+     VALUES ($1, $2, $3, 'stripe', $4, 'payment_intent.succeeded', $5, now(), 'applied')`,
+    [
+      providerEventId,
+      ...scope,
+      `evt_${providerEventId.replaceAll('-', '')}`,
+      `acct_${paymentId.replaceAll('-', '')}`,
+    ],
+  );
+  rows.payment_provider_events = providerEventId;
 
   const eventId = id();
   await client.query(
@@ -240,6 +258,35 @@ export async function seedProjectData(
     [idempotencyId, ...scope, `key-${idempotencyId}`],
   );
   rows.idempotency_keys = idempotencyId;
+
+  const connectionId = id();
+  await client.query(
+    `INSERT INTO payment_provider_connections
+       (id, project_id, environment, provider, provider_account_id, status, connected_at,
+        livemode)
+     VALUES ($1, $2, $3, 'stripe', $4, 'connected', now(), $5)`,
+    [connectionId, ...scope, `acct_${connectionId.replaceAll('-', '')}`, environment === 'live'],
+  );
+  rows.payment_provider_connections = connectionId;
+
+  // An OAuth state needs the key that asked for it, and a project fixture has no key of its
+  // own, so one is created here. It is not a credential: `key_hash` is a hash of nothing that
+  // was ever generated, so there is no text that would authenticate with it.
+  const apiKeyId = id();
+  await client.query(
+    `INSERT INTO api_keys (id, project_id, environment, kind, name, prefix, key_hash)
+     VALUES ($1, $2, $3, 'secret', 'fixture', $4, encode(sha256($5::bytea), 'hex'))`,
+    [apiKeyId, ...scope, apiKeyId.slice(0, 8), Buffer.from(apiKeyId, 'utf8')],
+  );
+
+  const stateId = id();
+  await client.query(
+    `INSERT INTO stripe_oauth_states (id, project_id, environment, state_hash, api_key_id,
+                                      expires_at)
+     VALUES ($1, $2, $3, sha256($4::bytea), $5, now() + interval '15 minutes')`,
+    [stateId, ...scope, stateId, apiKeyId],
+  );
+  rows.stripe_oauth_states = stateId;
 
   return rows;
 }

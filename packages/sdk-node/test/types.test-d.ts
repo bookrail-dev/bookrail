@@ -10,6 +10,7 @@ import Bookrail, {
   type PagePromise,
   type BookrailPromise,
   type Booking,
+  type BookingCreated,
   type Customer,
   type Event,
   type HoldCreated,
@@ -20,13 +21,22 @@ import Bookrail, {
 const bookrail = new Bookrail('sk_test_0123456789abcdef');
 
 describe('return types', () => {
-  it('bookings.create resolves to a Booking', () => {
+  /**
+   * `bookings.create` answers a `BookingCreated`, which is a `Booking` plus `payment_intent`.
+   *
+   * A schema of its own rather than a nullable field on `Booking`, because a `GET` can never
+   * carry a `client_secret` and a `Booking` that declared the field would be promising one
+   * everywhere and delivering it in one place.
+   */
+  it('bookings.create resolves to a BookingCreated, which extends Booking', () => {
     expectTypeOf(
       bookrail.bookings.create({ service_id: 'svc_1', start: '2026-09-08T07:00:00Z' }),
-    ).toEqualTypeOf<BookrailPromise<Booking>>();
+    ).toEqualTypeOf<BookrailPromise<BookingCreated>>();
     expectTypeOf(
       bookrail.bookings.create({ service_id: 'svc_1', start: '2026-09-08T07:00:00Z' }),
-    ).resolves.toEqualTypeOf<Booking>();
+    ).resolves.toEqualTypeOf<BookingCreated>();
+    // Every field of a booking is there, so a caller that only wanted the booking is unchanged.
+    expectTypeOf<BookingCreated>().toMatchTypeOf<Booking>();
   });
 
   it('withResponse resolves to the object plus the envelope', () => {
@@ -34,7 +44,7 @@ describe('return types', () => {
       bookrail.bookings
         .create({ service_id: 'svc_1', start: '2026-09-08T07:00:00Z' })
         .withResponse(),
-    ).resolves.toEqualTypeOf<WithResponse<Booking>>();
+    ).resolves.toEqualTypeOf<WithResponse<BookingCreated>>();
   });
 
   it('a list is a page, and iterating one yields the objects', () => {

@@ -16,6 +16,7 @@ export * from './allocate.js';
 export * from './occupancy.js';
 export * from './expire.js';
 export * from './policy.js';
+export * from './payment.js';
 export * from './snapshot.js';
 export * from './lifecycle.js';
 export * from './orphaned.js';

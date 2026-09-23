@@ -191,9 +191,13 @@ describe('openapi document', () => {
     '/v1/signups',
     '/v1/signups/confirm',
     '/v1/signups/{id}/claim',
+    // Called by Stripe's own servers, which have no key: what ties the request to a project
+    // is a `Stripe-Signature` over the raw body.
+    '/v1/stripe/webhook/test',
+    '/v1/stripe/webhook/live',
   ];
 
-  it('only the specification and the sign up endpoints opt out of the bearer requirement', () => {
+  it('only the specification, the sign ups and the Stripe webhook opt out of the bearer requirement', () => {
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const isPublic = Array.isArray(operation.security) && operation.security.length === 0;
@@ -208,14 +212,14 @@ describe('openapi document', () => {
    * `idempotency_keys` that could hold one. The middleware ignores the header there and the
    * document does not offer it.
    */
-  it('every POST of /v1 documents `Idempotency-Key`, apart from the sign up ones', () => {
+  it('every POST of /v1 documents `Idempotency-Key`, apart from the keyless ones', () => {
     expect(IDEMPOTENCY_HEADER_NAME.toLowerCase()).toBe(IDEMPOTENCY_HEADER);
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const refs = (operation.parameters ?? []).map((parameter) => parameter.$ref);
         const documented = refs.includes('#/components/parameters/IdempotencyKey');
         expect(documented, `${method.toUpperCase()} ${path}`).toBe(
-          method === 'post' && path.startsWith('/v1/') && !path.startsWith('/v1/signups'),
+          method === 'post' && path.startsWith('/v1/') && !PUBLIC_PATHS.includes(path),
         );
       }
     }
@@ -225,7 +229,7 @@ describe('openapi document', () => {
    * The SDK is built with a key, so the operations that mint one are marked out of it. The
    * generator of `@bookrail/node` reads the flag from here rather than from a list of its own.
    */
-  it('marks exactly the sign up operations as outside the SDK', () => {
+  it('marks exactly the keyless operations as outside the SDK', () => {
     const marked: string[] = [];
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const operation of Object.values(methods)) {
@@ -233,7 +237,14 @@ describe('openapi document', () => {
       }
     }
     expect(marked.sort()).toEqual(
-      ['/v1/signups', '/v1/signups/confirm', '/v1/signups/{id}/claim'].sort(),
+      [
+        '/v1/signups',
+        '/v1/signups/confirm',
+        '/v1/signups/{id}/claim',
+        // Nobody holding an SDK object can need to call the receiver Stripe calls.
+        '/v1/stripe/webhook/test',
+        '/v1/stripe/webhook/live',
+      ].sort(),
     );
   });
 
@@ -301,18 +312,19 @@ describe('openapi document', () => {
         if (takesKey) keyed += 1;
       }
     }
-    // Seventy operations, less the specification itself and the three sign up ones.
-    expect(keyed).toBe(66);
+    // Seventy-seven operations, less the specification itself, the three sign up ones and the
+    // two Stripe webhook receivers.
+    expect(keyed).toBe(71);
   });
 
-  it('covers the 69 operations of /v1, plus itself', () => {
+  it('covers the 76 operations of /v1, plus itself', () => {
     const operations = Object.values(onDisk.paths).reduce(
       (total, path) => total + Object.keys(path).length,
       0,
     );
     const v1 = OPERATIONS.filter((operation) => operation.path.startsWith('/v1/'));
-    expect(v1.length).toBe(69);
-    expect(operations).toBe(70);
+    expect(v1.length).toBe(76);
+    expect(operations).toBe(77);
   });
 });
 
@@ -349,7 +361,8 @@ describe('error codes', () => {
    * The codes the API reference documents as existing.
    *
    * Written by hand from that reference, section by section, so that the test compares the
-   * specification with the prose rather than with itself. Transcribed as of 2026-09-07.
+   * specification with the prose rather than with itself. Transcribed as of 2026-09-07, with
+   * the four Stripe connection codes and the seven payment codes added on 22 September 2026.
    */
   const DOCUMENTED_IN_THE_API_REFERENCE: readonly string[] = [
     // General codes
@@ -396,6 +409,11 @@ describe('error codes', () => {
     'invalid_range',
     // Rate limiting
     'rate_limited',
+    // Stripe codes
+    'stripe_not_configured',
+    'stripe_already_connected',
+    'stripe_provider_error',
+    'stripe_unreachable',
     // Sign up codes
     'signup_rate_limited',
     'signup_not_found',
@@ -405,6 +423,17 @@ describe('error codes', () => {
     'signup_secret_expired',
     'signup_disabled',
     'signup_email_failed',
+    // Payment codes, added on 22 September 2026.
+    'stripe_not_connected',
+    'price_missing',
+    'deposit_not_configured',
+    'payment_amount_invalid',
+    'payment_pending',
+    'reschedule_not_supported',
+    'stripe_signature_invalid',
+    // Added on 23 September 2026, with the two guards the independent review asked for.
+    'payload_too_large',
+    'payment_amount_mismatch',
   ];
 
   /**
@@ -465,6 +494,13 @@ describe('error codes', () => {
     expect(statusOfCode('signup_disabled')).toBe(503);
     expect(statusOfCode('signup_email_failed')).toBe(502);
     expect(statusOfCode('signup_rate_limited')).toBe(429);
+    // And the three of `/v1/stripe`, for the same reason: a deployment that is not a platform
+    // is Service Unavailable, and a payment provider that refused or did not answer is Bad
+    // Gateway. The family still decides the `type` in the body.
+    expect(statusOfCode('stripe_not_configured')).toBe(503);
+    expect(statusOfCode('stripe_provider_error')).toBe(502);
+    expect(statusOfCode('stripe_unreachable')).toBe(502);
+    expect(statusOfCode('stripe_already_connected')).toBe(409);
     expect(statusOfCode('rate_limited')).toBe(429);
     expect(statusOfCode('signup_not_found')).toBe(404);
     expect(statusOfCode('signup_already_confirmed')).toBe(409);
@@ -491,6 +527,9 @@ describe('error codes', () => {
     expect(codes).toContain('missing_api_key');
     expect(codes).toContain('idempotency_key_in_progress');
     const responses = onDisk.paths['/v1/bookings']!.post!.responses;
+    // `502` and `503` joined the list when payments did: a Stripe that refused or did not
+    // answer is a bad gateway, and a deployment that is not a Connect platform is unavailable. Both
+    // are `internal` in the body, and the status comes from `STATUS_BY_CODE`.
     expect(Object.keys(responses).sort()).toEqual([
       '201',
       '400',
@@ -500,7 +539,11 @@ describe('error codes', () => {
       '422',
       '429',
       '500',
+      '502',
+      '503',
     ]);
+    expect(JSON.stringify(responses['409'])).toContain('stripe_not_connected');
+    expect(JSON.stringify(responses['503'])).toContain('stripe_not_configured');
     expect(JSON.stringify(responses['409'])).toContain('slot_unavailable');
     expect(JSON.stringify(responses['422'])).toContain('start_not_on_grid');
     // The rate limit is produced by the middleware chain, so it is on every operation that takes

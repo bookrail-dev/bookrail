@@ -22,7 +22,15 @@
 /** Subscribe to everything, including types added after the endpoint was registered. */
 export const EVENT_TYPE_WILDCARD = '*';
 
-/** What the engine and the API actually write into `events`. */
+/**
+ * What the engine and the API actually write into `events`.
+ *
+ * The `booking.*` and `hold.*` types are written by the engine; the two `stripe.*` ones are
+ * written by `/v1/stripe`, which is the first part of the API that records something of its
+ * own in a project's log; the three `payment.*` ones are written by the Stripe webhook
+ * receiver, which is the first part that records something a **provider** did.
+ * `webhooks.test.ts` reads both sources and refuses a type that is in one and not the other.
+ */
 export const EMITTED_EVENT_TYPES = [
   'booking.created',
   'booking.confirmed',
@@ -36,6 +44,13 @@ export const EMITTED_EVENT_TYPES = [
   'hold.created',
   'hold.released',
   'hold.expired',
+  'stripe.connected',
+  'stripe.disconnected',
+  // Written by the Stripe webhook receiver, after a verified signature and never before.
+  // They are the only events of this system whose cause is outside it.
+  'payment.succeeded',
+  'payment.failed',
+  'payment.refunded',
 ] as const;
 
 /** Every documented type, emitted today or not. A superset of {@link EMITTED_EVENT_TYPES}. */
@@ -47,9 +62,6 @@ export const SUBSCRIBABLE_EVENT_TYPES = [
   'waitlist.added',
   'waitlist.slot_available',
   'waitlist.offer_expired',
-  'payment.succeeded',
-  'payment.failed',
-  'payment.refunded',
   'entitlement.consumed',
   'entitlement.expiring',
   'entitlement.exhausted',

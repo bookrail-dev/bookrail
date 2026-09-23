@@ -7,6 +7,7 @@
  * HTTP responses.
  */
 import { BookrailError, type Environment, type PriceRuleRef } from '@bookrail/shared';
+import type { PaymentMode } from './payment.js';
 
 /**
  * Who the write is attributed to, as it lands in `events.actor`.
@@ -116,6 +117,44 @@ export interface CreateBookingInput {
    * plainly made them.
    */
   readonly actor?: TransitionActor | null;
+  /**
+   * Take a deposit or the full price for this booking, or `null` for `mode: "none"`.
+   *
+   * It carries the **mode and the account**, never an amount. The amount is computed inside the
+   * transaction, from the price the transaction itself freezes: a pricing rule can make
+   * Saturday evening cost more than Tuesday morning, and a deposit computed before the freeze
+   * would be a percentage of a price that turned out to be a different number. The route checks
+   * the same pre-conditions beforehand, but only to fail early with a clear error.
+   *
+   * A booking with this set is born `pending` whatever the policy says about confirmations,
+   * with `amount_due` set, `payment_expires_at` in {@link PaymentIntent.timeoutMs} and
+   * `next_transition = 'expire_payment'`, plus one `payments` row with no
+   * `provider_payment_id` yet. The caller creates the intent **after** the commit and writes
+   * the identifier back.
+   */
+  readonly payment?: PaymentRequest | null;
+}
+
+/** What `POST /v1/bookings` asks the transaction to charge for. */
+export interface PaymentRequest {
+  readonly mode: PaymentMode;
+  /** The connected Stripe account of this project and environment, `acct_...`. */
+  readonly providerAccountId: string;
+  /** How long the customer has to pay, from {@link CreateBookingInput.now}. */
+  readonly timeoutMs: number;
+}
+
+/** The `payments` row a creation wrote, as the caller needs it to create the intent. */
+export interface CreatedPayment {
+  /** Bare UUID of the `payments` row. */
+  readonly id: string;
+  readonly type: 'deposit' | 'full';
+  readonly amount: number;
+  /** ISO 4217, upper case, as the booking froze it. */
+  readonly currency: string;
+  readonly providerAccountId: string;
+  /** `bookings.payment_expires_at`, epoch milliseconds. */
+  readonly expiresAt: number;
 }
 
 /** Where a booking came from, when it came from a reschedule. */
@@ -180,6 +219,14 @@ export interface CreateBookingResult {
    */
   readonly priceRule: PriceRuleRef | null;
   readonly policySnapshot: Record<string, unknown> | null;
+  /**
+   * The `payments` row this creation wrote, or `null` for a booking that takes no money.
+   *
+   * The caller owes it one thing: create the PaymentIntent **after** the commit, then write
+   * `provider_payment_id` back. Until it does, the row is a payment with no intent, which the
+   * expiry at `expiresAt` cleans up by itself.
+   */
+  readonly payment: CreatedPayment | null;
   readonly allocations: readonly AllocatedResource[];
   /** The `events` row written in the same transaction. */
   readonly eventId: string;
@@ -248,6 +295,55 @@ export function resourceNotEligible(detail: string): BookrailError {
  */
 export function startNotOnGrid(detail: string): BookrailError {
   return new BookrailError('policy_violation', 'start_not_on_grid', detail, 'start');
+}
+
+/**
+ * 400. The service has no price, so there is nothing to take a deposit or a full payment of.
+ *
+ * The `param` is `service_id` and not `payment.mode`, because the thing to fix is the service:
+ * the request asked for a perfectly ordinary payment of a thing with no price.
+ */
+export function priceMissing(detail: string): BookrailError {
+  return new BookrailError(
+    'invalid_request',
+    'price_missing',
+    detail,
+    'service_id',
+    'Set a price and a currency on the service, then create the booking again.',
+  );
+}
+
+/** 400. `payment.mode: "deposit"` against a policy that defines no deposit. */
+export function depositNotConfigured(detail: string): BookrailError {
+  return new BookrailError(
+    'invalid_request',
+    'deposit_not_configured',
+    detail,
+    'payment.mode',
+    'Add a `deposit` to the policy of this service, or use `payment.mode: "full"`.',
+  );
+}
+
+/** 400. The amount the rules produce is zero, so there is nothing to charge. */
+export function paymentAmountInvalid(detail: string): BookrailError {
+  return new BookrailError(
+    'invalid_request',
+    'payment_amount_invalid',
+    detail,
+    'payment.mode',
+    'Use `payment.mode: "none"` for a booking that takes no money.',
+  );
+}
+
+/** 409. The project has no Stripe account connected in this environment. */
+export function stripeNotConnected(detail: string): BookrailError {
+  return new BookrailError(
+    'conflict',
+    'stripe_not_connected',
+    detail,
+    'payment.mode',
+    'bookrail stripe connect',
+  );
 }
 
 /** 409. The hold expired between the hold and the conversion. */

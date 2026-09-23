@@ -4,6 +4,7 @@ import { paginate, type PagePromise } from '../pagination.js';
 import type { BookrailPromise } from '../response.js';
 import type {
   Booking,
+  BookingCreated,
   BookingCancelParams,
   BookingCheckInParams,
   BookingCompleteParams,
@@ -22,9 +23,15 @@ export class BookingsResource extends Resource {
    * Every POST carries an `Idempotency-Key`, generated here when the caller gives none, and
    * kept identical across the SDK's own retries. Pass your own order id as
    * `{ idempotencyKey }` when the operation has a natural key on your side.
+   *
+   * With `payment: { mode: 'deposit' | 'full' }` the answer carries `payment_intent`, whose
+   * `client_secret` is returned **once** and is stored nowhere: an idempotent replay answers
+   * with the same booking and `client_secret: null`, and `payments.retrieve` reads it back from
+   * Stripe. The booking is `pending` until the money arrives, and is cancelled automatically at
+   * `payment_expires_at` if it never does.
    */
-  create(params: BookingCreateParams, options?: RequestOptions): BookrailPromise<Booking> {
-    return this.core.request<Booking>({
+  create(params: BookingCreateParams, options?: RequestOptions): BookrailPromise<BookingCreated> {
+    return this.core.request<BookingCreated>({
       method: 'POST',
       path: '/v1/bookings',
       body: params,

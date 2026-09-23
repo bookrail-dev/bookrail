@@ -87,6 +87,8 @@ const app = createApp({
   mailer,
   siteUrl: config.siteUrl,
   siteOrigin: config.siteOrigin,
+  stripe: config.stripe,
+  paymentTimeoutMinutes: config.paymentTimeoutMinutes,
   usageCounters,
   ...(rateLimiter === null
     ? {}
@@ -122,7 +124,7 @@ const usageRedis =
     : undefined;
 if (config.worker) {
   worker = await startWorker(
-    { db, cache, logger, webhookSecretKey: config.webhookSecretKey },
+    { db, cache, logger, webhookSecretKey: config.webhookSecretKey, stripe: config.stripe },
     {
       connectionString: config.urls.admin,
       intervalSeconds: config.holdExpiryIntervalSeconds,
@@ -165,6 +167,13 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
     worker: config.worker ? config.holdExpiryIntervalSeconds : 'off',
     webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
     mailer: config.mailer ?? 'off',
+    // Which environments can take a payment, never a key and never a prefix of one.
+    stripe:
+      config.stripe === null
+        ? 'off'
+        : (['test', 'live'] as const)
+            .filter((environment) => config.stripe?.environments[environment] != null)
+            .join(',') || 'off',
     usage_counters: usageCounters.kind,
     usage_digest: config.usageDigestTo === undefined ? 'off' : config.usageDigestCron,
   });

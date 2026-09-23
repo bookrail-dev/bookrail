@@ -87,8 +87,13 @@ describe('row level security', () => {
     await asProject(app, { projectId: projectA, environment: 'test' }, async () => {
       for (const table of mutable) {
         const foreignId = rowsBTest[table];
+        // `SET project_id = project_id` rather than `SET updated_at = now()`: every project
+        // table has a `project_id` and not all of them have an `updated_at`
+        // (`stripe_oauth_states` is written once and deleted, never updated). The statement
+        // changes nothing, which is the point: what is being measured is whether the row was
+        // reachable at all, and `rowCount` answers that whatever the assignment was.
         const updated = await app.query(
-          `UPDATE ${table} SET updated_at = now() WHERE id = $1 RETURNING id`,
+          `UPDATE ${table} SET project_id = project_id WHERE id = $1 RETURNING id`,
           [foreignId],
         );
         expect(updated.rowCount, `${table}: updated a row of another project`).toBe(0);

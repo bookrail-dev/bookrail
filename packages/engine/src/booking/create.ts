@@ -79,6 +79,7 @@ import {
   type RequirementPlan,
 } from './allocate.js';
 import { releaseOccupancies, takeOccupancy } from './occupancy.js';
+import { depositRule, paymentAmountFor } from './payment.js';
 import { nextTransitionFor, type AutomaticTransition } from './policy.js';
 import { bookingEventObject } from './snapshot.js';
 import { resourceZones, touchedDaysOf } from './touched.js';
@@ -101,6 +102,9 @@ import {
 import {
   actorRecord,
   customerLimitReached,
+  depositNotConfigured,
+  paymentAmountInvalid,
+  priceMissing,
   holdExpired,
   holdNotActive,
   minNoticeViolated,
@@ -112,6 +116,7 @@ import {
   type AllocatedResource,
   type CreateBookingInput,
   type CreateBookingResult,
+  type CreatedPayment,
   type InitialBookingStatus,
   type RescheduleOrigin,
   type ReleaseHoldInput,
@@ -382,8 +387,14 @@ export async function take(
     occupancyId: occupancy.id,
   }));
 
+  // A booking that is waiting for money is `pending` whatever the policy says about
+  // confirmations: `confirmed` would mean the slot is the customer's, and it is not until the
+  // money arrives. The policy's own confirmation is applied again by the webhook receiver,
+  // which is what decides whether a paid booking becomes `confirmed` or stays `pending`.
   const status: InitialBookingStatus =
-    policy !== null && policy.requiresConfirmation ? 'pending' : 'confirmed';
+    input.payment != null || (policy !== null && policy.requiresConfirmation)
+      ? 'pending'
+      : 'confirmed';
   // The price is computed **here**, from the resources this booking actually got, and frozen.
   // Availability quoted a price for the assignment it preferred; this is the assignment that
   // exists, and a booking carries the price of the moment it is made, never a price recomputed
@@ -400,6 +411,13 @@ export async function take(
   );
   const price = priced?.price ?? null;
   const priceRule = priceRuleOf(priced);
+
+  // The payment, from the price that has just been frozen. A hold takes no money: a hold is a
+  // quote, and the price is recomputed at the conversion.
+  const payment =
+    kind === 'hold'
+      ? null
+      : resolvePayment(input, { id: uuidv7(), price, policy, serviceId: service.id });
 
   let scheduled: { action: AutomaticTransition; at: number } | null = null;
   if (kind === 'hold') {
@@ -425,7 +443,9 @@ export async function take(
       policy,
       holdId: null,
       allocations,
+      payment,
     });
+    if (payment !== null) await insertPayment(tx, input, id, payment);
   }
 
   const eventId = await insertEvent(
@@ -466,6 +486,7 @@ export async function take(
           now: input.now,
           scheduled,
           reschedule: input.reschedule ?? null,
+          payment,
         }),
     { occurredAt: input.now, actor: actorRecord(input.actor) },
   );
@@ -486,6 +507,7 @@ export async function take(
     price,
     priceRule,
     policySnapshot: policy?.snapshot ?? null,
+    payment,
     allocations,
     eventId,
     touchedDays: touchedDaysOf(allocations, zonesOf(data), start, end),
@@ -603,7 +625,9 @@ async function convert(
 
   const policy = await policyOf(tx, data);
   const status: InitialBookingStatus =
-    policy !== null && policy.requiresConfirmation ? 'pending' : 'confirmed';
+    input.payment != null || (policy !== null && policy.requiresConfirmation)
+      ? 'pending'
+      : 'confirmed';
   // A hold has no price: `holds` has no price column, and the price a customer pays is the one
   // of the **conversion**, not of the hold. So the rules are evaluated again here, against the
   // resources the hold is holding.
@@ -619,6 +643,12 @@ async function convert(
   const price = priced?.price ?? null;
   const priceRule = priceRuleOf(priced);
   const customerId = input.customerId ?? hold.customerId ?? null;
+  const payment = resolvePayment(input, {
+    id: uuidv7(),
+    price,
+    policy,
+    serviceId: service.id,
+  });
 
   const scheduled = await insertBooking(tx, input, {
     id: bookingId,
@@ -633,7 +663,9 @@ async function convert(
     policy,
     holdId,
     allocations,
+    payment,
   });
+  if (payment !== null) await insertPayment(tx, input, bookingId, payment);
 
   const eventId = await insertEvent(
     tx,
@@ -658,6 +690,7 @@ async function convert(
       now: input.now,
       scheduled,
       reschedule: input.reschedule ?? null,
+      payment,
     }),
     { occurredAt: input.now, actor: actorRecord(input.actor) },
   );
@@ -678,6 +711,7 @@ async function convert(
     price,
     priceRule,
     policySnapshot: policy?.snapshot ?? null,
+    payment,
     allocations,
     eventId,
     touchedDays: touchedDaysOf(allocations, zonesOf(data), hold.startsAt, hold.endsAt),
@@ -1084,6 +1118,83 @@ function noAssignment(
   );
 }
 
+// --- The payment a creation takes -----------------------------------------------------------
+
+/**
+ * Turns `payment.mode` into the `payments` row this booking will be waiting on.
+ *
+ * Called **inside** the transaction, after the price has been frozen and the policy snapshot
+ * taken, because both are inputs: the amount of a `percent` deposit is a fraction of the price
+ * this assignment produced, and the deposit rule is the one the customer is agreeing to now,
+ * which is the one about to be written into `policy_snapshot`.
+ *
+ * The three refusals are all `400`s with a `fix`, and they all happen before a single row is
+ * written: the transaction rolls back, no capacity is taken, and the caller is told which of
+ * the three things to change. `routes/bookings.ts` checks the same three before the transaction
+ * as well, on the live rows, so that the common mistake costs no advisory lock at all; this is
+ * the check that is authoritative, because it is the one that sees the frozen numbers.
+ */
+function resolvePayment(
+  input: CreateBookingInput,
+  args: {
+    id: string;
+    price: { amount: number; currency: string } | null;
+    policy: PolicyRow | null;
+    serviceId: string;
+  },
+): CreatedPayment | null {
+  const request = input.payment ?? null;
+  if (request === null) return null;
+  if (args.price === null) {
+    throw priceMissing(
+      `Service ${args.serviceId} has no price, so there is nothing to charge for payment.mode "${request.mode}".`,
+    );
+  }
+  const rule = depositRule(args.policy?.snapshot ?? null);
+  const computed = paymentAmountFor({
+    mode: request.mode,
+    priceAmount: args.price.amount,
+    depositRule: rule,
+  });
+  if (!computed.ok) {
+    if (computed.reason === 'price_missing') {
+      throw priceMissing(`Service ${args.serviceId} has no price.`);
+    }
+    if (computed.reason === 'deposit_missing') {
+      throw depositNotConfigured(
+        `payment.mode "deposit" needs a deposit on the policy of service ${args.serviceId}, and it has none.`,
+      );
+    }
+    throw paymentAmountInvalid(
+      `The rules of this booking produce an amount of 0 for payment.mode "${request.mode}".`,
+    );
+  }
+  return {
+    id: args.id,
+    type: request.mode,
+    amount: computed.amount,
+    currency: args.price.currency,
+    providerAccountId: request.providerAccountId,
+    expiresAt: input.now + request.timeoutMs,
+  };
+}
+
+/** The `payments` row, written in the same transaction as the booking it belongs to. */
+async function insertPayment(
+  tx: Transaction,
+  input: CreateBookingInput,
+  bookingId: string,
+  payment: CreatedPayment,
+): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO payments (id, project_id, environment, booking_id, provider, provider_account_id,
+                          provider_payment_id, type, amount, currency, status, metadata)
+    VALUES (${payment.id}, ${input.projectId}, ${input.environment}, ${bookingId}, 'stripe',
+            ${payment.providerAccountId}, NULL, ${payment.type}, ${payment.amount},
+            ${payment.currency}, 'pending', '{}'::jsonb)
+  `);
+}
+
 // --- Writing ------------------------------------------------------------------------------------
 
 async function insertBooking(
@@ -1102,6 +1213,7 @@ async function insertBooking(
     policy: PolicyRow | null;
     holdId: string | null;
     allocations: readonly AllocatedResource[];
+    payment: CreatedPayment | null;
   },
 ): Promise<{ action: AutomaticTransition; at: number } | null> {
   // The automatic clock is set at birth, not by the first transition: a booking created with
@@ -1109,7 +1221,15 @@ async function insertBooking(
   // finds it by `next_transition_at` on this very row. `nextTransitionFor` is the same function
   // every transition uses.
   const scheduled = nextTransitionFor(
-    { status: args.status, startsAt: args.start, endsAt: args.end, checkedInAt: null },
+    {
+      status: args.status,
+      startsAt: args.start,
+      endsAt: args.end,
+      checkedInAt: null,
+      // A booking waiting for money has exactly one automatic transition, and it is this
+      // deadline. `nextTransitionFor` returns `expire_payment` for it and nothing else.
+      paymentExpiresAt: args.payment?.expiresAt ?? null,
+    },
     args.policy?.snapshot ?? null,
   );
   // The reschedule origin is part of **this** INSERT, not of an UPDATE afterwards: the
@@ -1121,7 +1241,7 @@ async function insertBooking(
     INSERT INTO bookings (id, project_id, environment, status, service_id, customer_id, hold_id,
                           starts_at, ends_at, timezone, quantity, price_amount, currency,
                           price_rule, policy_snapshot, source, notes, metadata, confirmed_at,
-                          next_transition, next_transition_at,
+                          next_transition, next_transition_at, amount_due, payment_expires_at,
                           rescheduled_from_booking_id, reschedule_count, reschedule_fee_expected)
     VALUES (${args.id}, ${input.projectId}, ${input.environment}, ${args.status},
             ${args.service.id}, ${input.customerId ?? null}, ${args.holdId},
@@ -1134,6 +1254,8 @@ async function insertBooking(
             ${args.status === 'confirmed' ? iso(input.now) : null},
             ${scheduled?.action ?? null},
             ${scheduled === null ? null : iso(scheduled.at)}::timestamptz,
+            ${args.payment?.amount ?? 0},
+            ${args.payment === null ? null : iso(args.payment.expiresAt)}::timestamptz,
             ${origin?.fromBookingId ?? null}, ${origin?.count ?? 0},
             ${origin?.feeExpected ?? null})
   `);
@@ -1211,6 +1333,7 @@ function createdBookingObject(args: {
   now: number;
   scheduled: { action: AutomaticTransition; at: number } | null;
   reschedule: RescheduleOrigin | null;
+  payment: CreatedPayment | null;
 }): Record<string, unknown> {
   return bookingEventObject({
     id: args.id,
@@ -1225,7 +1348,9 @@ function createdBookingObject(args: {
     price: args.price,
     priceRule: args.priceRule,
     amountPaid: 0,
-    amountDue: 0,
+    // The one number a creation writes: what this booking is waiting to be paid. Zero for
+    // `mode: "none"`, which is every booking that takes no money.
+    amountDue: args.payment?.amount ?? 0,
     amountRefunded: 0,
     source: args.source,
     notes: args.notes,
@@ -1247,6 +1372,7 @@ function createdBookingObject(args: {
     rescheduledAt: null,
     nextTransition: args.scheduled?.action ?? null,
     nextTransitionAt: args.scheduled?.at ?? null,
+    paymentExpiresAt: args.payment?.expiresAt ?? null,
     allocations: args.allocations,
   });
 }

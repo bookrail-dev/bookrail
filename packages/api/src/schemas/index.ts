@@ -635,6 +635,23 @@ export const bookingListQuerySchema = z
     path: ['to'],
   });
 
+/**
+ * Filters of `GET /v1/payments`.
+ *
+ * Deliberately small: a payment is something you reach from the booking it belongs to, so
+ * `booking_id` is the filter that matters and the other two are there to answer "what is still
+ * pending" and "what has been refunded" without pulling the whole list.
+ *
+ * Not `.strict()`, like every other list query of this API: `limit` and `starting_after` are
+ * read by `parseListParams` before this schema runs and would otherwise be refused here as
+ * unknown keys.
+ */
+export const paymentListQuerySchema = z.object({
+  booking_id: refId('booking').optional(),
+  status: z.enum(['pending', 'succeeded', 'failed', 'refunded', 'cancelled']).optional(),
+  type: z.enum(['deposit', 'full', 'balance', 'no_show_fee', 'refund']).optional(),
+});
+
 // --- Booking transitions -------------------------------------------------------------------
 
 /**

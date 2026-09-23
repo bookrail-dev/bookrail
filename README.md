@@ -147,7 +147,7 @@ database keeps only their SHA-256. The endpoint exists only while
 - [Concepts](https://bookrail.dev/docs/concepts/): the data model, with figures.
 - [The edge cases of booking](https://bookrail.dev/docs/edge-cases/): the honest list, with the
   test for each case.
-- [API reference](https://bookrail.dev/docs/api/reference/): 67 operations, generated from the
+- [API reference](https://bookrail.dev/docs/api/reference/): 73 operations, generated from the
   specification the server serves.
 - [For AI agents](https://bookrail.dev/docs/for-ai-agents/): `llms.txt`, `openapi.json`,
   `mcp/tools.json`, and the conventions an agent can rely on.

@@ -39,16 +39,26 @@
  *
  * ## Money
  *
- * Everything computed here is an **expectation**: `refund_amount_expected`,
+ * Everything computed here is still an **expectation**: `refund_amount_expected`,
  * `no_show_charge_expected`, `reschedule_fee_expected`. The frozen policy states the rules and
- * this file applies them; executing a refund or a charge belongs to the payments work that does
- * not exist yet, and nothing here touches `amount_paid` or `amount_refunded`.
+ * this file applies them. Nothing here touches `amount_paid`, `amount_due` or
+ * `amount_refunded`: those three change only when the creation sets `amount_due` and when the
+ * Stripe webhook receiver applies an event whose signature it verified.
+ *
+ * The other half of that separation: a cancellation, and the automatic
+ * `expire_payment`, **queue** the call Bookrail then owes Stripe on the `payments` row
+ * (`pending_action`), inside the same transaction as the state change, and the worker makes it
+ * afterwards. No call to Stripe happens inside this file or inside any transaction it opens:
+ * the booking transaction holds advisory locks on every candidate resource of a service, and
+ * ten seconds of somebody else's network inside those locks is ten seconds in which nobody can
+ * book that resource.
  */
 import { sql, type Database, type Transaction, type ProjectContext } from '@bookrail/db';
 import {
   encodeId,
   errors,
   priceRuleOfRow,
+  uuidv7,
   BookrailError,
   type Environment,
   type PriceRuleRef,
@@ -82,13 +92,22 @@ const MINUTE_MS = 60_000;
 /**
  * Every action a booking accepts.
  *
- * `start` is the odd one out: it has no endpoint. It is what `auto_start` fires, and it moves
- * a booking to `in_progress` **without** setting `checked_in_at`, because nobody checked in.
- * Conflating it with `check_in` would silently disable `no_show.auto_mark` for every policy
- * that also asks for `auto_start`.
+ * `start` and `expire_payment` are the two with no endpoint. `start` is what `auto_start`
+ * fires, and it moves a booking to `in_progress` **without** setting `checked_in_at`, because
+ * nobody checked in; conflating it with `check_in` would silently disable `no_show.auto_mark`
+ * for every policy that also asks for `auto_start`. `expire_payment` is what the scheduler
+ * fires at `payment_expires_at` on a booking whose payment never arrived: it is a cancellation
+ * nobody asked for, so it is not an action a caller may name.
  */
 export type TransitionAction =
-  'confirm' | 'cancel' | 'reschedule' | 'no_show' | 'check_in' | 'complete' | 'start';
+  | 'confirm'
+  | 'cancel'
+  | 'reschedule'
+  | 'no_show'
+  | 'check_in'
+  | 'complete'
+  | 'start'
+  | 'expire_payment';
 
 /**
  * The actions exposed over HTTP. `start` is deliberately not among them: only the scheduler
@@ -124,6 +143,9 @@ export const TRANSITIONS: Readonly<
     confirm: 'confirmed',
     cancel: 'cancelled',
     reschedule: 'rescheduled',
+    // Only the scheduler, at `payment_expires_at`. A `pending` booking waiting for money holds
+    // its slot, and this is what gives the slot back.
+    expire_payment: 'cancelled',
   },
   confirmed: {
     cancel: 'cancelled',
@@ -233,6 +255,7 @@ const PAST_PARTICIPLE: Record<TransitionAction, string> = {
   check_in: 'checked in',
   complete: 'completed',
   start: 'started',
+  expire_payment: 'cancelled because its payment did not arrive',
 };
 
 export function invalidTransition(
@@ -272,9 +295,77 @@ export function completeTooEarly(detail: string): BookrailError {
   return new BookrailError('policy_violation', 'complete_too_early', detail, 'status');
 }
 
+/**
+ * 409. A `confirm` on a booking whose payment is still in flight.
+ *
+ * Deliberately not a 422: nothing about the request is wrong, and nothing about the policy was
+ * violated. It is a state conflict that resolves itself, in one direction or the other, within
+ * the payment deadline.
+ */
+export function paymentPending(detail: string): BookrailError {
+  return new BookrailError(
+    'conflict',
+    'payment_pending',
+    detail,
+    'status',
+    'Wait for the payment to complete, or cancel the booking.',
+  );
+}
+
+/**
+ * 422. A reschedule of a booking that has money on it.
+ *
+ * `reschedule_not_supported`, and not a permanent refusal: what is missing is the rule for the
+ * difference in price between the two slots, which has been open since the reschedule was
+ * built. The `param` is the action, because that is what the caller has to change.
+ *
+ * A code of its own rather than the `not_yet_supported` of `recurrence` and `entitlement`,
+ * because those two are a `400`: a field this build does not implement is a bad request, and a
+ * well formed request about a state this build cannot reconcile is a `422`. One code cannot
+ * carry two statuses in this API's taxonomy.
+ */
+export function reschedulePaid(detail: string): BookrailError {
+  return new BookrailError(
+    'policy_violation',
+    'reschedule_not_supported',
+    detail,
+    'reschedule',
+    'Cancel the booking, which refunds it according to the policy, and create a new one.',
+  );
+}
+
 /** 422. `policy_snapshot.max_reschedules` is already reached. */
 export function maxReschedulesReached(detail: string): BookrailError {
   return new BookrailError('policy_violation', 'max_reschedules_reached', detail, 'booking_id');
+}
+
+/**
+ * The result of a transition that decided, after taking the lock, that there was nothing to do.
+ *
+ * Two callers, and both mean the same thing: somebody else got there first. The scheduler's
+ * `expectedNextTransition` guard finds a column that has moved, and `expire_payment` finds a
+ * booking that has been paid for. Neither writes a row and neither emits an event, so the
+ * result has to say so rather than look like a success with no consequences.
+ */
+function notApplied(booking: BookingRow, action: TransitionAction): TransitionResult {
+  return {
+    bookingId: booking.id,
+    action,
+    previousStatus: booking.status,
+    status: booking.status,
+    newBookingId: null,
+    applied: false,
+    refundPercent: booking.refundPercent,
+    refundAmountExpected: booking.refundAmountExpected,
+    noShowChargeExpected: booking.noShowChargeExpected,
+    rescheduleFeeExpected: booking.rescheduleFeeExpected,
+    eventIds: [],
+    touchedDays: [],
+    nextTransition:
+      booking.nextTransition === null || booking.nextTransitionAt === null
+        ? null
+        : { action: booking.nextTransition, at: booking.nextTransitionAt },
+  };
 }
 
 // --- The booking row ------------------------------------------------------------------------
@@ -317,6 +408,7 @@ interface BookingRow {
   rescheduledAt: number | null;
   nextTransition: AutomaticTransition | null;
   nextTransitionAt: number | null;
+  paymentExpiresAt: number | null;
 }
 
 interface AllocationRow {
@@ -343,6 +435,7 @@ async function lockBooking(tx: Transaction, bookingId: string): Promise<BookingR
            cancelled_by, cancellation_reason, refund_percent, refund_amount_expected,
            no_show_charge_expected, reschedule_fee_expected, reschedule_count,
            rescheduled_from_booking_id, rescheduled_to_booking_id, next_transition,
+           (extract(epoch FROM payment_expires_at) * 1000)::bigint AS payment_expires_ms,
            (extract(epoch FROM starts_at) * 1000)::bigint AS starts_ms,
            (extract(epoch FROM ends_at) * 1000)::bigint AS ends_ms,
            (extract(epoch FROM confirmed_at) * 1000)::bigint AS confirmed_ms,
@@ -401,6 +494,7 @@ async function lockBooking(tx: Transaction, bookingId: string): Promise<BookingR
     rescheduledAt: ms(row.rescheduled_ms as string | null),
     nextTransition: (row.next_transition as AutomaticTransition | null) ?? null,
     nextTransitionAt: ms(row.next_transition_ms as string | null),
+    paymentExpiresAt: ms(row.payment_expires_ms as string | null),
   };
 }
 
@@ -461,6 +555,7 @@ function snapshotOf(row: BookingRow, allocations: readonly AllocationRow[]): Boo
     rescheduledAt: row.rescheduledAt,
     nextTransition: row.nextTransition,
     nextTransitionAt: row.nextTransitionAt,
+    paymentExpiresAt: row.paymentExpiresAt,
     allocations,
   };
 }
@@ -513,24 +608,7 @@ export async function applyTransition(
       booking.nextTransitionAt === null ||
       booking.nextTransitionAt > input.now
     ) {
-      return {
-        bookingId: booking.id,
-        action: input.action,
-        previousStatus: booking.status,
-        status: booking.status,
-        newBookingId: null,
-        applied: false,
-        refundPercent: booking.refundPercent,
-        refundAmountExpected: booking.refundAmountExpected,
-        noShowChargeExpected: booking.noShowChargeExpected,
-        rescheduleFeeExpected: booking.rescheduleFeeExpected,
-        eventIds: [],
-        touchedDays: [],
-        nextTransition:
-          booking.nextTransition === null || booking.nextTransitionAt === null
-            ? null
-            : { action: booking.nextTransition, at: booking.nextTransitionAt },
-      };
+      return notApplied(booking, input.action);
     }
   }
 
@@ -565,10 +643,33 @@ async function simpleTransition(
   let refundAmountExpected: number | null = booking.refundAmountExpected;
   let noShowChargeExpected: number | null = booking.noShowChargeExpected;
 
+  // Every payment of this booking, locked, before anything about money is decided. Locked and
+  // not merely read: a webhook applying `payment_intent.succeeded` and this transition are two
+  // transactions that both change what the other would have decided, and the lock is what puts
+  // them in an order. It is a single query on `payments_booking_idx` and it finds nothing at
+  // all on a booking made with `mode: "none"`, which is every booking today.
+  const payments =
+    input.action === 'confirm' || input.action === 'cancel' || input.action === 'expire_payment'
+      ? await lockPayments(tx, booking.id)
+      : [];
+
   switch (input.action) {
-    case 'confirm':
+    case 'confirm': {
+      // Confirming a booking whose money is still in flight is almost always a mistake: it
+      // tells the customer the slot is theirs while Stripe may still refuse the card, and it
+      // clears the deadline that would otherwise give the slot back. Whoever really means it
+      // cancels and creates the booking again with `mode: "none"`.
+      const waiting = payments.find((row) => row.type !== 'refund' && row.status === 'pending');
+      if (waiting !== undefined) {
+        throw paymentPending(
+          `Booking ${encodeId('booking', booking.id)} is waiting for payment ${encodeId('payment', waiting.id)} to complete.`,
+        );
+      }
       next.confirmedAt = input.now;
+      // The wait is over one way or another, so the deadline goes.
+      next.paymentExpiresAt = null;
       break;
+    }
     case 'check_in':
       next.checkedInAt = input.now;
       break;
@@ -592,6 +693,32 @@ async function simpleTransition(
       next.cancellationReason = input.reason ?? null;
       next.refundPercent = refundPercent;
       next.refundAmountExpected = refundAmountExpected;
+      next.paymentExpiresAt = null;
+      // The two consequences, queued on the rows they are about and executed by the worker.
+      // Nothing is called here: see the note on money at the top of this file.
+      await queueIntentCancellations(tx, input, payments);
+      await queueRefunds(tx, input, booking, payments, refundAmountExpected);
+      break;
+    }
+    case 'expire_payment': {
+      // The one race this transition has: a `payment_intent.succeeded` that landed between the
+      // scheduler selecting this booking and this lock. `amount_paid` is the evidence, and the
+      // answer is to do nothing at all: the booking has been paid for, and cancelling it here
+      // would take a slot away from a customer who has just bought it.
+      if (booking.amountPaid > 0) {
+        return notApplied(booking, input.action);
+      }
+      next.cancelledAt = input.now;
+      next.cancelledBy = 'system';
+      next.cancellationReason = 'payment_timeout';
+      // Nothing was taken, so nothing comes back. Written explicitly rather than left null, so
+      // that a cancelled booking always says what its refund was.
+      refundPercent = 0;
+      refundAmountExpected = 0;
+      next.refundPercent = 0;
+      next.refundAmountExpected = 0;
+      next.paymentExpiresAt = null;
+      await queueIntentCancellations(tx, input, payments);
       break;
     }
     case 'no_show': {
@@ -634,6 +761,13 @@ async function simpleTransition(
       startsAt: booking.startsAt,
       endsAt: booking.endsAt,
       checkedInAt: (next.checkedInAt as number | undefined) ?? booking.checkedInAt,
+      // The deadline as this transition leaves it, not as it found it: a `confirm` that
+      // follows a payment clears it, and the clock has to be recomputed from the new value or
+      // the scheduler would expire a booking that has already been paid for.
+      paymentExpiresAt:
+        'paymentExpiresAt' in next
+          ? (next.paymentExpiresAt as number | null)
+          : booking.paymentExpiresAt,
     },
     booking.policySnapshot,
   );
@@ -685,6 +819,10 @@ const EVENT_TYPE: Record<TransitionAction, string> = {
   check_in: 'booking.checked_in',
   complete: 'booking.completed',
   start: 'booking.started',
+  // The same event a manual cancellation writes, because the same thing happened to the
+  // booking. `cancellation_reason: 'payment_timeout'` is what tells the two apart, and a
+  // consumer mirroring bookings needs no special case for a cancellation it did not ask for.
+  expire_payment: 'booking.cancelled',
 };
 
 /**
@@ -754,6 +892,9 @@ async function writeBooking(
     rescheduledFromBookingId: 'rescheduled_from_booking_id',
     nextTransition: 'next_transition',
     nextTransitionAt: 'next_transition_at',
+    // Written by the creation and cleared by everything that ends the wait: a successful
+    // payment, a cancellation, an expiry. Never by a route: no request carries it.
+    paymentExpiresAt: 'payment_expires_at',
   };
   const timestamps = new Set([
     'confirmedAt',
@@ -763,6 +904,7 @@ async function writeBooking(
     'noShowAt',
     'rescheduledAt',
     'nextTransitionAt',
+    'paymentExpiresAt',
   ]);
   const assignments = [];
   for (const [key, value] of Object.entries(values)) {
@@ -777,6 +919,138 @@ async function writeBooking(
   await tx.execute(
     sql`UPDATE bookings SET ${sql.join(assignments, sql`, `)} WHERE id = ${bookingId}`,
   );
+}
+
+// --- The payments of a booking, and the calls they make the worker owe ------------------------
+
+/** One `payments` row, as the transition needs to see it. */
+interface PaymentRow {
+  readonly id: string;
+  readonly type: string;
+  readonly status: string;
+  readonly amount: number;
+  readonly amountRefunded: number;
+  readonly currency: string;
+  readonly providerPaymentId: string | null;
+  readonly providerAccountId: string;
+}
+
+/**
+ * Every payment of a booking, locked in a stable order.
+ *
+ * `FOR UPDATE` and `ORDER BY created_at, id` together: the lock is what serialises this
+ * transition against a webhook touching the same rows, and the order is what stops two
+ * transitions on two bookings that somehow share a payment from deadlocking. The order is also
+ * the one the refund allocation below walks, so which payment a partial refund comes out of is
+ * a decision and not an accident of the planner.
+ */
+async function lockPayments(tx: Transaction, bookingId: string): Promise<PaymentRow[]> {
+  const { rows } = await tx.execute<Record<string, unknown>>(sql`
+    SELECT id, type, status, amount, amount_refunded, currency, provider_payment_id,
+           provider_account_id
+      FROM payments
+     WHERE booking_id = ${bookingId}
+     ORDER BY created_at, id
+       FOR UPDATE
+  `);
+  return rows.map((row) => ({
+    id: row.id as string,
+    type: row.type as string,
+    status: row.status as string,
+    amount: Number(row.amount),
+    amountRefunded: Number(row.amount_refunded),
+    currency: row.currency as string,
+    providerPaymentId: (row.provider_payment_id as string | null) ?? null,
+    providerAccountId: row.provider_account_id as string,
+  }));
+}
+
+/**
+ * Asks the worker to cancel the intent of every payment still waiting for one.
+ *
+ * A row that has no `provider_payment_id` has no intent to cancel: either the creation of the
+ * intent failed, or the booking was cancelled in the window between the `payments` row being
+ * written and Stripe answering. There is nothing for the worker to do, so the row is simply
+ * marked `cancelled` here instead of being queued for a call that would have no subject.
+ *
+ * The retry ladder is reset on every queueing: the previous attempts were about a previous
+ * decision, and carrying their count over would make a second cancellation inherit the first
+ * one's exhaustion.
+ *
+ * `pending_action_next_at` is written with the instant of this transaction and never left NULL.
+ * On that column NULL means one thing only, and it is the opposite of this one: a row whose
+ * retry ladder ran out and which nothing will pick up again. A queueing that left it NULL would
+ * be indistinguishable from an exhausted row, and the worker would retry the exhausted ones for
+ * ever.
+ */
+async function queueIntentCancellations(
+  tx: Transaction,
+  input: TransitionInput,
+  payments: readonly PaymentRow[],
+): Promise<void> {
+  for (const payment of payments) {
+    if (payment.type === 'refund' || payment.status !== 'pending') continue;
+    if (payment.providerPaymentId === null) {
+      await tx.execute(sql`
+        UPDATE payments
+           SET status = 'cancelled', pending_action = NULL, pending_action_next_at = NULL
+         WHERE id = ${payment.id}
+      `);
+      continue;
+    }
+    await tx.execute(sql`
+      UPDATE payments
+         SET pending_action = 'cancel_intent',
+             pending_action_attempts = 0,
+             pending_action_next_at = ${new Date(input.now).toISOString()}::timestamptz,
+             pending_action_error = NULL
+       WHERE id = ${payment.id}
+    `);
+  }
+}
+
+/**
+ * Writes the refund rows a cancellation owes, and queues the calls that execute them.
+ *
+ * `refund_amount_expected` is a number about the **booking**: the policy says what fraction of
+ * what was paid comes back, and this file computes it from `amount_paid`. That is turned into
+ * rows about **payments**, because that is what Stripe refunds: it
+ * walks the succeeded payments in the order they were made and takes from each one what is
+ * still refundable on it, until the budget is spent. With one deposit, which is every booking
+ * today, that is one row for the whole amount; the loop is there so that the day a balance
+ * exists the arithmetic does not have to be written again.
+ *
+ * Nothing is queued when the expectation is zero, which is the common cancellation: a policy
+ * with no tier applicable at that distance refunds nothing, and a refund row of zero would be
+ * a call to Stripe that Stripe would refuse.
+ */
+async function queueRefunds(
+  tx: Transaction,
+  input: TransitionInput,
+  booking: BookingRow,
+  payments: readonly PaymentRow[],
+  refundAmountExpected: number,
+): Promise<void> {
+  let budget = Math.max(0, refundAmountExpected);
+  if (budget === 0) return;
+  for (const payment of payments) {
+    if (budget === 0) break;
+    if (payment.type === 'refund' || payment.status !== 'succeeded') continue;
+    const refundable = payment.amount - payment.amountRefunded;
+    if (refundable <= 0) continue;
+    const amount = Math.min(budget, refundable);
+    budget -= amount;
+    await tx.execute(sql`
+      INSERT INTO payments (id, project_id, environment, booking_id, parent_payment_id, provider,
+                            provider_account_id, type, amount, currency, status, metadata,
+                            pending_action, pending_action_next_at)
+      VALUES (${uuidv7()}, ${input.projectId}::uuid, ${input.environment}, ${booking.id}::uuid,
+              ${payment.id}::uuid, 'stripe', ${payment.providerAccountId}, 'refund', ${amount},
+              ${payment.currency}, 'pending',
+              ${JSON.stringify({ origin: 'policy', reason: input.reason ?? null })}::jsonb,
+              'create_refund', ${new Date(input.now).toISOString()}::timestamptz)
+    `);
+  }
 }
 
 // --- Reschedule --------------------------------------------------------------------------------
@@ -827,6 +1101,23 @@ async function rescheduleBooking(
 ): Promise<TransitionResult> {
   if (input.start === undefined) {
     throw errors.invalidRequest('A reschedule needs the new start.', 'start', 'parameter_missing');
+  }
+
+  // A reschedule creates a **new** booking and freezes the price of the new slot on it. With
+  // money already attached to the old one there are two numbers and no rule yet for reconciling
+  // them: the old booking's deposit sits against a price that no longer applies, and moving a
+  // court from Tuesday to Saturday can legitimately cost more. Refusing is the only honest
+  // answer until that rule exists: the alternative is a customer who has paid for one price and
+  // holds a slot at another.
+  const attached = await lockPayments(tx, booking.id);
+  if (
+    attached.some(
+      (row) => row.type !== 'refund' && (row.status === 'pending' || row.status === 'succeeded'),
+    )
+  ) {
+    throw reschedulePaid(
+      `Booking ${encodeId('booking', booking.id)} has a payment attached, and moving the money to a slot with a different price is not supported yet. Cancel it and create a new booking.`,
+    );
   }
 
   const limit = maxReschedules(booking.policySnapshot);

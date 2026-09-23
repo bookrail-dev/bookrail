@@ -1,11 +1,12 @@
 /**
- * The background worker: pg-boss, eight queues, and the reasons for all of them.
+ * The background worker: pg-boss, nine queues, and the reasons for all of them.
  *
- * The cadences are a hold expiry every ten seconds, the automatic booking transitions every
- * thirty, the webhook outbox every five, the webhook delivery sweep every second, an hourly
- * cleanup of `Idempotency-Key` rows, the two nightly reconciliations (the integrity check and
- * the orphan sweep), and the usage digest at seven in the morning, which is the only job here
- * that sends a message to a person and the only one whose cron is in a local time zone.
+ * The cadences are a hold expiry every ten seconds, the calls owed to Stripe every ten, the
+ * automatic booking transitions every thirty, the webhook outbox every five, the webhook
+ * delivery sweep every second, an hourly cleanup of `Idempotency-Key` rows, the two nightly
+ * reconciliations (the integrity check and the orphan sweep), and the usage digest at seven in
+ * the morning, which is the only job here that sends a message to a person and the only one
+ * whose cron is in a local time zone.
  *
  * pg-boss keeps the queue in Postgres, which is the point: there is no second datastore to
  * lose, and a job and the rows it will touch live in the same database and the same backup.
@@ -41,9 +42,11 @@ import type { AppDeps } from '../context.js';
 import {
   purgeIdempotencyKeys,
   purgeSignups,
+  purgeStripeOauthStates,
   runBookingTransitions,
   runHoldExpiry,
 } from './tasks.js';
+import { runPaymentActions } from './payment-actions.js';
 import { runIntegrityCheck, runOrphanReconciliation } from './reconcile.js';
 import { DIGEST_TIMEZONE, runUsageDigest, type UsageDigestOptions } from './usage-digest.js';
 import { runWebhookDeliveries } from '../webhooks/dispatch.js';
@@ -58,6 +61,17 @@ export const WEBHOOK_DELIVERY_QUEUE = 'webhook-delivery';
 export const INTEGRITY_CHECK_QUEUE = 'integrity-check';
 export const ORPHAN_RECONCILE_QUEUE = 'orphan-reconcile';
 export const USAGE_DIGEST_QUEUE = 'usage-digest';
+export const PAYMENT_ACTIONS_QUEUE = 'payment-actions';
+
+/**
+ * How often the calls owed to Stripe are drained.
+ *
+ * Ten seconds, the cadence of the hold sweep and for the same kind of reason: what is waiting
+ * is a customer's money going back to them, and a minute of cron granularity would mean a
+ * refund that a cancellation decided at 10:00:01 leaves at 10:01. It is a job that finds
+ * nothing on a quiet system: the query reads the partial index of migration 0024.
+ */
+export const DEFAULT_PAYMENT_ACTIONS_INTERVAL_SECONDS = 10;
 
 /**
  * When the daily usage digest goes out: 07:00 in the founder's own time zone.
@@ -117,6 +131,8 @@ export interface WorkerOptions {
   intervalSeconds?: number;
   /** How often the automatic booking transitions are applied. */
   transitionsIntervalSeconds?: number;
+  /** How often the calls owed to Stripe are drained. */
+  paymentActionsIntervalSeconds?: number;
   /** How often the webhook outbox converts events into deliveries. */
   webhookOutboxIntervalSeconds?: number;
   /** How often due webhook deliveries are sent. */
@@ -208,10 +224,12 @@ function isStopped(error: unknown): boolean {
  * nothing, never a job that piles up in a dead letter queue.
  */
 export async function startWorker(
-  deps: Pick<AppDeps, 'db' | 'cache' | 'logger' | 'webhookSecretKey'>,
+  deps: Pick<AppDeps, 'db' | 'cache' | 'logger' | 'webhookSecretKey' | 'stripe'>,
   options: WorkerOptions,
 ): Promise<Worker> {
   const intervalSeconds = options.intervalSeconds ?? DEFAULT_HOLD_EXPIRY_INTERVAL_SECONDS;
+  const paymentActionsInterval =
+    options.paymentActionsIntervalSeconds ?? DEFAULT_PAYMENT_ACTIONS_INTERVAL_SECONDS;
   const transitionsInterval =
     options.transitionsIntervalSeconds ?? DEFAULT_TRANSITIONS_INTERVAL_SECONDS;
   const outboxInterval =
@@ -247,6 +265,11 @@ export async function startWorker(
   });
   await boss.createQueue(BOOKING_TRANSITIONS_QUEUE, {
     name: BOOKING_TRANSITIONS_QUEUE,
+    policy: 'short',
+    retryLimit: 0,
+  });
+  await boss.createQueue(PAYMENT_ACTIONS_QUEUE, {
+    name: PAYMENT_ACTIONS_QUEUE,
     policy: 'short',
     retryLimit: 0,
   });
@@ -327,6 +350,28 @@ export async function startWorker(
         });
       } finally {
         await rearm(BOOKING_TRANSITIONS_QUEUE, transitionsInterval, 'booking_transitions');
+      }
+    },
+  );
+
+  // The calls owed to Stripe. The same self re-arming shape as the two sweeps above, because
+  // ten seconds is finer than cron's minute, and the same reason for the cadence: what is
+  // waiting is somebody's money on its way back to them.
+  await boss.work(
+    PAYMENT_ACTIONS_QUEUE,
+    { batchSize: 1, pollingIntervalSeconds: Math.max(0.5, Math.min(paymentActionsInterval, 2)) },
+    async () => {
+      try {
+        const report = await runPaymentActions(deps);
+        if (report.done > 0 || report.retried > 0 || report.exhausted > 0) {
+          logger.info('payment_actions_tick', { ...report });
+        }
+      } catch (error) {
+        logger.warn('payment_actions_tick_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        await rearm(PAYMENT_ACTIONS_QUEUE, paymentActionsInterval, 'payment_actions');
       }
     },
   );
@@ -417,6 +462,10 @@ export async function startWorker(
       // project. Sign up rows carry an address, so they have a retention and this is it.
       const signups = await purgeSignups(deps);
       if (signups > 0) logger.info('signups_purged', { touched: signups });
+      // And a third, in the same hour and the same queue: the OAuth states of `/v1/stripe`
+      // that nobody came back for. One statement more, not a queue more.
+      const states = await purgeStripeOauthStates(deps);
+      if (states > 0) logger.info('stripe_oauth_states_purged', { deleted: states });
     } catch (error) {
       logger.warn('idempotency_purge_failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -445,6 +494,7 @@ export async function startWorker(
     // effect is to restart a loop that was somehow lost.
     await boss.schedule(HOLD_EXPIRY_QUEUE, '* * * * *');
     await boss.schedule(BOOKING_TRANSITIONS_QUEUE, '* * * * *');
+    await boss.schedule(PAYMENT_ACTIONS_QUEUE, '* * * * *');
     await boss.schedule(WEBHOOK_OUTBOX_QUEUE, '* * * * *');
     await boss.schedule(WEBHOOK_DELIVERY_QUEUE, '* * * * *');
     await boss.schedule(IDEMPOTENCY_PURGE_QUEUE, '0 * * * *');
@@ -481,6 +531,7 @@ export async function startWorker(
   // watchdog before sweeping.
   await boss.send(HOLD_EXPIRY_QUEUE, {});
   await boss.send(BOOKING_TRANSITIONS_QUEUE, {});
+  await boss.send(PAYMENT_ACTIONS_QUEUE, {});
   await boss.send(WEBHOOK_OUTBOX_QUEUE, {});
   await boss.send(WEBHOOK_DELIVERY_QUEUE, {});
 

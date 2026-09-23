@@ -66,6 +66,15 @@ export interface BookingSnapshot {
   readonly rescheduledAt: number | null;
   readonly nextTransition: string | null;
   readonly nextTransitionAt: number | null;
+  /**
+   * When a booking waiting for its payment is cancelled, or `null`.
+   *
+   * Always present in the payload, `null` on every booking that is not waiting for money, for
+   * the reason `expires_at` below is always present: a consumer reading
+   * `event.data.object.payment_expires_at` must not have to tell a field that is absent from a
+   * field that is null.
+   */
+  readonly paymentExpiresAt: number | null;
   readonly allocations: readonly SnapshotAllocation[];
 }
 
@@ -128,6 +137,7 @@ export function bookingEventObject(snapshot: BookingSnapshot): Record<string, un
     rescheduled_at: iso(snapshot.rescheduledAt),
     next_transition: snapshot.nextTransition,
     next_transition_at: iso(snapshot.nextTransitionAt),
+    payment_expires_at: iso(snapshot.paymentExpiresAt),
     allocations: snapshot.allocations.map((allocation) => ({
       resource_id: encodeId('resource', allocation.resourceId),
       role: allocation.role,

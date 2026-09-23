@@ -57,6 +57,9 @@ interface BookingBody {
   created_at: string;
   updated_at: string;
   customer?: { id: string; email: string } | null;
+  payment_expires_at: string | null;
+  /** Only in the answer of `POST /v1/bookings`. */
+  payment_intent?: Record<string, unknown> | null;
 }
 
 interface ListBody {
@@ -466,13 +469,30 @@ describe('bookings', () => {
     const scenario = await buildScenario(h, token, {});
     const slot = await firstSlot(h, token, scenario.serviceId, monday, plusDays(monday, 1));
 
+    // `entitlement` is the one mode that is still a field this build does not implement.
+    // `deposit` and `full` are implemented; what this harness lacks is a Stripe platform,
+    // which is a different refusal, made below.
+    const entitlement = await h.call<ErrorBody>('POST', '/v1/bookings', {
+      token,
+      body: {
+        service_id: scenario.serviceId,
+        start: slot.start,
+        payment: { mode: 'entitlement' },
+      },
+    });
+    expect(entitlement.status).toBe(400);
+    expect(entitlement.body.error.code).toBe('not_yet_supported');
+    expect(entitlement.body.error.param).toBe('payment.mode');
+
+    // This app was built with no Stripe configuration at all, which is a deployment that is
+    // not a Connect platform: `503`, and the `fix` names the variables. The paid flow itself
+    // lives in `payments.test.ts`, against a fake Stripe.
     const deposit = await h.call<ErrorBody>('POST', '/v1/bookings', {
       token,
       body: { service_id: scenario.serviceId, start: slot.start, payment: { mode: 'deposit' } },
     });
-    expect(deposit.status).toBe(400);
-    expect(deposit.body.error.code).toBe('not_yet_supported');
-    expect(deposit.body.error.param).toBe('payment.mode');
+    expect(deposit.status).toBe(503);
+    expect(deposit.body.error.code).toBe('stripe_not_configured');
 
     const recurring = await h.call<ErrorBody>('POST', '/v1/bookings', {
       token,
@@ -562,7 +582,12 @@ describe('bookings', () => {
         token,
       });
       expect(fetched.status).toBe(200);
-      expect(fetched.body).toEqual(created.body);
+      // Minus `payment_intent`, which exists only in the answer of the creation and is `null`
+      // here because this booking takes no money. A `GET` can never carry a `client_secret`,
+      // which is why the creation has a response schema of its own.
+      const { payment_intent: intent, ...createdBooking } = created.body;
+      expect(intent).toBeNull();
+      expect(fetched.body).toEqual(createdBooking);
 
       const expanded = await h.call<BookingBody>(
         'GET',

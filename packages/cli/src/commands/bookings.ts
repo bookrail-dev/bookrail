@@ -70,8 +70,25 @@ interface BookingBody {
   rescheduled_from_booking_id: string | null;
   next_transition: string | null;
   next_transition_at: string | null;
+  payment_expires_at?: string | null;
   allocations: Record<string, unknown>[];
   environment: string;
+  /**
+   * Only in the answer of a creation, and only when the booking takes money.
+   *
+   * `client_secret` is `null` on an idempotent replay, because Bookrail never stores one:
+   * `bookrail payments get` reads it back from Stripe instead.
+   */
+  payment_intent?: {
+    id: string;
+    client_secret: string | null;
+    amount: number;
+    currency: string;
+    status: string;
+    stripe_account: string;
+    publishable_key: string;
+    payment_id: string;
+  } | null;
 }
 
 function bookingHuman(ctx: Context, data: BookingBody, headline: string): string {
@@ -128,8 +145,14 @@ function bookingHuman(ctx: Context, data: BookingBody, headline: string): string
 
 function afterSteps(data: BookingBody): string[] {
   const steps = [`Read it back: \`bookrail bookings get ${data.id} --json\`.`];
-  if (data.status === 'pending')
+  if (data.payment_expires_at != null) {
+    steps.push(
+      `This booking is waiting for its payment and is cancelled at ${data.payment_expires_at} if it never arrives.`,
+      `See the payment: \`bookrail payments list --booking ${data.id} --json\`.`,
+    );
+  } else if (data.status === 'pending') {
     steps.push(`Confirm it: \`bookrail bookings confirm ${data.id}\`.`);
+  }
   if (data.status === 'confirmed') {
     steps.push(
       `Move it: \`bookrail bookings reschedule ${data.id} --start <instant>\`.`,
@@ -149,6 +172,8 @@ export interface BookingCreateOptions extends BodyOptions, CustomerOptions {
   notes?: string;
   source?: string;
   metadata?: string;
+  /** `none` (default), `deposit` or `full`. */
+  payment?: string;
 }
 
 export async function bookingCreate(
@@ -168,6 +193,7 @@ export async function bookingCreate(
     body.resource_ids = options.resource;
   }
   if (options.hold !== undefined) body.hold_id = options.hold;
+  if (options.payment !== undefined) body.payment = { mode: options.payment };
   if (options.notes !== undefined) body.notes = options.notes;
   if (options.source !== undefined) body.source = options.source;
   const metadata = jsonObject(options.metadata, 'metadata');
@@ -177,9 +203,28 @@ export async function bookingCreate(
   const client = await clientFor(ctx);
   const data = (await client.post<BookingBody>('/v1/bookings', { ...body, ...explicit })).data;
 
+  const intent = data.payment_intent ?? null;
   return {
     data,
-    human: bookingHuman(ctx, data, 'booked'),
+    human:
+      intent === null
+        ? bookingHuman(ctx, data, 'booked')
+        : [
+            bookingHuman(ctx, data, 'booked'),
+            '',
+            renderTable(
+              ['field', 'value'],
+              [
+                ['payment', data.payment_intent!.payment_id],
+                ['amount', `${String(intent.amount)} ${intent.currency}`],
+                ['client_secret', intent.client_secret ?? '(replayed: shown once, at creation)'],
+                ['stripe_account', intent.stripe_account],
+                ['publishable_key', intent.publishable_key],
+              ],
+            ),
+            '',
+            'Pass these to Stripe.js on your frontend.',
+          ].join('\n'),
     nextSteps: afterSteps(data),
   };
 }
@@ -320,7 +365,9 @@ export async function bookingCancel(
     data,
     human: bookingHuman(ctx, data, 'cancelled'),
     nextSteps: [
-      'The refund is an expectation, not a movement: payments do not exist yet, so `amount_refunded` is untouched.',
+      (data.refund_amount_expected ?? 0) > 0
+        ? `A refund of ${String(data.refund_amount_expected)} minor units is queued and is sent to Stripe by the background worker: \`bookrail payments list --booking ${data.id} --json\`.`
+        : 'The policy promises no refund at this distance from the start, so nothing is queued.',
       `Read it back: \`bookrail bookings get ${data.id} --json\`.`,
     ],
   };

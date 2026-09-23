@@ -32,9 +32,10 @@ Bookrail is in early access, and the honest version of that is a short list.
   `npm install` lines below run exactly as they are written. The section that needs nothing
   installed at all is [plain HTTP](#3-with-plain-http-no-package-needed), because the API is up
   and it answers `curl`.
-- **There are no payments.** `payment.mode` other than `none` is a `400 not_yet_supported`. A
-  policy can describe a deposit and a refund, and the booking freezes them, but no money moves.
-  See [Policies](/docs/guides/policies/).
+- **Payments need a connected Stripe account.** `payment.mode` of `deposit` or `full` works
+  once the project has connected one; without it the call answers `409 stripe_not_connected`.
+  `payment.mode: "entitlement"` is still a `400 not_yet_supported`. See
+  [Payments with Stripe](/docs/guides/stripe/) and [Policies](/docs/guides/policies/).
 
 ## 1. With the CLI
 
@@ -467,7 +468,7 @@ round trips. Nothing else is over two seconds.
 - [Concepts](/docs/concepts/): the model behind the config file, with the figures.
 - [The edge cases of booking](/docs/edge-cases/): what goes wrong in booking systems, what
   this one does about each case, and the test that proves it.
-- [API reference](/docs/api/reference/): all 70 operations, generated from the specification
+- [API reference](/docs/api/reference/): all 73 operations, generated from the specification
   the server serves.
 - [For AI agents](/docs/for-ai-agents/): the same loop, driven by a coding agent through the
   CLI or the MCP server.

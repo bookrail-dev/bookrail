@@ -15,9 +15,15 @@
  * The API key id, not the project and not the address. Two keys of one project have two buckets:
  * a key is how a caller identifies itself, it is what can be rotated, and a staging deployment
  * hammering its own key must not throttle the production one beside it. A route reached without a
- * key is not counted at all, which today means the sign up endpoints: they are where a key comes
- * from, they have a limit of their own in the database and another in the reverse proxy, and
- * there is no bucket to name for a caller who has nothing yet.
+ * key is not counted at all, which means the public paths of `routes/public.ts`: the sign up
+ * endpoints, where a key comes from, the Stripe OAuth callback, which a browser follows, and
+ * the two Stripe webhook receivers. The first two are limited by address in the reverse proxy,
+ * and the sign ups by address and mailbox in the database as well. The webhook receivers are
+ * limited **nowhere, on purpose**: Stripe delivers from its own address range in bursts and
+ * retries anything that is not a 2xx, so a 429 would turn a busy minute into a larger one a
+ * minute later. What protects those two paths instead is that every request is verified against
+ * a signing secret before anything is read, and that a body over a megabyte is refused
+ * unread.
  *
  * ## The headers
  *
@@ -75,9 +81,10 @@ export function rateLimit(deps: AppDeps): MiddlewareHandler<AppEnv> {
     // Switched off for this deployment: no header, no call, nothing to say.
     if (settings === undefined) return next();
 
-    // No key, no bucket. The sign up endpoints are the only routes of `/v1` that get here
-    // without one, and they are limited by address in the reverse proxy and by address and
-    // mailbox in the database.
+    // No key, no bucket. The routes that get here without one are the public ones listed in
+    // `routes/public.ts`: the sign ups and the OAuth callback are limited by address in the
+    // reverse proxy, and the two Stripe webhook receivers are deliberately limited by nobody,
+    // for the reason spelled out at the top of this file.
     const auth = c.get('auth');
     if (auth === undefined) return next();
 

@@ -195,24 +195,55 @@ delivery is at-least-once.
 
 `project`, `availability`, `locations`, `resources` (with `resources.blocks`), `resourceGroups`,
 `schedules` (with `schedules.exceptions`), `services`, `policies`, `customers`, `holds`,
-`bookings`, `events`, `webhooks` (with `webhooks.deliveries`), and `openapi`. One method per
+`bookings`, `events`, `webhooks` (with `webhooks.deliveries`), `stripe`, and `openapi`. One method per
 operation of the API: `create`, `list`, `retrieve`, `update`, `del`, plus the actions
 (`bookings.confirm`, `bookings.noShow`, `resources.block`, `webhooks.test`, …).
 
 `del`, not `delete`: `delete` is legal as a method name in JavaScript but reads as the operator
 at a glance, and `del` is what the Node SDKs of this shape have called it for a decade.
 
+## Stripe
+
+`bookrail.stripe.connect()` returns a link a **person** opens to authorise their own Stripe
+account; nothing is connected until they do. `bookrail.stripe.retrieve()` says whether one is,
+which account it is, and the platform publishable key to initialise Stripe.js with, together
+with `{ stripeAccount: account_id }`. `bookrail.stripe.disconnect()` revokes it. No method takes
+a Stripe key, because Bookrail never receives one.
+
+## Payments
+
+```ts
+const booking = await bookrail.bookings.create({
+  service_id: 'svc_...',
+  start: '2026-10-05T09:00:00+02:00',
+  payment: { mode: 'deposit' }, // 'none' | 'deposit' | 'full'
+});
+// booking.status === 'pending' and booking.payment_intent carries what a front end needs:
+//   loadStripe(publishable_key, { stripeAccount }) and then the client_secret.
+
+const payment = await bookrail.payments.retrieve(booking.payment_intent!.payment_id);
+for await (const row of bookrail.payments.list({ booking_id: booking.id })) { /* ... */ }
+```
+
+The `client_secret` is returned **once** and is stored nowhere: an idempotent replay answers the
+same booking with `client_secret: null`, and `payments.retrieve` reads it back from Stripe. The
+booking is cancelled automatically at `payment_expires_at` if nobody pays.
+
+`payments` has two methods and no third: a payment is created by `bookings.create`, and a refund
+by `bookings.cancel`, which follows the policy the customer agreed to.
+
 ## Not here yet
 
 A CommonJS build, opt-in telemetry, structured logging, and `@bookrail/browser` with publishable
-keys. There are also no payments: `payment.mode` other than `none` is a `400 not_yet_supported`,
-and a refund is an expectation the API computes rather than money that moves.
+keys. In payments: a deferred balance, saved cards, charging a no-show, asking for a refund
+through the API rather than through a cancellation, and rescheduling a booking that has money on
+it (`422 reschedule_not_supported`).
 
 ## Documentation
 
 - [Quickstart](https://bookrail.dev/docs/quickstart/), timed against the production API.
 - [Concepts](https://bookrail.dev/docs/concepts/): the data model, with figures.
-- [API reference](https://bookrail.dev/docs/api/reference/): 70 operations, generated from
+- [API reference](https://bookrail.dev/docs/api/reference/): 73 operations, generated from
   the executable contract, `packages/api/openapi/openapi.json`, which this package's types are
   generated from too.
 - [Idempotency](https://bookrail.dev/docs/guides/idempotency/) and

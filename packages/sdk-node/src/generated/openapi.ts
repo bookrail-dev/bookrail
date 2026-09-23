@@ -98,7 +98,7 @@ export interface paths {
     put?: never;
     /**
      * Create a booking
-     * @description With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` other than `none`, and any `recurrence`, answer `400 not_yet_supported`.
+     * @description With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`.
      */
     post: operations['bookings.create'];
     delete?: never;
@@ -135,7 +135,7 @@ export interface paths {
     put?: never;
     /**
      * Cancel a booking
-     * @description `by` defaults to `customer`. `override_refund_percent` beats every tier, for any `by`. No money moves: the amounts written are expectations.
+     * @description `by` defaults to `customer`. `override_refund_percent` beats every tier, for any `by`. The refund the policy promises is queued as a `payments` row of type `refund` and executed against Stripe by the background worker; `refund_amount_expected` on the booking is what it will add up to.
      */
     post: operations['bookings.cancel'];
     delete?: never;
@@ -190,7 +190,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Confirm a booking */
+    /**
+     * Confirm a booking
+     * @description A booking whose payment is still in flight answers `409 payment_pending`: confirming it would tell the customer the slot is theirs while the card may still be refused. Wait for the payment, or cancel the booking.
+     */
     post: operations['bookings.confirm'];
     delete?: never;
     options?: never;
@@ -229,7 +232,7 @@ export interface paths {
     put?: never;
     /**
      * Reschedule a booking
-     * @description Answers with the **new** booking. The old one is one `GET` away through `rescheduled_from_booking_id`. An unavailable slot is a `409` and leaves the old booking intact.
+     * @description Answers with the **new** booking. The old one is one `GET` away through `rescheduled_from_booking_id`. An unavailable slot is a `409` and leaves the old booking intact. A booking with a payment attached answers `422 reschedule_not_supported`: moving money to a slot with a different price is not decided yet.
      */
     post: operations['bookings.reschedule'];
     delete?: never;
@@ -397,6 +400,46 @@ export interface paths {
      * @description Changing `timezone` moves the open timeline of every resource that has no zone of its own, so it can emit `booking.orphaned`.
      */
     patch: operations['locations.update'];
+    trace?: never;
+  };
+  '/v1/payments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List payments
+     * @description Never calls Stripe, so `client_secret` and `provider_status` are always `null` here. Ask for one payment to get them.
+     */
+    get: operations['payments.list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/payments/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Retrieve a payment
+     * @description For a payment that is still `pending` and is not a refund, `client_secret` and `provider_status` are read from Stripe at request time. Both are `null`, and the answer is still a `200`, when Stripe did not answer: everything else here comes from our own row.
+     */
+    get: operations['payments.get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/v1/policies': {
@@ -767,6 +810,90 @@ export interface paths {
      * @description What a waiting terminal polls. Answers `pending` until the link is opened, then the key, once. No API key.
      */
     post: operations['signups.claim'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/stripe': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Retrieve the Stripe connection
+     * @description The account this project charges on, in this environment, and the platform publishable key to initialise Stripe.js with. `charges_enabled` comes from Stripe at request time and is `null` when the account is not connected or when Stripe did not answer in time.
+     */
+    get: operations['stripe.get'];
+    put?: never;
+    post?: never;
+    /**
+     * Disconnect the Stripe account
+     * @description Revokes the platform's access to the connected account and records the connection as disconnected. An account Stripe already considers unlinked is still recorded as disconnected: what is being asked for is the state, not the call.
+     */
+    delete: operations['stripe.disconnect'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/stripe/connect': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start connecting a Stripe account
+     * @description Returns a Stripe authorisation link to open in a browser. Nothing is connected until a person authorises there and the browser returns to the callback. The link carries a single use state and works for fifteen minutes.
+     */
+    post: operations['stripe.connect'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/stripe/webhook/live': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Receive a Stripe event (live mode)
+     * @description Called by Stripe, not by an integration. Verifies `Stripe-Signature` over the raw body, records the event once, and applies it. A redelivery of an event already processed answers `duplicate: true` and does nothing. A body over one megabyte is refused unread with `413`. An event whose reported amount is not the amount the payment asked for is refused whole with `500`, so that Stripe delivers it again and nothing is recorded in the meantime. No API key.
+     */
+    post: operations['stripe.webhook.live'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/stripe/webhook/test': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Receive a Stripe event (test mode)
+     * @description Called by Stripe, not by an integration. Verifies `Stripe-Signature` over the raw body, records the event once, and applies it. A redelivery of an event already processed answers `duplicate: true` and does nothing. A body over one megabyte is refused unread with `413`. An event whose reported amount is not the amount the payment asked for is refused whole with `500`, so that Stripe delivers it again and nothing is recorded in the meantime. No API key.
+     */
+    post: operations['stripe.webhook.test'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1152,13 +1279,19 @@ export interface components {
        */
       rescheduled_at: string | null;
       /** @enum {string|null} */
-      next_transition: 'start' | 'complete' | 'no_show' | null;
+      next_transition: 'start' | 'complete' | 'no_show' | 'expire_payment' | null;
       /**
        * Format: date-time
        * @description ISO 8601 instant in UTC.
        * @example 2026-09-08T07:00:00Z
        */
       next_transition_at: string | null;
+      /**
+       * Format: date-time
+       * @description When a booking waiting for its payment is cancelled and its slot released. `null` on every booking that is not waiting for money.
+       * @example 2026-09-08T07:00:00Z
+       */
+      payment_expires_at: string | null;
       allocations: components['schemas']['BookingAllocation'][];
       /** @description Optional tenant this object belongs to, for multi-tenant customers. */
       tenant_id: string | null;
@@ -1184,6 +1317,8 @@ export interface components {
        */
       updated_at: string | null;
       customer?: components['schemas']['Customer'] & (Record<string, unknown> | null);
+      /** @description Present only with `expand[]=payments`: every payment and refund of this booking, oldest first. Never carries a `client_secret`: an expansion makes no call to Stripe. */
+      payments?: components['schemas']['Payment'][];
     };
     BookingAllocation: {
       /** @enum {string} */
@@ -1201,6 +1336,9 @@ export interface components {
        */
       id?: string;
       resource?: components['schemas']['Resource'] & (Record<string, unknown> | null);
+    };
+    BookingCreated: components['schemas']['Booking'] & {
+      payment_intent: components['schemas']['PaymentIntent'];
     };
     BookingList: {
       /** @enum {string} */
@@ -1590,6 +1728,105 @@ export interface components {
       components: {
         [key: string]: unknown;
       };
+    };
+    Payment: {
+      /**
+       * @description Identifier of a payment, prefixed with `pay_`.
+       * @example pay_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      id: string;
+      /** @enum {string} */
+      object: 'payment';
+      /**
+       * @description Identifier of a booking, prefixed with `bk_`.
+       * @example bk_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      booking_id: string | null;
+      /** @enum {string} */
+      type: 'deposit' | 'full' | 'balance' | 'no_show_fee' | 'refund';
+      /**
+       * @description `pending` covers every Stripe state that is not final: `requires_payment_method`, `requires_action`, `processing`. Read `provider_status` for the detail.
+       * @enum {string}
+       */
+      status: 'pending' | 'succeeded' | 'failed' | 'refunded' | 'cancelled';
+      amount: number;
+      currency: string;
+      /** @description How much of this payment has come back, cumulative. */
+      amount_refunded: number;
+      /** @enum {string} */
+      provider: 'stripe';
+      /** @description `pi_...` for a payment, `re_...` for a refund. `null` until Stripe answered. */
+      provider_payment_id: string | null;
+      /** @example acct_1234567890 */
+      provider_account_id: string;
+      /**
+       * @description For a refund: the payment it gives back.
+       * @example pay_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      parent_payment_id: string | null;
+      failure_code: string | null;
+      failure_message: string | null;
+      /** @description Read from Stripe, only for a pending payment. `null` on a list, on a refund, and when Stripe did not answer. */
+      client_secret: string | null;
+      /** @description Stripe's own status for the intent, read at request time. `null` as above. */
+      provider_status: string | null;
+      /** @description Free-form key/value pairs stored with the object and returned untouched. */
+      metadata: {
+        [key: string]: unknown;
+      };
+      /**
+       * @description The environment of the API key that created the object.
+       * @enum {string}
+       */
+      environment: 'test' | 'live';
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      created_at: string | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      updated_at: string | null;
+    };
+    /** @description Present and `null` when the booking takes no payment. */
+    PaymentIntent: {
+      /**
+       * @description The Stripe PaymentIntent.
+       * @example pi_3Abc
+       */
+      id: string;
+      /** @description Pass it to Stripe.js. Returned once, here; `null` on an idempotent replay, because it is never stored. */
+      client_secret: string | null;
+      amount: number;
+      /** @description ISO 4217, upper case, as the booking froze it. */
+      currency: string;
+      /** @description Stripe's own status for the intent. */
+      status: string;
+      /**
+       * @description The connected account the intent lives on. Pass it as `stripeAccount`.
+       * @example acct_1234567890
+       */
+      stripe_account: string;
+      /**
+       * @description The **platform's** publishable key. Initialise Stripe.js with it.
+       * @example pk_test_1234567890
+       */
+      publishable_key: string;
+      /**
+       * @description The Bookrail payment this intent belongs to.
+       * @example pay_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      payment_id: string;
+    } | null;
+    PaymentList: {
+      /** @enum {string} */
+      object: 'list';
+      data: components['schemas']['Payment'][];
+      has_more: boolean;
     };
     Policy: {
       /**
@@ -2109,6 +2346,82 @@ export interface components {
        * @example sk_test_...
        */
       secret_key?: string;
+    };
+    StripeConnectLink: {
+      /** @enum {string} */
+      object: 'stripe_connect_link';
+      /**
+       * @description Open it in a browser. It authorises one account, once.
+       * @example https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_...
+       */
+      url: string;
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      expires_at: string;
+      /**
+       * @description The environment of the API key that created the object.
+       * @enum {string}
+       */
+      environment: 'test' | 'live';
+    };
+    StripeConnection: {
+      /** @enum {string} */
+      object: 'stripe_connection';
+      /** @enum {string} */
+      status: 'connected' | 'not_connected' | 'disconnected';
+      /**
+       * @description The environment of the API key that created the object.
+       * @enum {string}
+       */
+      environment: 'test' | 'live';
+      /**
+       * @description The connection object, or `null` when this project never connected one.
+       * @example pcn_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      id: string | null;
+      /**
+       * @description The Stripe account, `acct_...`.
+       * @example acct_1234567890
+       */
+      account_id: string | null;
+      /**
+       * @description The **platform's** publishable key for this environment. Initialise Stripe.js with it and `stripeAccount: account_id`.
+       * @example pk_test_1234567890
+       */
+      publishable_key: string | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      connected_at: string | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      disconnected_at: string | null;
+      /**
+       * @description Who ended the link: this API, or Stripe.
+       * @enum {string|null}
+       */
+      disconnect_reason: 'user' | 'deauthorized' | null;
+      /** @description What Stripe says about the connected account right now. `null` while not connected, and `null` when Stripe did not answer in time. */
+      charges_enabled: boolean | null;
+      /** @description Whether this deployment holds the signing secret of the incoming Stripe webhook endpoint for this environment. `false` means payments can be started and no payment will ever be confirmed, because nothing would be listening. */
+      webhook_configured: boolean;
+    };
+    StripeWebhookReceipt: {
+      /** @enum {boolean} */
+      received: true;
+      /**
+       * @description Present only when this event had already been processed. Nothing was done.
+       * @enum {boolean}
+       */
+      duplicate?: true;
     };
     Webhook: {
       /**
@@ -2722,7 +3035,7 @@ export interface operations {
           | 'rescheduled';
         from?: string;
         to?: string;
-        'expand[]'?: ('customer' | 'allocations.resource')[];
+        'expand[]'?: ('customer' | 'allocations.resource' | 'payments')[];
       };
       header?: {
         'Bookrail-Version'?: components['parameters']['BookrailVersion'];
@@ -2899,10 +3212,10 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['Booking'];
+          'application/json': components['schemas']['BookingCreated'];
         };
       };
-      /** @description Error codes: `duration_not_offered`, `hold_mismatch`, `idempotency_key_reused`, `invalid_body`, `not_yet_supported`, `parameter_invalid`, `parameter_missing`, `resource_not_eligible`, `service_without_duration`, `unsupported_api_version`. */
+      /** @description Error codes: `deposit_not_configured`, `duration_not_offered`, `hold_mismatch`, `idempotency_key_reused`, `invalid_body`, `not_yet_supported`, `parameter_invalid`, `parameter_missing`, `payment_amount_invalid`, `price_missing`, `resource_not_eligible`, `service_without_duration`, `unsupported_api_version`. */
       400: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -2947,7 +3260,7 @@ export interface operations {
           'application/json': components['schemas']['Error'];
         };
       };
-      /** @description Error codes: `hold_expired`, `hold_not_active`, `idempotency_key_in_progress`, `serialization_failure`, `slot_unavailable`. */
+      /** @description Error codes: `hold_expired`, `hold_not_active`, `idempotency_key_in_progress`, `serialization_failure`, `slot_unavailable`, `stripe_not_connected`. */
       409: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -3008,12 +3321,42 @@ export interface operations {
           'application/json': components['schemas']['Error'];
         };
       };
+      /** @description Error codes: `stripe_provider_error`, `stripe_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
     };
   };
   'bookings.get': {
     parameters: {
       query?: {
-        'expand[]'?: ('customer' | 'allocations.resource')[];
+        'expand[]'?: ('customer' | 'allocations.resource' | 'payments')[];
       };
       header?: {
         'Bookrail-Version'?: components['parameters']['BookrailVersion'];
@@ -3633,7 +3976,7 @@ export interface operations {
           'application/json': components['schemas']['Error'];
         };
       };
-      /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `serialization_failure`. */
+      /** @description Error codes: `idempotency_key_in_progress`, `invalid_transition`, `payment_pending`, `serialization_failure`. */
       409: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -3942,7 +4285,7 @@ export interface operations {
           'application/json': components['schemas']['Error'];
         };
       };
-      /** @description Error codes: `complete_too_early`, `customer_limit_reached`, `max_reschedules_reached`, `min_notice_violated`, `no_show_too_early`, `outside_booking_window`, `start_not_on_grid`. */
+      /** @description Error codes: `complete_too_early`, `customer_limit_reached`, `max_reschedules_reached`, `min_notice_violated`, `no_show_too_early`, `outside_booking_window`, `reschedule_not_supported`, `start_not_on_grid`. */
       422: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -5738,6 +6081,224 @@ export interface operations {
       };
       /** @description Error codes: `internal_error`. */
       500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'payments.list': {
+    parameters: {
+      query?: {
+        limit?: number;
+        starting_after?: string;
+        booking_id?: string;
+        status?: 'pending' | 'succeeded' | 'failed' | 'refunded' | 'cancelled';
+        type?: 'deposit' | 'full' | 'balance' | 'no_show_fee' | 'refund';
+      };
+      header?: {
+        'Bookrail-Version'?: components['parameters']['BookrailVersion'];
+        'Bookrail-Actor'?: components['parameters']['BookrailActor'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentList'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'payments.get': {
+    parameters: {
+      query?: never;
+      header?: {
+        'Bookrail-Version'?: components['parameters']['BookrailVersion'];
+        'Bookrail-Actor'?: components['parameters']['BookrailActor'];
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Payment'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `resource_missing`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
           'Bookrail-Version': components['headers']['BookrailVersion'];
@@ -9823,6 +10384,500 @@ export interface operations {
         };
       };
       /** @description Error codes: `signup_disabled`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'stripe.get': {
+    parameters: {
+      query?: never;
+      header?: {
+        'Bookrail-Version'?: components['parameters']['BookrailVersion'];
+        'Bookrail-Actor'?: components['parameters']['BookrailActor'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeConnection'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'stripe.disconnect': {
+    parameters: {
+      query?: never;
+      header?: {
+        'Bookrail-Version'?: components['parameters']['BookrailVersion'];
+        'Bookrail-Actor'?: components['parameters']['BookrailActor'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeConnection'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `resource_missing`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_provider_error`, `stripe_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'stripe.connect': {
+    parameters: {
+      query?: never;
+      header?: {
+        'Bookrail-Version'?: components['parameters']['BookrailVersion'];
+        'Bookrail-Actor'?: components['parameters']['BookrailActor'];
+        'Idempotency-Key'?: components['parameters']['IdempotencyKey'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'Idempotent-Replayed': components['headers']['IdempotentReplayed'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeConnectLink'];
+        };
+      };
+      /** @description Error codes: `idempotency_key_reused`, `invalid_body`, `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `idempotency_key_in_progress`, `stripe_already_connected`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'stripe.webhook.live': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeWebhookReceipt'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `stripe_signature_invalid`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `payload_too_large`. */
+      413: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `payment_amount_mismatch`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'stripe.webhook.test': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeWebhookReceipt'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `stripe_signature_invalid`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `payload_too_large`. */
+      413: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `payment_amount_mismatch`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `stripe_not_configured`. */
       503: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];

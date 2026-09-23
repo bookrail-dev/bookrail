@@ -159,8 +159,9 @@ export function registerBookingTools(server: McpServer, workspace: Workspace): v
     description: [
       'Creates a booking, optionally by converting a hold. The capacity is taken inside one database transaction, so two simultaneous requests for the last seat cannot both succeed: the loser gets `slot_unavailable` (409).',
       'Use it after `bookrail_availability` or `bookrail_availability_check`. Pass `hold_id` when you held the slot first: converting a hold cannot fail for capacity.',
-      'Returns: the booking `{ id, status, start, end, price, allocations, next_transition }`.',
-      'Next: `bookrail_booking_get` to close the loop; `bookrail_booking_confirm` when the status is "pending".',
+      'With `payment_mode` of "deposit" or "full" the booking is created **pending**, a Stripe PaymentIntent is created on the connected account, and the answer carries `payment_intent` with a `client_secret`. That secret is shown **once** and is stored nowhere: a front end needs it, and `bookrail_payment_get` is the only way to read it again. The booking is cancelled automatically at `payment_expires_at` if the money never arrives.',
+      'Returns: the booking `{ id, status, start, end, price, allocations, next_transition, payment_expires_at }`, plus `payment_intent` when a payment was started.',
+      'Next: `bookrail_booking_get` to close the loop; `bookrail_booking_confirm` when the status is "pending" and no payment is in flight. Never confirm a booking whose payment is pending: the API refuses it with `payment_pending` (409).',
     ].join('\n'),
     inputSchema: {
       environment: environmentArgument,
@@ -174,6 +175,12 @@ export function registerBookingTools(server: McpServer, workspace: Workspace): v
         .describe('Required when the service offers several durations.'),
       quantity: z.number().int().min(1).optional().describe('How many units. Default 1.'),
       hold_id: z.string().optional().describe('Convert this hold instead of taking new capacity.'),
+      payment_mode: z
+        .enum(['none', 'deposit', 'full'])
+        .optional()
+        .describe(
+          'Take money for this booking on the connected Stripe account. "deposit" uses the deposit rule of the policy, "full" the whole frozen price. Default "none".',
+        ),
       resource_ids: z.array(z.string()).optional().describe('Pin specific resources.'),
       notes: z.string().optional().describe('Free text kept on the booking.'),
       source: z
@@ -197,6 +204,7 @@ export function registerBookingTools(server: McpServer, workspace: Workspace): v
           : ['--duration', String(args.duration_minutes)]),
         ...(args.quantity === undefined ? [] : ['--quantity', String(args.quantity)]),
         ...(args.hold_id === undefined ? [] : ['--hold', args.hold_id]),
+        ...(args.payment_mode === undefined ? [] : ['--payment', args.payment_mode]),
         ...(args.notes === undefined ? [] : ['--notes', args.notes]),
         ...(args.source === undefined ? [] : ['--source', args.source]),
         ...(args.metadata === undefined ? [] : ['--metadata', JSON.stringify(args.metadata)]),
@@ -324,7 +332,7 @@ export function registerBookingTools(server: McpServer, workspace: Workspace): v
     description: [
       'Cancels a booking, releases its capacity and computes the refund the frozen policy snapshot entitles the customer to.',
       'IRREVERSIBLE: a cancelled booking does not come back, it is created again. So without `confirm: true` this tool returns the booking as it stands today plus `requires_confirmation: true`, and changes nothing.',
-      'Returns: the cancelled booking, with `refund_percent` and `refund_amount_expected`. Payments do not exist yet, so the refund is an expectation, not a movement.',
+      'Returns: the cancelled booking, with `refund_percent` and `refund_amount_expected`. When the booking was paid, a refund payment is queued in the same transaction and sent to Stripe within ten seconds; `amount_refunded` moves only once Stripe confirms it.',
       'Next: `bookrail_booking_get` to read it back.',
     ].join('\n'),
     inputSchema: {

@@ -10,7 +10,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { serve, type ServerType } from '@hono/node-server';
-import { createApp, MemoryRateLimiter } from '@bookrail/api';
+import { createApp, DEFAULT_PAYMENT_TIMEOUT_MINUTES, MemoryRateLimiter } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger } from '@bookrail/shared';
@@ -38,6 +38,16 @@ export interface SeenRequest {
 
 export interface Harness {
   url: string;
+  /**
+   * The privileged pool, for the one fixture this package cannot build through the API.
+   *
+   * A payment is created by `POST /v1/bookings` with a `payment.mode`, which needs a Stripe
+   * platform **and** a connected account. Proving that whole flow is `@bookrail/api`'s job and
+   * it does it against a fake Stripe; what this package owes is that `payments.retrieve` and
+   * `payments.list` build the right request and return the declared type, and for that one row
+   * written directly is honest and enough.
+   */
+  adminPool: ReturnType<typeof createPool>;
   /** Every request the server saw, in order. */
   seen: SeenRequest[];
   /** The `operationId` of every request that matched the registry, in order. */
@@ -60,6 +70,75 @@ export interface HarnessOptions {
    * on a deployment.
    */
   rateLimit?: { rate: number; burst: number };
+  /**
+   * A Stripe platform pointed at {@link startFakeStripe}, so that `bookrail.stripe.*` can be
+   * exercised against a success rather than against the `503` of a deployment that is not a
+   * Connect platform.
+   */
+  stripeBase?: string;
+}
+
+/**
+ * A fake Stripe on a real socket, in this process.
+ *
+ * Much smaller than the one in `@bookrail/api`'s own suite, because what is proved here is
+ * different: that `bookrail.stripe.*` builds the right requests and returns the declared types,
+ * not that the API's Stripe logic is right. It answers the three calls this package makes and
+ * nothing else.
+ */
+export interface FakeStripe {
+  url: string;
+  /** The account the next authorisation hands back. */
+  stripeUserId: string;
+  close(): Promise<void>;
+}
+
+export async function startFakeStripe(): Promise<FakeStripe> {
+  const state = { stripeUserId: 'acct_SdkTest' };
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on('end', () => {
+      const path = (request.url ?? '').split('?')[0] ?? '';
+      const answer = (payload: unknown): void => {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(payload));
+      };
+      if (path === '/oauth/token') {
+        answer({ stripe_user_id: state.stripeUserId, livemode: false, scope: 'read_write' });
+        return;
+      }
+      if (path === '/oauth/deauthorize') {
+        answer({ stripe_user_id: state.stripeUserId });
+        return;
+      }
+      if (path.startsWith('/v1/accounts/')) {
+        answer({
+          id: path.slice('/v1/accounts/'.length),
+          charges_enabled: true,
+          details_submitted: true,
+          default_currency: 'eur',
+          country: 'IT',
+        });
+        return;
+      }
+      response.writeHead(404, { 'content-type': 'application/json' });
+      response.end('{"error":{"type":"invalid_request_error","message":"no"}}');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${String(address.port)}`,
+    get stripeUserId() {
+      return state.stripeUserId;
+    },
+    set stripeUserId(value: string) {
+      state.stripeUserId = value;
+    },
+    async close() {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -76,6 +155,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    paymentTimeoutMinutes: DEFAULT_PAYMENT_TIMEOUT_MINUTES,
     // This package has no method for the sign up endpoints, so there is nothing here to send:
     // an SDK is constructed with a key, and those three are how a key comes into being.
     mailer: undefined,
@@ -83,6 +163,26 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     siteOrigin: 'https://bookrail.dev',
     // The receiver below lives on 127.0.0.1, which the SSRF guard refuses in production.
     allowPrivateWebhookTargets: true,
+    ...(options.stripeBase === undefined
+      ? {}
+      : {
+          stripe: {
+            redirectUrl: 'https://api.bookrail.dev/v1/stripe/callback',
+            environments: {
+              test: {
+                // One OAuth application per mode: a Stripe application is itself live or test,
+                // and it is the application that decides the mode of the authorisation.
+                clientId: 'ca_SdkTestApplication',
+                secretKey: 'rk_test_sdkHarness',
+                publishableKey: 'pk_test_sdkHarness',
+              },
+              live: null,
+            },
+            webhookSecrets: { test: null, live: null },
+            apiBase: options.stripeBase,
+            connectBase: options.stripeBase,
+          },
+        }),
     ...(options.rateLimit === undefined
       ? {}
       : {
@@ -129,6 +229,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     url,
     seen,
     operations,
+    adminPool,
     async bootstrap(name: string): Promise<Project> {
       const response = await fetch(`${url}/internal/bootstrap`, {
         method: 'POST',

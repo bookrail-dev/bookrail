@@ -6,7 +6,7 @@ sidebar:
 ---
 
 Bookrail is built to be driven by a coding agent as well as by a person. Not as a demo: the
-CLI takes `--json` on every command, the MCP server exposes 36 tools with real input schemas,
+CLI takes `--json` on every command, the MCP server exposes 40 tools with real input schemas,
 the API ships an OpenAPI document generated from the schemas that validate each request, and
 every documentation page is also served as markdown.
 
@@ -66,7 +66,7 @@ An agent works far better with the whole contract than with a chat about the con
 | --- | --- |
 | [`/llms.txt`](/llms.txt) | The index: one line per page, with the markdown URL of each. |
 | [`/llms-full.txt`](/llms-full.txt) | Every page concatenated. One fetch, whole documentation. |
-| [`/openapi.json`](/openapi.json) | 44 paths, 70 operations, generated from the request schemas. A live API serves the same document on `GET /openapi.json` without a key. |
+| [`/openapi.json`](/openapi.json) | 46 paths, 73 operations, generated from the request schemas. A live API serves the same document on `GET /openapi.json` without a key. |
 | [`/mcp/tools.json`](/mcp/tools.json) | Every tool with its input schema, read from the running server at build time. |
 
 Through MCP the same material is available without leaving the session:

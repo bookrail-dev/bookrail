@@ -11,6 +11,7 @@ import { registerConfigTools } from './tools/config.js';
 import { registerDiscoveryTools } from './tools/discovery.js';
 import { registerObjectTools } from './tools/objects.js';
 import { registerObservabilityTools } from './tools/observability.js';
+import { registerPaymentTools } from './tools/payments.js';
 import { registerProjectTools } from './tools/project.js';
 import type { Workspace } from './environment.js';
 
@@ -81,6 +82,7 @@ export function createServer(options: CreateServerOptions = {}): {
   registerBookingTools(server, workspace);
   registerObjectTools(server, workspace);
   registerObservabilityTools(server, workspace);
+  registerPaymentTools(server, workspace);
   registerResources(server, workspace);
   registerPrompts(server, workspace);
 

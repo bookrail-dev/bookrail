@@ -11,6 +11,16 @@ export const tstzrange = customType<{ data: string; driverData: string }>({
   },
 });
 
+/**
+ * Postgres `bytea`. The `pg` driver hands one over as a `Buffer` and accepts a `Buffer` back,
+ * so, like the range above, the mapping is the identity.
+ */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
 /** `[from, to)`: half open, the only sane convention for adjacent bookings. */
 export function tstzrangeLiteral(from: Date | string, to: Date | string): string {
   const lower = from instanceof Date ? from.toISOString() : from;

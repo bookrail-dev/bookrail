@@ -59,6 +59,10 @@ const worker = await startWorker(
     cache,
     logger,
     webhookSecretKey: config.webhookSecretKey,
+    // The platform keys, which this process needs for exactly one job: the calls owed to
+    // Stripe. They are in `worker.env` for that reason, and a worker without them logs and
+    // leaves the queued rows alone rather than losing them.
+    stripe: config.stripe,
   },
   {
     connectionString: config.urls.admin,

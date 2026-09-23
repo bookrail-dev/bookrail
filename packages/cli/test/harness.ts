@@ -1,8 +1,16 @@
+import { createServer as createHttpServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
-import { createApp, createLogMailer, MemoryRateLimiter, type LogMailer } from '@bookrail/api';
+import {
+  createApp,
+  createLogMailer,
+  MemoryRateLimiter,
+  type LogMailer,
+  DEFAULT_PAYMENT_TIMEOUT_MINUTES,
+} from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger } from '@bookrail/shared';
@@ -55,6 +63,14 @@ export interface Harness {
   seenActors: (string | null)[];
   /** Every `Idempotency-Key` the server has seen, as `<method> <path> <key>`. */
   idempotencyKeys: string[];
+  /**
+   * The privileged pool, for the one fixture this suite cannot build through the CLI.
+   *
+   * A `payments` row needs a Stripe platform and a connected account, and proving that flow is
+   * `@bookrail/api`'s job. What the CLI owes is that `bookrail payments get|list` build the
+   * right request and render what comes back, and for that one row written directly is enough.
+   */
+  adminPool: ReturnType<typeof createPool>;
   /** A fresh working directory, wiped at the end. */
   workdir(): Promise<string>;
   /** Creates an account, a project and its two secret keys. */
@@ -95,6 +111,16 @@ export interface Harness {
        * the interrupt is delivered once, when it holds **and** a handler is there to receive it.
        */
       interruptWhen?: () => boolean;
+      /**
+       * Called with every chunk the invocation writes to stdout, as it writes it.
+       *
+       * `CliResult.stdout` is the whole of it and arrives only when the command has finished,
+       * which is no use for a command that prints something and then waits for the world to
+       * change. `bookrail stripe connect` prints the authorisation link and then polls until a
+       * browser has used it: a test drives the browser's half, and this is how it learns the
+       * link without the command having ended first.
+       */
+      onStdout?: (chunk: string) => void;
     },
   ): Promise<CliResult>;
   /** The isolated `$XDG_CONFIG_HOME` the credentials file lives in. */
@@ -112,6 +138,14 @@ export interface HarnessOptions {
    * exercised.
    */
   mailer?: false;
+  /**
+   * Build the API as a Stripe Connect platform pointed at {@link startFakeStripe}.
+   *
+   * Off by default, because every other suite here wants the state a deployment without Stripe
+   * credentials is in: `bookrail stripe ...` then reports the `503 stripe_not_configured` the
+   * API produced, which is one of the things the Stripe suite checks.
+   */
+  stripeBase?: string;
   /**
    * Mount the per key rate limiter, with one ceiling: what a client does when it is refused
    * does not depend on which environment the key belongs to, and the choice between the two
@@ -145,6 +179,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     // and to deliver to the `node:http` receiver `webhooks listen` opens on 127.0.0.1. The
     // second flag lives in `AppDeps` and is deliberately unreachable from the environment.
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    paymentTimeoutMinutes: DEFAULT_PAYMENT_TIMEOUT_MINUTES,
     // `bookrail signup` runs against the real endpoints; the only thing replaced is the mail
     // server, and the messages stay in memory so a test can read the link out of the one the
     // API actually wrote.
@@ -152,6 +187,26 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     siteUrl: 'https://bookrail.dev',
     siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
+    ...(options.stripeBase === undefined
+      ? {}
+      : {
+          stripe: {
+            redirectUrl: 'https://api.bookrail.dev/v1/stripe/callback',
+            environments: {
+              test: {
+                // One OAuth application per mode: a Stripe application is itself live or test,
+                // and it is the application that decides the mode of the authorisation.
+                clientId: 'ca_CliTestApplication',
+                secretKey: 'rk_test_cliHarness',
+                publishableKey: 'pk_test_cliHarness',
+              },
+              live: null,
+            },
+            webhookSecrets: { test: null, live: null },
+            apiBase: options.stripeBase,
+            connectBase: options.stripeBase,
+          },
+        }),
     ...(options.rateLimit === undefined
       ? {}
       : {
@@ -237,6 +292,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     seenUrls,
     seenActors,
     idempotencyKeys,
+    adminPool,
     configHome,
     mailer,
     async workdir(): Promise<string> {
@@ -266,6 +322,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         isTTY: options.tty === true,
         stdout: (chunk) => {
           stdout += chunk;
+          options.onStdout?.(chunk);
         },
         stderr: (chunk) => {
           stderr += chunk;
@@ -333,6 +390,68 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       await appPool.end();
       await adminPool.end();
       await rm(root, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * A fake Stripe on a real socket, for `bookrail stripe`.
+ *
+ * Small on purpose: what these tests prove is what the **command** does (prints the link, opens
+ * nothing without a terminal, polls until the API says connected, refuses to disconnect without
+ * `--yes`), not what the API does with Stripe, which is proved in `@bookrail/api`'s own suite
+ * against a fuller fake.
+ */
+export interface FakeStripe {
+  url: string;
+  stripeUserId: string;
+  close(): Promise<void>;
+}
+
+export async function startFakeStripe(): Promise<FakeStripe> {
+  const state = { stripeUserId: 'acct_CliTest' };
+  const server: Server = createHttpServer((request, response) => {
+    request.resume();
+    request.on('end', () => {
+      const path = (request.url ?? '').split('?')[0] ?? '';
+      const answer = (payload: unknown): void => {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(payload));
+      };
+      if (path === '/oauth/token') {
+        answer({ stripe_user_id: state.stripeUserId, livemode: false, scope: 'read_write' });
+        return;
+      }
+      if (path === '/oauth/deauthorize') {
+        answer({ stripe_user_id: state.stripeUserId });
+        return;
+      }
+      if (path.startsWith('/v1/accounts/')) {
+        answer({
+          id: path.slice('/v1/accounts/'.length),
+          charges_enabled: true,
+          details_submitted: true,
+          default_currency: 'eur',
+          country: 'IT',
+        });
+        return;
+      }
+      response.writeHead(404, { 'content-type': 'application/json' });
+      response.end('{"error":{"type":"invalid_request_error","message":"no"}}');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${String(address.port)}`,
+    get stripeUserId() {
+      return state.stripeUserId;
+    },
+    set stripeUserId(value: string) {
+      state.stripeUserId = value;
+    },
+    async close() {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };
 }

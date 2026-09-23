@@ -394,23 +394,49 @@ describe('the Lua script, against a real Redis', () => {
    * boundary (one request a second, so an interval of a thousand milliseconds) so that the
    * microseconds between the two calls cannot change an answer. Comparing the two through real
    * sleeps instead would compare two clocks and one of them would always overshoot.
+   *
+   * The one thing the microseconds do move is `resetMs`, because the script reads the clock
+   * again for itself. That difference is therefore **measured** here, by bracketing the call
+   * between two readings of the same clock, and used as the tolerance. It used to be a fixed
+   * five milliseconds, which is a threshold guessed against a quantity that depends on how busy
+   * the machine is: green here, red on a loaded runner, and red for a reason that has nothing
+   * to do with the arithmetic under test.
    */
   it('computes what the arithmetic in memory computes, from the same stored value', async () => {
     const rate = 1;
     const burst = 3;
     for (const ahead of [0, 500, 1_500, 2_500, 2_900]) {
       const id = `same-${String(ahead)}`;
-      const clock = await client.time();
-      const now = Number(clock[0]) * 1000 + Number(clock[1]) / 1000;
+      const readClock = async (): Promise<number> => {
+        const clock = await client.time();
+        return Number(clock[0]) * 1000 + Number(clock[1]) / 1000;
+      };
+      const now = await readClock();
       if (ahead > 0) await client.set(rateLimitKey(id), String(now + ahead), 'PX', 60_000);
       const actual = await limiter.check(id, rate, burst, 0);
+      // The script reads the server's clock itself, so the instant it worked from is somewhere
+      // between these two readings and cannot be known exactly. `drift` is that window, and it
+      // is what the two answers are allowed to differ by: the number is measured by this run
+      // rather than guessed, which is the difference between a test that fails on a loaded
+      // machine and one that does not. A fixed five milliseconds was the guess, and a loaded
+      // machine beat it.
+      const after = await readClock();
+      const drift = Math.max(0, after - now);
       const expected = gcra(ahead === 0 ? null : now + ahead, now, rate, burst).decision;
 
       expect(actual.allowed, `ahead=${String(ahead)}`).toBe(expected.allowed);
       expect(actual.limit).toBe(expected.limit);
       expect(actual.remaining, `ahead=${String(ahead)}`).toBe(expected.remaining);
-      expect(actual.resetMs).toBeCloseTo(expected.resetMs, -1);
-      if (!expected.allowed) expect(actual.retryAfterMs).toBeCloseTo(expected.retryAfterMs, -1);
+      expect(
+        Math.abs(actual.resetMs - expected.resetMs),
+        `ahead=${String(ahead)}, drift=${drift.toFixed(3)}ms`,
+      ).toBeLessThanOrEqual(drift + 1);
+      if (!expected.allowed) {
+        expect(
+          Math.abs(actual.retryAfterMs - expected.retryAfterMs),
+          `ahead=${String(ahead)}, drift=${drift.toFixed(3)}ms`,
+        ).toBeLessThanOrEqual(drift + 1);
+      }
     }
   });
 

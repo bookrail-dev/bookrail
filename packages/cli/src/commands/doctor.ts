@@ -6,6 +6,7 @@ import { CliError, EXIT } from '../errors.js';
 import { renderTable, type CommandResult } from '../output.js';
 import { API_VERSION, CLI_VERSION } from '../version.js';
 import type { ProjectBody } from './auth.js';
+import type { StripeConnectionBody } from './stripe.js';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -28,9 +29,10 @@ const MIN_NODE = [20, 10] as const;
  * point of it is to be the command an agent runs when something else threw. It exits 1 when
  * at least one check failed, so a script can branch on the exit code without parsing.
  *
- * Two further checks are still absent, and the output says so: webhook reachability and
- * payment provider keys have no endpoint to ask (payments do not exist yet, and the closest
- * thing to a reachability probe is `bookrail webhooks test <id>`, which actually delivers).
+ * One check is still absent, and the output says so: webhook reachability. The closest thing
+ * to a probe is `bookrail webhooks test <id>`, which does not probe but actually delivers.
+ * The payment provider used to be in that sentence too; `GET /v1/stripe` answers it now, so
+ * `stripe_connection` is a check.
  */
 export async function doctor(ctx: Context, options: { config?: string }): Promise<CommandResult> {
   const checks: Check[] = [];
@@ -145,14 +147,16 @@ export async function doctor(ctx: Context, options: { config?: string }): Promis
     });
   }
 
+  if (project !== null) checks.push(await stripeCheck(probe));
+
   checks.push(await configCheck(ctx, options.config));
 
   checks.push({
     name: 'not_checked',
     status: 'warn',
     message:
-      'Webhook reachability and payment provider keys are not checked: there is no endpoint for them in this build.',
-    fix: 'Nothing to do. Both checks appear when the features they test exist. `bookrail webhooks test <id>` checks one endpoint by actually delivering to it.',
+      'Webhook reachability is not checked: there is no endpoint that probes it without delivering.',
+    fix: 'Nothing to do. `bookrail webhooks test <id>` checks one endpoint by actually delivering to it.',
   });
 
   const failed = checks.filter((check) => check.status === 'fail');
@@ -195,6 +199,77 @@ export async function doctor(ctx: Context, options: { config?: string }): Promis
       failed.length > 0
         ? failed.map((check) => check.fix ?? `Fix "${check.name}".`)
         : ['Run `bookrail push --dry-run` to see what a push would do.'],
+  };
+}
+
+/**
+ * Is a Stripe account connected to this project and this environment?
+ *
+ * Three outcomes, and each one is a different sentence. `connected` is `ok`, and `warn` when
+ * Stripe says the account cannot take charges yet, because that is a real thing to fix and a
+ * `fail` would be wrong: nothing is broken here, the onboarding is unfinished there.
+ * `not_connected` and `disconnected` are `warn` with the command that fixes them: a project
+ * that does not take payments is a perfectly good project. A deployment that is not a Stripe
+ * platform at all answers `503 stripe_not_configured`, and the check then repeats the sentence
+ * the API wrote for whoever operates it.
+ *
+ * There is a fourth `warn`, and it is the one worth having: an account that is connected while
+ * the **deployment** holds no incoming webhook signing secret. Nothing looks
+ * wrong from here, payments start normally, and not one of them is ever confirmed.
+ */
+async function stripeCheck(probe: ApiClient): Promise<Check> {
+  let body: StripeConnectionBody;
+  try {
+    body = (await probe.get<StripeConnectionBody>('/v1/stripe')).data;
+  } catch (error) {
+    const cliError = error instanceof CliError ? error : null;
+    if (cliError?.code === 'stripe_not_configured') {
+      return {
+        name: 'stripe_connection',
+        status: 'warn',
+        message: cliError.message,
+        fix: cliError.fix ?? 'This deployment cannot take payments until it is configured.',
+      };
+    }
+    return {
+      name: 'stripe_connection',
+      status: 'warn',
+      message: cliError ? `${cliError.code}: ${cliError.message}` : String(error),
+      fix: cliError?.fix ?? 'Run `bookrail stripe status --json` to see the whole answer.',
+    };
+  }
+  if (body.status !== 'connected') {
+    return {
+      name: 'stripe_connection',
+      status: 'warn',
+      message: `No Stripe account is connected (${body.status}).`,
+      fix: 'bookrail stripe connect',
+    };
+  }
+  if (body.charges_enabled === false) {
+    return {
+      name: 'stripe_connection',
+      status: 'warn',
+      message: `${body.account_id ?? 'The account'} is connected but cannot take charges yet.`,
+      fix: 'Finish the account onboarding in the Stripe dashboard, then run `bookrail stripe status`.',
+    };
+  }
+  // A connected account with no webhook endpoint behind it is the state that costs the most to
+  // discover late: payments start perfectly well and none of them is ever confirmed, because
+  // nothing is listening for the event that confirms them. It is the deployment's to fix, not
+  // this project's, so the sentence is written for whoever operates it.
+  if (body.webhook_configured === false) {
+    return {
+      name: 'stripe_connection',
+      status: 'warn',
+      message: `${body.account_id ?? 'The account'} is connected, but this deployment holds no Stripe webhook signing secret for the ${body.environment} environment: a payment would start and never be confirmed.`,
+      fix: 'Whoever runs this deployment has to register the endpoint in the Stripe dashboard and set STRIPE_WEBHOOK_SECRET_TEST or _LIVE.',
+    };
+  }
+  return {
+    name: 'stripe_connection',
+    status: 'ok',
+    message: `${body.account_id ?? 'connected'}, charges ${body.charges_enabled === null ? 'unknown' : 'enabled'}, webhook configured.`,
   };
 }
 

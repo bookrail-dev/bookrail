@@ -139,6 +139,7 @@ export const AUTHORED_PAGES = [
   'guides/webhooks',
   'guides/idempotency',
   'guides/policies',
+  'guides/stripe',
   'guides/agents',
 ];
 

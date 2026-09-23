@@ -21,6 +21,9 @@ import { resourcesRoutes } from './routes/resources.js';
 import { schedulesRoutes } from './routes/schedules.js';
 import { servicesRoutes } from './routes/services.js';
 import { signupsRoutes } from './routes/signups.js';
+import { paymentsRoutes } from './routes/payments.js';
+import { stripeRoutes } from './routes/stripe.js';
+import { stripeWebhookRoutes } from './routes/stripe-webhook.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 
 export function createApp(deps: AppDeps): Hono<AppEnv> {
@@ -78,9 +81,16 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   // Every POST of /v1 honours `Idempotency-Key`, availability included: an SDK with a retry
   // policy sends it on every write, and one endpoint answering differently would be a trap.
   v1.use('*', idempotency(deps));
-  // The one part of `/v1` with no key in front of it, and the reason all three middlewares above
-  // carry an exemption: this is where a key comes from, so there cannot be one yet.
+  // The three parts of `/v1` with no key in front of them, and the reason the middlewares above
+  // carry an exemption (`routes/public.ts`): `/v1/signups` is where a key comes from, so there
+  // cannot be one yet; `GET /v1/stripe/callback` is followed by a browser coming back from
+  // Stripe, which has none to send; and `POST /v1/stripe/webhook/{mode}` is called by Stripe
+  // itself, which proves who it is with a signature over the raw body instead.
   v1.route('/signups', signupsRoutes(deps));
+  // Before `/stripe`, because it is the more specific prefix and because reading it first is
+  // how a reader of this file learns that the two exist.
+  v1.route('/stripe/webhook', stripeWebhookRoutes(deps));
+  v1.route('/stripe', stripeRoutes(deps));
   v1.route('/project', projectRoutes(deps));
   v1.route('/availability', availabilityRoutes(deps));
   v1.route('/locations', locationsRoutes(deps));
@@ -92,6 +102,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   v1.route('/customers', customersRoutes(deps));
   v1.route('/holds', holdsRoutes(deps));
   v1.route('/bookings', bookingsRoutes(deps));
+  v1.route('/payments', paymentsRoutes(deps));
   v1.route('/events', eventsRoutes(deps));
   v1.route('/webhooks', webhooksRoutes(deps));
 

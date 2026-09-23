@@ -39,6 +39,7 @@ import {
   bookingListQuerySchema,
   bookingRescheduleSchema,
   customerCreateSchema,
+  paymentListQuerySchema,
   customerUpdateSchema,
   holdCreateSchema,
   locationCreateSchema,
@@ -69,6 +70,7 @@ import {
   availabilityCheckSchema,
   availabilityNextSchema,
   availabilitySchema,
+  bookingCreatedSchema,
   bookingSchema,
   customerSchema,
   deletedSchema,
@@ -78,6 +80,7 @@ import {
   listOf,
   locationSchema,
   openApiDocumentSchema,
+  paymentSchema,
   policySchema,
   projectSchema,
   resourceBlockSchema,
@@ -87,6 +90,9 @@ import {
   scheduleSchema,
   serviceSchema,
   signupSchema,
+  stripeConnectionSchema,
+  stripeConnectLinkSchema,
+  stripeWebhookReceiptSchema,
   webhookCreatedSchema,
   webhookDeliverySchema,
   webhookSchema,
@@ -193,6 +199,10 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   resource_not_eligible: 'invalid_request',
   hold_mismatch: 'invalid_request',
   not_yet_supported: 'invalid_request',
+  payload_too_large: 'invalid_request',
+  // `internal`, so 500, so Stripe delivers the event again. It is not a caller's mistake and
+  // there is no caller to correct: the only integration that sees it is Stripe itself.
+  payment_amount_mismatch: 'internal',
   // Transitions: the six booking transition endpoints
   invalid_transition: 'conflict',
   no_show_too_early: 'policy_violation',
@@ -218,6 +228,41 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   signup_secret_expired: 'conflict',
   signup_disabled: 'internal',
   signup_email_failed: 'internal',
+  /**
+   * Stripe: the three keyed routes of `/v1/stripe`.
+   *
+   * Three of the four carry a status their family does not imply, named in `STATUS_BY_CODE` of
+   * `@bookrail/shared`. A deployment with no platform credentials is `503`, because the
+   * endpoint exists and is not serving; a refusal from Stripe that this API did not expect, and
+   * a Stripe that did not answer at all, are both `502`, because this service is fine and the
+   * one behind it is not.
+   */
+  stripe_not_configured: 'internal',
+  stripe_already_connected: 'conflict',
+  stripe_provider_error: 'internal',
+  stripe_unreachable: 'internal',
+  /**
+   * Payments: the creation with `payment.mode`, the transitions, and the webhook receiver.
+   *
+   * `stripe_not_connected` is `409` and not `503` on purpose, and the distinction is the one
+   * that decides who fixes it: `stripe_not_configured` is about the **deployment** and is
+   * somebody else's job, while this one is about **this project** and is fixed by its own owner
+   * with the one command the `fix` names.
+   *
+   * `reschedule_not_supported` is `422` and carries its own code rather than reusing
+   * `not_yet_supported`, which is a `400`: one code cannot carry two statuses in this taxonomy,
+   * and the two situations are genuinely different. A `recurrence` or an `entitlement` is a
+   * field of the request that this build does not implement, which is a bad request. Moving a
+   * booking that has money on it is a perfectly well formed request about a state this build
+   * cannot yet reconcile, which is a policy violation.
+   */
+  stripe_not_connected: 'conflict',
+  price_missing: 'invalid_request',
+  deposit_not_configured: 'invalid_request',
+  payment_amount_invalid: 'invalid_request',
+  payment_pending: 'conflict',
+  reschedule_not_supported: 'policy_violation',
+  stripe_signature_invalid: 'invalid_request',
 };
 
 export function statusOfCode(code: string): number {
@@ -452,6 +497,50 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     tags: ['project'],
     responses: { 200: projectSchema },
     errorCodes: [],
+  },
+
+  // --- Stripe ---------------------------------------------------------------------------------
+  //
+  // Three operations, not four: `GET /v1/stripe/callback` answers an HTML page to a browser
+  // with no key and is listed in `UNSPECIFIED_ROUTES` instead.
+  {
+    method: 'post',
+    path: '/v1/stripe/connect',
+    operationId: 'stripe.connect',
+    summary: 'Start connecting a Stripe account',
+    description:
+      'Returns a Stripe authorisation link to open in a browser. Nothing is connected until a person authorises there and the browser returns to the callback. The link carries a single use state and works for fifteen minutes.',
+    tags: ['stripe'],
+    responses: { 201: stripeConnectLinkSchema },
+    errorCodes: ['stripe_not_configured', 'stripe_already_connected'],
+    idempotent: true,
+  },
+  {
+    method: 'get',
+    path: '/v1/stripe',
+    operationId: 'stripe.get',
+    summary: 'Retrieve the Stripe connection',
+    description:
+      'The account this project charges on, in this environment, and the platform publishable key to initialise Stripe.js with. `charges_enabled` comes from Stripe at request time and is `null` when the account is not connected or when Stripe did not answer in time.',
+    tags: ['stripe'],
+    responses: { 200: stripeConnectionSchema },
+    errorCodes: ['stripe_not_configured'],
+  },
+  {
+    method: 'delete',
+    path: '/v1/stripe',
+    operationId: 'stripe.disconnect',
+    summary: 'Disconnect the Stripe account',
+    description:
+      "Revokes the platform's access to the connected account and records the connection as disconnected. An account Stripe already considers unlinked is still recorded as disconnected: what is being asked for is the state, not the call.",
+    tags: ['stripe'],
+    responses: { 200: stripeConnectionSchema },
+    errorCodes: [
+      'resource_missing',
+      'stripe_not_configured',
+      'stripe_provider_error',
+      'stripe_unreachable',
+    ],
   },
 
   // --- Availability ---------------------------------------------------------------------------
@@ -1021,16 +1110,23 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     operationId: 'bookings.create',
     summary: 'Create a booking',
     description:
-      'With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` other than `none`, and any `recurrence`, answer `400 not_yet_supported`.',
+      'With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`.',
     tags: ['bookings'],
     body: bookingCreateSchema,
-    responses: { 201: bookingSchema },
+    responses: { 201: bookingCreatedSchema },
     errorCodes: [
       ...BOOKING_WRITE_CODES,
       'hold_mismatch',
       'hold_expired',
       'hold_not_active',
       'not_yet_supported',
+      'stripe_not_connected',
+      'stripe_not_configured',
+      'stripe_provider_error',
+      'stripe_unreachable',
+      'price_missing',
+      'deposit_not_configured',
+      'payment_amount_invalid',
     ],
     idempotent: true,
   },
@@ -1044,9 +1140,9 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     query: merge(
       listQuery('booking'),
       bookingListQuerySchema.innerType(),
-      expandQuery(['customer', 'allocations.resource']),
+      expandQuery(['customer', 'allocations.resource', 'payments']),
     ),
-    expand: ['customer', 'allocations.resource'],
+    expand: ['customer', 'allocations.resource', 'payments'],
     responses: { 200: listOf(bookingSchema).openapi('BookingList') },
     errorCodes: ['parameter_invalid'],
   },
@@ -1057,8 +1153,8 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     summary: 'Retrieve a booking',
     tags: ['bookings'],
     pathParams: ID_PARAM('booking', 'booking'),
-    query: expandQuery(['customer', 'allocations.resource']),
-    expand: ['customer', 'allocations.resource'],
+    query: expandQuery(['customer', 'allocations.resource', 'payments']),
+    expand: ['customer', 'allocations.resource', 'payments'],
     responses: { 200: bookingSchema },
     errorCodes: ['resource_missing', 'parameter_invalid'],
   },
@@ -1067,11 +1163,13 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     path: '/v1/bookings/{id}/confirm',
     operationId: 'bookings.confirm',
     summary: 'Confirm a booking',
+    description:
+      'A booking whose payment is still in flight answers `409 payment_pending`: confirming it would tell the customer the slot is theirs while the card may still be refused. Wait for the payment, or cancel the booking.',
     tags: ['bookings'],
     pathParams: ID_PARAM('booking', 'booking'),
     body: bookingActionSchema,
     responses: { 200: bookingSchema },
-    errorCodes: TRANSITION_CODES,
+    errorCodes: [...TRANSITION_CODES, 'payment_pending'],
     idempotent: true,
   },
   {
@@ -1119,7 +1217,7 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     operationId: 'bookings.cancel',
     summary: 'Cancel a booking',
     description:
-      '`by` defaults to `customer`. `override_refund_percent` beats every tier, for any `by`. No money moves: the amounts written are expectations.',
+      '`by` defaults to `customer`. `override_refund_percent` beats every tier, for any `by`. The refund the policy promises is queued as a `payments` row of type `refund` and executed against Stripe by the background worker; `refund_amount_expected` on the booking is what it will add up to.',
     tags: ['bookings'],
     pathParams: ID_PARAM('booking', 'booking'),
     body: bookingCancelSchema,
@@ -1133,14 +1231,78 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     operationId: 'bookings.reschedule',
     summary: 'Reschedule a booking',
     description:
-      'Answers with the **new** booking. The old one is one `GET` away through `rescheduled_from_booking_id`. An unavailable slot is a `409` and leaves the old booking intact.',
+      'Answers with the **new** booking. The old one is one `GET` away through `rescheduled_from_booking_id`. An unavailable slot is a `409` and leaves the old booking intact. A booking with a payment attached answers `422 reschedule_not_supported`: moving money to a slot with a different price is not decided yet.',
     tags: ['bookings'],
     pathParams: ID_PARAM('booking', 'booking'),
     body: bookingRescheduleSchema,
     responses: { 200: bookingSchema },
-    errorCodes: [...TRANSITION_CODES, ...BOOKING_WRITE_CODES, 'max_reschedules_reached'],
+    errorCodes: [
+      ...TRANSITION_CODES,
+      ...BOOKING_WRITE_CODES,
+      'max_reschedules_reached',
+      'reschedule_not_supported',
+    ],
     idempotent: true,
   },
+
+  // --- Payments -------------------------------------------------------------------------------
+  //
+  // Two reads and no writes. A payment is created by `POST /v1/bookings` and a refund by a
+  // cancellation or by the customer's own Stripe dashboard, and there is deliberately no
+  // endpoint that moves money on its own: the money columns of a booking have exactly two
+  // writers, the creation and the verified webhook receiver, and an endpoint would be a third.
+  {
+    method: 'get',
+    path: '/v1/payments',
+    operationId: 'payments.list',
+    summary: 'List payments',
+    description:
+      'Never calls Stripe, so `client_secret` and `provider_status` are always `null` here. Ask for one payment to get them.',
+    tags: ['payments'],
+    query: merge(listQuery('payment'), paymentListQuerySchema),
+    responses: { 200: listOf(paymentSchema).openapi('PaymentList') },
+    errorCodes: ['parameter_invalid'],
+  },
+  {
+    method: 'get',
+    path: '/v1/payments/{id}',
+    operationId: 'payments.get',
+    summary: 'Retrieve a payment',
+    description:
+      'For a payment that is still `pending` and is not a refund, `client_secret` and `provider_status` are read from Stripe at request time. Both are `null`, and the answer is still a `200`, when Stripe did not answer: everything else here comes from our own row.',
+    tags: ['payments'],
+    pathParams: ID_PARAM('payment', 'payment'),
+    responses: { 200: paymentSchema },
+    errorCodes: ['resource_missing', 'stripe_not_configured'],
+  },
+
+  // --- The incoming Stripe webhook --------------------------------------------------------------
+  //
+  // Two paths and not one, so that the signing secret is chosen by the path rather than guessed
+  // from the body. **No API key**: the caller is Stripe, and what ties the request to a project
+  // is a `Stripe-Signature` over the raw body. `sdk: false` for the same reason the three sign
+  // up operations carry it: no holder of an SDK object can ever need to call these.
+  ...(['test', 'live'] as const).map((mode) => ({
+    method: 'post' as const,
+    path: `/v1/stripe/webhook/${mode}`,
+    operationId: `stripe.webhook.${mode}`,
+    summary: `Receive a Stripe event (${mode} mode)`,
+    description:
+      'Called by Stripe, not by an integration. Verifies `Stripe-Signature` over the raw body, records the event once, and applies it. A redelivery of an event already processed answers `duplicate: true` and does nothing. A body over one megabyte is refused unread with `413`. An event whose reported amount is not the amount the payment asked for is refused whole with `500`, so that Stripe delivers it again and nothing is recorded in the meantime. No API key.',
+    tags: ['stripe'],
+    responses: { 200: stripeWebhookReceiptSchema },
+    errorCodes: [
+      'stripe_signature_invalid',
+      'stripe_not_configured',
+      'invalid_body',
+      'payload_too_large',
+      // A `500` on purpose when Stripe reports an amount that is not the one this payment asked
+      // for: nothing is written, the claim row stays unprocessed, and the retry is Stripe's.
+      'payment_amount_mismatch',
+    ],
+    public: true,
+    sdk: false as const,
+  })),
 
   // --- Events ---------------------------------------------------------------------------------
   {
@@ -1294,7 +1456,21 @@ export const OPERATIONS: readonly OperationDefinition[] = [
 ];
 
 /** Routes of the app that are deliberately outside the public specification. */
-export const UNSPECIFIED_ROUTES: readonly string[] = ['GET /health', 'POST /internal/bootstrap'];
+/**
+ * Mounted routes that are deliberately outside the specification.
+ *
+ * `/health` and `/internal/bootstrap` are not part of the customer facing API at all.
+ * `GET /v1/stripe/callback` is: it is mounted under `/v1` and it is how a Stripe connection
+ * comes into being. It is out of the document because of what it answers, which is an HTML page
+ * for a person, with no key, in a browser. Describing it as a JSON operation would put in the
+ * contract something no SDK can call and no schema can validate, and the contract guard, which
+ * parses every declared response as JSON, would record a violation on every single call.
+ */
+export const UNSPECIFIED_ROUTES: readonly string[] = [
+  'GET /health',
+  'POST /internal/bootstrap',
+  'GET /v1/stripe/callback',
+];
 
 /** `POST /v1/x` → the operation, or `undefined`. Keyed on the OpenAPI form of the path. */
 const BY_KEY = new Map<string, OperationDefinition>(

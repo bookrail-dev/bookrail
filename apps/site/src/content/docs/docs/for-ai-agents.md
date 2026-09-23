@@ -15,7 +15,7 @@ path is [`/llms.txt`](/llms.txt), [`/openapi.json`](/openapi.json) and
 | --- | --- |
 | [`/llms.txt`](/llms.txt) | One line per documentation page, with the markdown URL of each. |
 | [`/llms-full.txt`](/llms-full.txt) | Every documentation page concatenated, in markdown. |
-| [`/openapi.json`](/openapi.json) | OpenAPI 3.1, generated from the schemas that validate each request. 44 paths, 70 operations. |
+| [`/openapi.json`](/openapi.json) | OpenAPI 3.1, generated from the schemas that validate each request. 46 paths, 73 operations. |
 | [`/mcp/tools.json`](/mcp/tools.json) | Every MCP tool with its description, input schema and annotations, read from the running server. |
 | `<page>.md` | Every page written in markdown is also served as markdown at the same URL with `.md` on the end, for example [`/docs/errors.md`](/docs/errors.md). The generated API reference pages are not: read `/openapi.json` instead. |
 

@@ -2,9 +2,9 @@
  * `/v1/signups`: how somebody who has never spoken to us gets a test key, at eleven at night,
  * without writing to anybody.
  *
- * These are the only routes of `/v1` with no API key in front of them, which is the whole
- * point and also the reason every decision below is about what an unauthenticated caller may
- * learn or cause.
+ * These routes take no API key, which is the whole point and also the reason every decision
+ * below is about what an unauthenticated caller may learn or cause. The only other path of
+ * `/v1` without one is the Stripe OAuth callback; both are named in `routes/public.ts`.
  *
  * ## Nothing here writes to the database directly
  *
@@ -54,20 +54,11 @@ import { confirmationMessage } from '../mail/messages.js';
 import { signupClaimSchema, signupConfirmSchema, signupCreateSchema } from '../schemas/index.js';
 import type { Signup } from '../schemas/responses.js';
 import { decryptSecret, encryptSecret, webhookKeyMissing } from '../webhooks/secrets.js';
-
-/** The one prefix that authentication and idempotency step aside for. */
-export const SIGNUPS_PREFIX = '/v1/signups';
-
 /**
- * Exactly `/v1/signups` and what is under it.
- *
- * A prefix test on its own would exempt `/v1/signupsx` as well, which is why the equality and
- * the trailing slash are both here: an exemption from authentication that is one character
- * wider than intended is how an endpoint loses its key.
+ * Re-exported so that `/v1/signups` is still the place you look for what makes these routes
+ * public. The predicate itself lives beside the one the Stripe callback needs, in `public.ts`.
  */
-export function isSignupPath(path: string): boolean {
-  return path === SIGNUPS_PREFIX || path.startsWith(`${SIGNUPS_PREFIX}/`);
-}
+export { SIGNUPS_PREFIX, isSignupPath } from './public.js';
 
 /** 32 bytes of randomness, in the alphabet that survives a URL and an email client. */
 function newToken(): string {

@@ -5,7 +5,7 @@ import { serve, type ServerType } from '@hono/node-server';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { createApp, MemoryRateLimiter } from '@bookrail/api';
+import { createApp, MemoryRateLimiter, DEFAULT_PAYMENT_TIMEOUT_MINUTES } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
 import { silentLogger as silentApiLogger } from '@bookrail/shared';
@@ -56,6 +56,15 @@ export interface Harness {
   seenActors: (string | null)[];
   configHome: string;
   root: string;
+  /**
+   * The privileged pool, for the one fixture this package cannot build through a tool.
+   *
+   * A `payments` row needs a Stripe platform **and** a connected account; proving that flow is
+   * `@bookrail/api`'s job, against a fake Stripe. What the two payment tools owe is that they
+   * reach the right endpoint and hand back what it said, and one row written directly is enough
+   * for that.
+   */
+  adminPool: ReturnType<typeof createPool>;
   workdir(): Promise<string>;
   bootstrap(name: string): Promise<Project>;
   /**
@@ -106,12 +115,38 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     cache,
     bootstrapToken: BOOTSTRAP_TOKEN,
     webhookSecretKey: WEBHOOK_SECRET_KEY,
+    paymentTimeoutMinutes: DEFAULT_PAYMENT_TIMEOUT_MINUTES,
     // There is no sign up tool and there will not be one: a sign up needs a person to open a
     // link in a mailbox, and an agent has neither. Nothing here sends mail.
     mailer: undefined,
     siteUrl: 'https://bookrail.dev',
     siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
+    // A Stripe platform whose two bases point at a port nothing listens on, deliberately.
+    // The two tools this package has (`bookrail_stripe_status`, `bookrail_stripe_connect`) make
+    // **no** call to Stripe on the paths they take here: minting an authorisation state is a
+    // local write, and reading a connection that does not exist reads nothing but our own
+    // database. A base that cannot be reached is therefore the honest configuration: if one of
+    // the two ever starts calling Stripe, the test fails instead of quietly talking to a fake.
+    stripe: {
+      redirectUrl: 'https://api.bookrail.dev/v1/stripe/callback',
+      environments: {
+        // One OAuth application per mode, as Stripe requires.
+        test: {
+          clientId: 'ca_McpTestApplication',
+          secretKey: 'rk_test_mcpHarness',
+          publishableKey: 'pk_test_mcpHarness',
+        },
+        live: {
+          clientId: 'ca_McpLiveApplication',
+          secretKey: 'rk_live_mcpHarness',
+          publishableKey: 'pk_live_mcpHarness',
+        },
+      },
+      webhookSecrets: { test: null, live: null },
+      apiBase: 'http://127.0.0.1:1',
+      connectBase: 'http://127.0.0.1:1',
+    },
     ...(options.rateLimit === undefined
       ? {}
       : {
@@ -158,6 +193,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     seenActors,
     configHome,
     root,
+    adminPool,
     async workdir(): Promise<string> {
       counter += 1;
       return mkdtemp(join(root, `work-${counter}-`));

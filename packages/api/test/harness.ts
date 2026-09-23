@@ -4,6 +4,7 @@ import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache, type AvailabilityCache } from '@bookrail/engine';
 import { silentLogger, type Logger } from '@bookrail/shared';
 import { createApp } from '../src/app.js';
+import { DEFAULT_PAYMENT_TIMEOUT_MINUTES, type StripePlatformConfig } from '../src/config.js';
 import type { AppEnv } from '../src/context.js';
 import { createLogMailer, type LogMailer } from '../src/mail/index.js';
 import { MemoryRateLimiter, type RateLimiter } from '../src/rate-limit.js';
@@ -92,6 +93,22 @@ export interface HarnessOptions {
   /** The origin `/v1/signups` allows in a browser. Defaults to the production one. */
   siteOrigin?: string;
   /**
+   * The Stripe platform credentials this app is built with.
+   *
+   * Absent means a deployment that is not a Connect platform, which is what every suite other
+   * than the Stripe one wants: the four `/v1/stripe` routes then answer `503
+   * stripe_not_configured`. The Stripe suite passes a configuration pointing at the fake
+   * Stripe of `test/stripe-server.ts`.
+   */
+  stripe?: StripePlatformConfig;
+  /**
+   * How long a booking waits for its payment, in minutes.
+   *
+   * Thirty by default, as in a deployment. The suite that exercises the expiry does not shorten
+   * it: it injects the instant instead, which is why no test here ever waits for a clock.
+   */
+  paymentTimeoutMinutes?: number;
+  /**
    * Mount the per key rate limiter: this policy for test keys, and `live` for live ones.
    *
    * **Off by default**, which is what every other suite in this package needs: they fire hundreds
@@ -170,6 +187,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     mailer,
     siteUrl: SITE_URL,
     siteOrigin: options.siteOrigin ?? SITE_ORIGIN,
+    ...(options.stripe === undefined ? {} : { stripe: options.stripe }),
+    paymentTimeoutMinutes: options.paymentTimeoutMinutes ?? DEFAULT_PAYMENT_TIMEOUT_MINUTES,
     ...(rateLimitPolicy === undefined || rateLimiter === null
       ? {}
       : {

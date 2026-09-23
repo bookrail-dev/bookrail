@@ -16,6 +16,7 @@ import type {
   customers,
   events,
   locations,
+  payments,
   policies,
   resourceGroups,
   resources,
@@ -38,6 +39,7 @@ import type {
   Hold,
   HoldCreated,
   Location,
+  Payment,
   Policy,
   Resource,
   ResourceBlock,
@@ -495,6 +497,8 @@ export interface BookingExpansions {
   customer?: Row<typeof customers> | null;
   /** Resources of the allocations, by bare id, when `expand[]=allocations.resource`. */
   resources?: Map<string, Row<typeof resources>>;
+  /** Payments of this booking, oldest first, when `expand[]=payments`. */
+  payments?: readonly Row<typeof payments>[];
 }
 
 /**
@@ -556,6 +560,7 @@ export function serializeBooking(
     rescheduled_at: iso(row.rescheduledAt),
     next_transition: row.nextTransition ?? null,
     next_transition_at: iso(row.nextTransitionAt),
+    payment_expires_at: iso(row.paymentExpiresAt),
     allocations: allocations.map((allocation) =>
       serializeAllocation(
         allocation,
@@ -573,7 +578,50 @@ export function serializeBooking(
   if ('customer' in expansions) {
     object.customer = expansions.customer ? serializeCustomer(expansions.customer) : null;
   }
+  if (expansions.payments !== undefined) {
+    // No `client_secret` and no `provider_status`: an expansion of a booking makes no call to
+    // Stripe. A caller that wants either asks `GET /v1/payments/{id}` for one payment, which
+    // is one round trip it has chosen to pay for.
+    object.payments = expansions.payments.map((payment) => serializePayment(payment, {}));
+  }
   return object;
+}
+
+/**
+ * A payment, from its row.
+ *
+ * `clientSecret` and `providerStatus` are passed in rather than read here, for the reason
+ * `serializeConnection` takes `chargesEnabled` rather than fetching it: a serializer that made
+ * an HTTP request would make every list of payments a list of round trips. They are `null`
+ * everywhere except in `GET /v1/payments/{id}`, which asks Stripe for one payment.
+ */
+export function serializePayment(
+  row: Row<typeof payments>,
+  live: { clientSecret?: string | null; providerStatus?: string | null },
+): Payment {
+  return {
+    id: encodeId('payment', row.id),
+    object: 'payment',
+    booking_id: row.bookingId === null ? null : encodeId('booking', row.bookingId),
+    type: row.type,
+    status: row.status,
+    amount: row.amount,
+    currency: row.currency,
+    amount_refunded: row.amountRefunded,
+    provider: 'stripe',
+    provider_payment_id: row.providerPaymentId,
+    provider_account_id: row.providerAccountId,
+    parent_payment_id:
+      row.parentPaymentId === null ? null : encodeId('payment', row.parentPaymentId),
+    failure_code: row.failureCode,
+    failure_message: row.failureMessage,
+    client_secret: live.clientSecret ?? null,
+    provider_status: live.providerStatus ?? null,
+    metadata: toMetadata(row.metadata),
+    environment: row.environment,
+    created_at: iso(row.createdAt),
+    updated_at: iso(row.updatedAt),
+  };
 }
 
 // --- Availability -------------------------------------------------------------------------

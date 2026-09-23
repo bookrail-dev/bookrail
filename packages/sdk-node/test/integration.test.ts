@@ -7,17 +7,21 @@
  * (no `fetch`, no SQL), which is the only way to know that the package a customer installs
  * can actually take a booking.
  *
- * The last test of the file is the one that matters most: every one of the 67 operations this
+ * The last test of the file is the one that matters most: every one of the 72 operations this
  * package offers has been hit, at least once, by these tests. Those are the operations of the
  * specification less the three sign up ones, which are marked out of the SDK because a client
  * is constructed with a key and they are how a key comes into being.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDatabase, sql } from '@bookrail/db';
+import { decodeId, encodeId, uuidv7 } from '@bookrail/shared';
 import type Bookrail from '../src/index.js';
 import { BookrailConflictError, BookrailNotFoundError } from '../src/index.js';
 import {
   createHarness,
+  startFakeStripe,
   startReceiver,
+  type FakeStripe,
   type Harness,
   type Project,
   type Receiver,
@@ -47,6 +51,7 @@ let h: Harness;
 let project: Project;
 let bookrail: Bookrail;
 let receiver: Receiver;
+let stripe: FakeStripe;
 
 const monday = nextMonday();
 
@@ -64,7 +69,8 @@ const padel = {} as Scenario;
 const soon = { startsAt: 0, completeId: '', noShowId: '' };
 
 beforeAll(async () => {
-  h = await createHarness();
+  stripe = await startFakeStripe();
+  h = await createHarness({ stripeBase: stripe.url });
   project = await h.bootstrap('SDK');
   receiver = await startReceiver();
   bookrail = h.client(project.testKey);
@@ -73,6 +79,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await receiver.close();
   await h.close();
+  await stripe.close();
 });
 
 describe('the client knows who it is', () => {
@@ -605,8 +612,96 @@ describe('updating and deleting the configuration', () => {
   }, 120_000);
 });
 
+/**
+ * The three Stripe methods, end to end.
+ *
+ * The middle of the flow is not an SDK call and cannot be: a person authorises on Stripe's own
+ * pages and a browser returns to `GET /v1/stripe/callback`, which takes no key and is not in
+ * the specification. So the browser's half is done here with a plain `fetch`, exactly as a
+ * browser would do it, and the SDK does the two halves that belong to it.
+ */
+describe('the Stripe connection', () => {
+  let project: Project;
+  let client: Bookrail;
+
+  beforeAll(async () => {
+    project = await h.bootstrap('SDK Stripe');
+    client = h.client(project.testKey);
+  }, 60_000);
+
+  it('connects, reads and disconnects', async () => {
+    const before = await client.stripe.retrieve();
+    expect(before.status).toBe('not_connected');
+    expect(before.publishable_key).toBe('pk_test_sdkHarness');
+    expect(before.charges_enabled).toBeNull();
+
+    const link = await client.stripe.connect();
+    expect(link.object).toBe('stripe_connect_link');
+    const state = new URL(link.url).searchParams.get('state');
+    expect(state).not.toBeNull();
+
+    const callback = await fetch(
+      `${h.url}/v1/stripe/callback?state=${encodeURIComponent(state!)}&code=ac_sdk`,
+    );
+    expect(callback.status).toBe(200);
+    expect(await callback.text()).toContain('Stripe is connected');
+
+    const connected = await client.stripe.retrieve();
+    expect(connected.status).toBe('connected');
+    expect(connected.account_id).toBe('acct_SdkTest');
+    expect(connected.charges_enabled).toBe(true);
+
+    const disconnected = await client.stripe.disconnect();
+    expect(disconnected.status).toBe('disconnected');
+    expect(disconnected.disconnect_reason).toBe('user');
+  }, 60_000);
+
+  it('raises a typed error when there is nothing to disconnect', async () => {
+    await expect(client.stripe.disconnect()).rejects.toBeInstanceOf(BookrailNotFoundError);
+  });
+});
+
+/**
+ * The two payment reads, through the SDK, against the real API.
+ *
+ * There is no payment to read in this harness, because this package's fake has no Stripe
+ * platform behind it and a payment cannot be created without one: what the two calls prove is
+ * the wiring (the path, the cursor, the typed error), which is exactly what an SDK owes. The
+ * whole payment flow is proved in `packages/api/test/payments.test.ts`, against a fake Stripe.
+ */
+describe('the payments of a booking', () => {
+  it('reads one payment, lists it, and 404s an unknown one', async () => {
+    // The one fixture written directly: see `Harness.adminPool` for why.
+    const admin = createDatabase(h.adminPool);
+    const id = uuidv7();
+    await admin.execute(sql`
+      INSERT INTO payments (id, project_id, environment, booking_id, provider,
+                            provider_account_id, provider_payment_id, type, amount, currency,
+                            status)
+      VALUES (${id}, ${decodeId('project', project.projectId)}, 'test', NULL, 'stripe',
+              'acct_SdkPayments', NULL, 'deposit', 1500, 'EUR', 'succeeded')
+    `);
+    const publicId = encodeId('payment', id);
+
+    const one = await bookrail.payments.retrieve(publicId);
+    expect(one.id).toBe(publicId);
+    expect(one.object).toBe('payment');
+    expect(one.amount).toBe(1500);
+    expect(one.currency).toBe('EUR');
+    // Not `pending`, so nothing was asked of Stripe and there is no secret to hand over.
+    expect(one.client_secret).toBeNull();
+
+    const page = await bookrail.payments.list({ limit: 5 });
+    expect(page.data.map((payment) => payment.id)).toContain(publicId);
+
+    await expect(
+      bookrail.payments.retrieve('pay_0193f0c2a1b47e2e9a1c0f4d5e6a7b8c'),
+    ).rejects.toBeInstanceOf(BookrailNotFoundError);
+  }, 30_000);
+});
+
 describe('coverage of the registry', () => {
-  it('has hit every one of the 67 operations at least once', () => {
+  it('has hit every one of the 72 operations at least once', () => {
     const hit = new Set(h.operations);
     const missing = OPERATIONS.map((operation) => operation.operationId)
       .filter((operationId) => !hit.has(operationId))

@@ -568,6 +568,16 @@ describe('/v1/webhooks', () => {
         found.add(match[1] ?? '');
       }
     }
+    // The engine is no longer the only thing that writes events. `/v1/stripe` writes the two
+    // `stripe.*` ones and the incoming webhook receiver writes the three `payment.*` ones, so
+    // the scan covers both routes: the property being checked is still "the list in
+    // `@bookrail/shared` is exactly what the source emits", not "the engine emits everything".
+    for (const file of ['../src/routes/stripe.ts', '../src/routes/stripe-webhook.ts']) {
+      const source = await readFile(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
+      for (const match of source.matchAll(/'((?:stripe|payment)\.[a-z_]+)'/g)) {
+        found.add(match[1] ?? '');
+      }
+    }
     expect([...found].sort()).toEqual([...EMITTED_EVENT_TYPES].sort());
   });
 

@@ -118,6 +118,7 @@ export default defineConfig({
             { label: 'Webhooks', link: '/docs/guides/webhooks/' },
             { label: 'Idempotency', link: '/docs/guides/idempotency/' },
             { label: 'Policies', link: '/docs/guides/policies/' },
+            { label: 'Stripe', link: '/docs/guides/stripe/' },
             { label: 'Coding agents', link: '/docs/guides/agents/' },
           ],
         },

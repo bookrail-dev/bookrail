@@ -1,6 +1,8 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { readdir } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDatabase, sql } from '@bookrail/db';
+import { decodeId, encodeId, uuidv7 } from '@bookrail/shared';
 import {
   createHarness,
   nextWeek,
@@ -661,6 +663,86 @@ describe('webhooks', () => {
       confirm: true,
     });
     expect(removed.envelope.data?.deleted).toBe(true);
+  });
+
+  /**
+   * The two payment tools, which are the two ends of something an agent cannot do alone.
+   *
+   * `bookrail_stripe_connect` hands back a link and changes nothing a customer owns, so it
+   * needs no confirmation and says so. There is deliberately no disconnect tool: the one thing
+   * in this area that stops a business taking money is a terminal command, not a tool call.
+   */
+  it('9. reads the Stripe connection and asks for a link, without connecting anything', async () => {
+    const before = await session.call<{ status: string; publishable_key: string | null }>(
+      'bookrail_stripe_status',
+      {},
+    );
+    expect(before.isError).toBe(false);
+    expect(before.envelope.data?.status).toBe('not_connected');
+    expect(before.envelope.data?.publishable_key).toBe('pk_test_mcpHarness');
+
+    const link = await session.call<{ url: string; expires_at: string }>(
+      'bookrail_stripe_connect',
+      {},
+    );
+    expect(link.isError).toBe(false);
+    // Nothing to confirm: no account is connected until a person authorises on Stripe.
+    expect(link.envelope.requires_confirmation).toBe(false);
+    expect(link.envelope.data?.url).toContain('client_id=ca_McpTestApplication');
+    expect(new URL(link.envelope.data!.url).searchParams.get('state')).not.toBeNull();
+
+    // And it is still not connected, which is the whole point of the tool being safe.
+    const after = await session.call<{ status: string }>('bookrail_stripe_status', {});
+    expect(after.envelope.data?.status).toBe('not_connected');
+
+    // The link itself is never written to the server's own log: it carries the state.
+    expect(session.stderr.join('\n')).not.toContain(
+      new URL(link.envelope.data!.url).searchParams.get('state'),
+    );
+  });
+
+  /**
+   * The two payment reads, through the tools.
+   *
+   * There is no payment to create here, for the reason `Harness.adminPool` gives; what is being
+   * checked is that the tools reach the right endpoints, hand back what the API said, and stay
+   * read only. That they are read only is the part worth pinning: an agent that could move
+   * money would be an agent that can refund for a reason no booking records.
+   */
+  it('10. reads the payments of a project, and never offers to move any', async () => {
+    const admin = createDatabase(h.adminPool);
+    const id = uuidv7();
+    await admin.execute(sql`
+      INSERT INTO payments (id, project_id, environment, booking_id, provider,
+                            provider_account_id, provider_payment_id, type, amount, currency,
+                            status)
+      VALUES (${id}, ${decodeId('project', project.projectId)}, 'test', NULL, 'stripe',
+              'acct_McpPayments', 'pi_McpPayments', 'deposit', 2500, 'EUR', 'succeeded')
+    `);
+    const publicId = encodeId('payment', id);
+
+    const one = await session.call<{ id: string; amount: number; client_secret: string | null }>(
+      'bookrail_payment_get',
+      { payment_id: publicId },
+    );
+    expect(one.isError).toBe(false);
+    expect(one.envelope.data?.id).toBe(publicId);
+    expect(one.envelope.data?.amount).toBe(2500);
+    // Not pending, so nothing was asked of Stripe and there is no secret to hand over.
+    expect(one.envelope.data?.client_secret).toBeNull();
+
+    const listed = await session.call<{ data: { id: string }[] }>('bookrail_payment_list', {
+      status: 'succeeded',
+    });
+    expect(listed.isError).toBe(false);
+    expect(listed.envelope.data?.data.map((row) => row.id)).toContain(publicId);
+
+    // The closed list: nothing here creates, refunds or cancels a payment.
+    const names = (await session.client.listTools()).tools.map((tool) => tool.name);
+    expect(names.filter((name) => name.startsWith('bookrail_payment_')).sort()).toEqual([
+      'bookrail_payment_get',
+      'bookrail_payment_list',
+    ]);
   });
 
   async function listenSomewhere(): Promise<number> {

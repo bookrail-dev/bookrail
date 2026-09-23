@@ -37,8 +37,12 @@ export type BookingStatus =
  * `start` is not `check_in`: a booking that starts because `auto_start` says so has **not**
  * been checked in, and `checked_in_at` has to keep meaning "somebody turned up" or
  * `no_show.auto_mark` would never fire again on a policy that asks for both.
+ *
+ * `expire_payment` is the fourth, and the only one that does not come from the policy at all: it comes from `bookings.payment_expires_at`, which the creation sets when the
+ * booking is waiting for a Stripe payment. A `pending` booking holds its capacity exactly like
+ * a confirmed one, so a customer who closes the browser would otherwise hold the slot for ever.
  */
-export type AutomaticTransition = 'start' | 'complete' | 'no_show';
+export type AutomaticTransition = 'start' | 'complete' | 'no_show' | 'expire_payment';
 
 export type PolicySnapshot = Record<string, unknown> | null;
 
@@ -174,9 +178,22 @@ export function nextTransitionFor(
     readonly startsAt: number;
     readonly endsAt: number;
     readonly checkedInAt: number | null;
+    /**
+     * `bookings.payment_expires_at`: the deadline of a booking waiting for its payment.
+     *
+     * The only input of this function that does not come from the policy. A `pending` booking
+     * with one has exactly one automatic transition, `expire_payment`, and none of the three
+     * below can apply to it: `start`, `no_show` and `complete` all presuppose a booking that
+     * is going to happen.
+     */
+    readonly paymentExpiresAt?: number | null;
   },
   snapshot: PolicySnapshot,
 ): { action: AutomaticTransition; at: number } | null {
+  if (booking.status === 'pending') {
+    const deadline = booking.paymentExpiresAt ?? null;
+    return deadline === null ? null : { action: 'expire_payment', at: deadline };
+  }
   const running = booking.status === 'confirmed' || booking.status === 'in_progress';
   if (!running) return null;
 
@@ -198,4 +215,19 @@ export function nextTransitionFor(
   candidates.sort((a, b) => a.at - b.at || a.rank - b.rank);
   const first = candidates[0]!;
   return { action: first.action, at: first.at };
+}
+
+/**
+ * Does the **frozen** policy ask for somebody to confirm before a booking is confirmed?
+ *
+ * The same disjunction `loadPolicy` computes from the live row, read from the snapshot instead,
+ * because the caller that needs it is the Stripe webhook receiver: a payment succeeds long
+ * after the booking was made, and the question it has to answer is what the customer agreed to
+ * then, not what the policy says now. A missing key is `false`, like every other reader here.
+ */
+export function requiresConfirmation(snapshot: PolicySnapshot): boolean {
+  return (
+    snapshot?.require_customer_confirmation === true ||
+    snapshot?.require_provider_confirmation === true
+  );
 }

@@ -46,7 +46,7 @@ import { sql, withProjectContext } from '@bookrail/db';
 import { errors, uuidv7 } from '@bookrail/shared';
 import type { AppDeps, AppEnv, AuthContext } from '../context.js';
 import { requireAuth } from '../http.js';
-import { isSignupPath } from '../routes/signups.js';
+import { isPublicPath } from '../routes/public.js';
 
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
 
@@ -210,11 +210,11 @@ async function release(deps: AppDeps, auth: AuthContext, key: string): Promise<v
 export function idempotency(deps: AppDeps): MiddlewareHandler<AppEnv> {
   return async (c: Context<AppEnv>, next) => {
     if (c.req.method !== 'POST') return next();
-    // The sign up endpoints have no key, so there is no project to scope a claim to, and no
-    // row of `idempotency_keys` that could hold one. A header sent here is ignored rather
-    // than refused: the three of them are safe to repeat by construction, since the token
-    // and the poll token are each good for exactly one outcome.
-    if (isSignupPath(c.req.path)) return next();
+    // The public routes have no key, so there is no project to scope a claim to, and no row of
+    // `idempotency_keys` that could hold one. A header sent there is ignored rather than
+    // refused: each of them is safe to repeat by construction, because the token, the poll
+    // token and the OAuth state are each good for exactly one outcome.
+    if (isPublicPath(c.req.path)) return next();
     const raw = c.req.header(IDEMPOTENCY_HEADER);
     if (raw === undefined) return next();
     // Trimmed here rather than left to the HTTP client: `fetch` already strips the spaces at

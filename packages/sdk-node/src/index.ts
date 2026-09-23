@@ -37,12 +37,14 @@ import { EventsResource } from './resources/events.js';
 import { HoldsResource } from './resources/holds.js';
 import { LocationsResource } from './resources/locations.js';
 import { OpenApiResource } from './resources/openapi.js';
+import { PaymentsResource } from './resources/payments.js';
 import { PoliciesResource } from './resources/policies.js';
 import { ProjectResource } from './resources/project.js';
 import { ResourceGroupsResource } from './resources/resource-groups.js';
 import { ResourcesResource } from './resources/resources.js';
 import { SchedulesResource } from './resources/schedules.js';
 import { ServicesResource } from './resources/services.js';
+import { StripeResource } from './resources/stripe.js';
 import { WebhooksResource } from './resources/webhooks.js';
 
 export class Bookrail {
@@ -66,6 +68,9 @@ export class Bookrail {
   readonly bookings: BookingsResource;
   readonly events: EventsResource;
   readonly webhooks: WebhooksResource;
+  /** The customer's own Stripe account, connected over OAuth. */
+  readonly payments: PaymentsResource;
+  readonly stripe: StripeResource;
   /** `GET /openapi.json`: the contract of this installation, no key needed. */
   readonly openapi: OpenApiResource;
 
@@ -88,6 +93,8 @@ export class Bookrail {
     this.bookings = new BookingsResource(core);
     this.events = new EventsResource(core);
     this.webhooks = new WebhooksResource(core);
+    this.payments = new PaymentsResource(core);
+    this.stripe = new StripeResource(core);
     this.openapi = new OpenApiResource(core);
   }
 }
@@ -136,12 +143,14 @@ export { EventsResource } from './resources/events.js';
 export { HoldsResource } from './resources/holds.js';
 export { LocationsResource } from './resources/locations.js';
 export { OpenApiResource } from './resources/openapi.js';
+export { PaymentsResource } from './resources/payments.js';
 export { PoliciesResource } from './resources/policies.js';
 export { ProjectResource } from './resources/project.js';
 export { ResourceGroupsResource } from './resources/resource-groups.js';
 export { ResourceBlocksResource, ResourcesResource } from './resources/resources.js';
 export { ScheduleExceptionsResource, SchedulesResource } from './resources/schedules.js';
 export { ServicesResource } from './resources/services.js';
+export { StripeResource } from './resources/stripe.js';
 export { WebhookDeliveriesResource, WebhooksResource } from './resources/webhooks.js';
 export type { components, operations, paths } from './generated/openapi.js';
 

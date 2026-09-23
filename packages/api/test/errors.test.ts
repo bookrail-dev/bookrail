@@ -197,6 +197,7 @@ describe('request logging', () => {
     const { createLogger } = await import('@bookrail/shared');
     const { NoAvailabilityCache } = await import('@bookrail/engine');
     const { createApp } = await import('../src/app.js');
+    const { DEFAULT_PAYMENT_TIMEOUT_MINUTES } = await import('../src/config.js');
     const { TEST_DB_NAME } = await import('./db-name.js');
 
     const lines: string[] = [];
@@ -213,6 +214,7 @@ describe('request logging', () => {
       mailer: undefined,
       siteUrl: SITE_URL,
       siteOrigin: SITE_ORIGIN,
+      paymentTimeoutMinutes: DEFAULT_PAYMENT_TIMEOUT_MINUTES,
     });
 
     try {

@@ -227,9 +227,14 @@ describe('background jobs', () => {
     expect(entryPoint.match(/createPool\(/g) ?? []).toHaveLength(1);
     expect(entryPoint).toMatch(/createPool\(\{ connectionString: config\.urls\.app/);
     expect(entryPoint).not.toMatch(/adminDb/);
-    // And `startWorker` has nowhere to put one: the type names the four things it takes.
+    // And `startWorker` has nowhere to put one: the type names the five things it takes. The
+    // fifth, `stripe`, is the platform's own credentials, which the `payment-actions` queue
+    // needs to make the calls a cancellation owes Stripe; it is a key of **ours**, never a
+    // database connection, and it comes from `worker.env` like the rest of the configuration.
     const worker = await readFile(new URL('../src/jobs/worker.ts', import.meta.url), 'utf8');
-    expect(worker).toContain("Pick<AppDeps, 'db' | 'cache' | 'logger' | 'webhookSecretKey'>");
+    expect(worker).toContain(
+      "Pick<AppDeps, 'db' | 'cache' | 'logger' | 'webhookSecretKey' | 'stripe'>",
+    );
 
     const { rows } = await deps.db.execute<{ role: string; bypass: boolean }>(sql`
       SELECT current_user AS role, r.rolbypassrls AS bypass

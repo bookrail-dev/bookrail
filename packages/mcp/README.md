@@ -1,7 +1,7 @@
 # `@bookrail/mcp`
 
 The Bookrail MCP server: booking infrastructure for coding agents, over the Model Context
-Protocol. **36 tools**, 4 resources and 3 guided prompts, on stdio.
+Protocol. **40 tools**, 4 resources and 3 guided prompts, on stdio.
 
 ```bash
 # Wire it into a client, from the CLI itself
@@ -50,8 +50,15 @@ Tools for the whole loop: `bookrail_project_info`, `bookrail_doctor`, `bookrail_
 the object CRUD (`bookrail_objects_list`, `bookrail_object_get|create|update|delete`),
 availability (`bookrail_availability`, `bookrail_availability_next`,
 `bookrail_availability_check`, `bookrail_explain_unavailable`), holds, the booking lifecycle,
-events, webhooks, and the documentation tools `bookrail_docs_search`, `bookrail_docs_get` and
-`bookrail_edge_cases`.
+events, webhooks, payments (`bookrail_stripe_status`, `bookrail_stripe_connect`,
+`bookrail_payment_get`, `bookrail_payment_list`), and the documentation tools
+`bookrail_docs_search`, `bookrail_docs_get` and `bookrail_edge_cases`.
+
+There is no `bookrail_stripe_disconnect`, on purpose: ending the link stops a business taking
+money, and the person who wants that has `bookrail stripe disconnect --yes` in a terminal. There
+is no tool that creates a payment or a refund either: a payment is taken by
+`bookrail_booking_create` with a `payment_mode`, and a refund by `bookrail_booking_cancel`,
+which follows the policy the customer agreed to.
 
 Resources: `bookrail://docs/{path}`, `bookrail://schema/{entity}`, `bookrail://config`,
 `bookrail://project`. Prompts: `add-bookings-to-app`, `model-my-vertical`,

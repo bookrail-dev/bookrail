@@ -329,6 +329,59 @@ export const customerSchema = z
 
 export type Customer = z.infer<typeof customerSchema>;
 
+// --- Payment -------------------------------------------------------------------------------
+
+/**
+ * A `payments` row, as `GET /v1/payments/{id}` and `GET /v1/payments` return it.
+ *
+ * `client_secret` and `provider_status` come from Stripe at request time, and only for a
+ * payment that is still `pending` and is not itself a refund: everything else here is ours.
+ * Both are `null` when Stripe did not answer, and the response is still a `200`, for the reason
+ * `charges_enabled` of `GET /v1/stripe` is: a provider having a slow minute must not turn a
+ * read of our own rows into a failure. The list never asks Stripe at all.
+ */
+export const paymentSchema = z
+  .object({
+    id: objectId('payment'),
+    object: z.literal('payment'),
+    booking_id: objectId('booking').nullable(),
+    type: z.enum(['deposit', 'full', 'balance', 'no_show_fee', 'refund']),
+    status: z.enum(['pending', 'succeeded', 'failed', 'refunded', 'cancelled']).openapi({
+      description:
+        '`pending` covers every Stripe state that is not final: `requires_payment_method`, `requires_action`, `processing`. Read `provider_status` for the detail.',
+    }),
+    amount: z.number().int(),
+    currency: z.string(),
+    amount_refunded: z.number().int().openapi({
+      description: 'How much of this payment has come back, cumulative.',
+    }),
+    provider: z.literal('stripe'),
+    provider_payment_id: z.string().nullable().openapi({
+      description: '`pi_...` for a payment, `re_...` for a refund. `null` until Stripe answered.',
+    }),
+    provider_account_id: z.string().openapi({ example: 'acct_1234567890' }),
+    parent_payment_id: objectId('payment').nullable().openapi({
+      description: 'For a refund: the payment it gives back.',
+    }),
+    failure_code: z.string().nullable(),
+    failure_message: z.string().nullable(),
+    client_secret: z.string().nullable().openapi({
+      description:
+        'Read from Stripe, only for a pending payment. `null` on a list, on a refund, and when Stripe did not answer.',
+    }),
+    provider_status: z.string().nullable().openapi({
+      description: "Stripe's own status for the intent, read at request time. `null` as above.",
+    }),
+    metadata: metadataSchema,
+    environment: environmentSchema,
+    created_at: instantOutSchema.nullable(),
+    updated_at: instantOutSchema.nullable(),
+  })
+  .strict()
+  .openapi('Payment');
+
+export type Payment = z.infer<typeof paymentSchema>;
+
 // --- Hold and Booking ----------------------------------------------------------------------
 
 export const bookingAllocationSchema = z
@@ -470,8 +523,12 @@ export const bookingSchema = z
     completed_at: instantOutSchema.nullable(),
     no_show_at: instantOutSchema.nullable(),
     rescheduled_at: instantOutSchema.nullable(),
-    next_transition: z.enum(['start', 'complete', 'no_show']).nullable(),
+    next_transition: z.enum(['start', 'complete', 'no_show', 'expire_payment']).nullable(),
     next_transition_at: instantOutSchema.nullable(),
+    payment_expires_at: instantOutSchema.nullable().openapi({
+      description:
+        'When a booking waiting for its payment is cancelled and its slot released. `null` on every booking that is not waiting for money.',
+    }),
     allocations: z.array(bookingAllocationSchema),
     tenant_id: tenantIdSchema,
     metadata: metadataSchema,
@@ -481,11 +538,75 @@ export const bookingSchema = z
     customer: customerSchema.nullable().optional().openapi({
       description: 'Present only with `expand[]=customer`.',
     }),
+    payments: z.array(paymentSchema).optional().openapi({
+      description:
+        'Present only with `expand[]=payments`: every payment and refund of this booking, oldest first. Never carries a `client_secret`: an expansion makes no call to Stripe.',
+    }),
   })
   .strict()
   .openapi('Booking');
 
 export type Booking = z.infer<typeof bookingSchema>;
+
+/**
+ * What a front end needs to complete a payment, returned **once** by `POST /v1/bookings`.
+ *
+ * `client_secret` is the one value in this API that is neither stored nor replayed. It is not
+ * in a column (migration 0024 deliberately has no `provider_client_secret`), not in a log line,
+ * and not in `idempotency_keys`: the creation nominates a copy of this object with
+ * `client_secret: null` for the idempotency middleware to remember, so a replay of the same
+ * `Idempotency-Key` answers with the same booking and a null secret. A caller that lost it
+ * reads it again from `GET /v1/payments/{id}`, which fetches it from Stripe.
+ */
+export const paymentIntentSchema = z
+  .object({
+    id: z.string().openapi({ description: 'The Stripe PaymentIntent.', example: 'pi_3Abc' }),
+    client_secret: z.string().nullable().openapi({
+      description:
+        'Pass it to Stripe.js. Returned once, here; `null` on an idempotent replay, because it is never stored.',
+    }),
+    amount: z.number().int(),
+    currency: z.string().openapi({ description: 'ISO 4217, upper case, as the booking froze it.' }),
+    status: z.string().openapi({ description: "Stripe's own status for the intent." }),
+    stripe_account: z.string().openapi({
+      description: 'The connected account the intent lives on. Pass it as `stripeAccount`.',
+      example: 'acct_1234567890',
+    }),
+    publishable_key: z.string().openapi({
+      description: "The **platform's** publishable key. Initialise Stripe.js with it.",
+      example: 'pk_test_1234567890',
+    }),
+    payment_id: objectId('payment').openapi({
+      description: 'The Bookrail payment this intent belongs to.',
+    }),
+  })
+  .strict()
+  .openapi('PaymentIntent');
+
+export type PaymentIntent = z.infer<typeof paymentIntentSchema>;
+
+/**
+ * The answer of `POST /v1/bookings`: a booking, plus the intent when one was created.
+ *
+ * A schema of its own rather than a nullable field on `Booking`, and the difference matters to
+ * whoever reads the specification: a `GET /v1/bookings/{id}` can never carry a `client_secret`,
+ * and a `Booking` that declared the field would be promising one everywhere and delivering it
+ * in one place. It also keeps the event payloads alone: `booking.created` carries a `booking`,
+ * and a field that existed only in an HTTP response has no business in a snapshot.
+ *
+ * `payment_intent` is always present and `null` for `payment.mode: "none"`, which is every
+ * booking that takes no money: absent and null are two answers, and one of them is enough.
+ */
+export const bookingCreatedSchema = bookingSchema
+  .extend({
+    payment_intent: paymentIntentSchema.nullable().openapi({
+      description: 'Present and `null` when the booking takes no payment.',
+    }),
+  })
+  .strict()
+  .openapi('BookingCreated');
+
+export type BookingCreated = z.infer<typeof bookingCreatedSchema>;
 
 // --- Availability --------------------------------------------------------------------------
 
@@ -945,6 +1066,107 @@ export const errorSchema = z
   .openapi('Error');
 
 export type ErrorResponse = z.infer<typeof errorSchema>;
+
+// --- Stripe -------------------------------------------------------------------------------
+
+/**
+ * `GET /v1/stripe` and `DELETE /v1/stripe`: which Stripe account this project charges on.
+ *
+ * `status` has three values and they are three different situations. `not_connected` means no
+ * authorisation was ever completed for this project and environment; `disconnected` means one
+ * was and is not in force any more, either because the customer ran `bookrail stripe
+ * disconnect` or because Stripe told us the account was unlinked; `connected` is the only one
+ * where a charge can be made.
+ *
+ * `publishable_key` is the **platform's**, not the connected account's, because that is how
+ * Stripe.js works for a direct charge: the front end initialises with the platform's
+ * publishable key and `stripeAccount: account_id`. It is returned whatever the status is, as
+ * long as the deployment has credentials for the environment, because a front end can be
+ * written before the account is linked.
+ *
+ * `charges_enabled` is read from Stripe at request time and only while `connected`. It is
+ * `null` when the status is anything else, and also when Stripe did not answer in time: the
+ * field is informative, the rest of the object comes from our own database, and a payment
+ * provider having a slow minute is not a reason for this endpoint to fail.
+ */
+export const stripeConnectionSchema = z
+  .object({
+    object: z.literal('stripe_connection'),
+    status: z.enum(['connected', 'not_connected', 'disconnected']),
+    environment: environmentSchema,
+    id: objectId('payment_provider_connection').nullable().openapi({
+      description: 'The connection object, or `null` when this project never connected one.',
+    }),
+    account_id: z
+      .string()
+      .nullable()
+      .openapi({ description: 'The Stripe account, `acct_...`.', example: 'acct_1234567890' }),
+    publishable_key: z.string().nullable().openapi({
+      description:
+        "The **platform's** publishable key for this environment. Initialise Stripe.js with it and `stripeAccount: account_id`.",
+      example: 'pk_test_1234567890',
+    }),
+    connected_at: instantOutSchema.nullable(),
+    disconnected_at: instantOutSchema.nullable(),
+    disconnect_reason: z
+      .enum(['user', 'deauthorized'])
+      .nullable()
+      .openapi({ description: 'Who ended the link: this API, or Stripe.' }),
+    charges_enabled: z.boolean().nullable().openapi({
+      description:
+        'What Stripe says about the connected account right now. `null` while not connected, and `null` when Stripe did not answer in time.',
+    }),
+    webhook_configured: z.boolean().openapi({
+      description:
+        'Whether this deployment holds the signing secret of the incoming Stripe webhook endpoint for this environment. `false` means payments can be started and no payment will ever be confirmed, because nothing would be listening.',
+    }),
+  })
+  .strict()
+  .openapi('StripeConnection');
+
+export type StripeConnection = z.infer<typeof stripeConnectionSchema>;
+
+/**
+ * `POST /v1/stripe/connect`: the authorisation link to open in a browser.
+ *
+ * Nothing is connected when this is returned, and nothing will be until a person authorises on
+ * Stripe's own pages and the browser comes back to the callback. The link carries a single use
+ * `state` and stops working at `expires_at`, fifteen minutes later.
+ */
+export const stripeConnectLinkSchema = z
+  .object({
+    object: z.literal('stripe_connect_link'),
+    url: z.string().openapi({
+      description: 'Open it in a browser. It authorises one account, once.',
+      example: 'https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_...',
+    }),
+    expires_at: instantOutSchema,
+    environment: environmentSchema,
+  })
+  .strict()
+  .openapi('StripeConnectLink');
+
+export type StripeConnectLink = z.infer<typeof stripeConnectLinkSchema>;
+
+/**
+ * What the incoming Stripe webhook answers.
+ *
+ * Two fields and nothing else, because the sender is another company's retry loop and the only
+ * thing it acts on is the status code. `duplicate` is there for the person reading a Stripe
+ * dashboard: a redelivery that was recognised as one says so, instead of looking identical to
+ * a delivery that did work.
+ */
+export const stripeWebhookReceiptSchema = z
+  .object({
+    received: z.literal(true),
+    duplicate: z.literal(true).optional().openapi({
+      description: 'Present only when this event had already been processed. Nothing was done.',
+    }),
+  })
+  .strict()
+  .openapi('StripeWebhookReceipt');
+
+export type StripeWebhookReceipt = z.infer<typeof stripeWebhookReceiptSchema>;
 
 // --- The specification itself ----------------------------------------------------------------
 

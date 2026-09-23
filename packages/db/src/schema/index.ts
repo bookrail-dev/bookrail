@@ -4,6 +4,8 @@ export * from './catalog.js';
 export * from './bookings.js';
 export * from './idempotency.js';
 export * from './outbox.js';
+export * from './payment-connections.js';
+export * from './payment-events.js';
 export * from './signups.js';
 
 import * as controlPlane from './control-plane.js';
@@ -11,6 +13,8 @@ import * as catalog from './catalog.js';
 import * as bookings from './bookings.js';
 import * as idempotency from './idempotency.js';
 import * as outbox from './outbox.js';
+import * as paymentConnections from './payment-connections.js';
+import * as paymentEvents from './payment-events.js';
 import * as signups from './signups.js';
 
 /** Every table, in the shape Drizzle wants for `drizzle(pool, { schema })`. */
@@ -20,6 +24,8 @@ export const schema = {
   ...bookings,
   ...idempotency,
   ...outbox,
+  ...paymentConnections,
+  ...paymentEvents,
   ...signups,
 };
 
@@ -57,6 +63,12 @@ export const PROJECT_TABLES = [
   'webhook_deliveries',
   'idempotency_keys',
   'outbox_cursor',
+  'payment_provider_connections',
+  'stripe_oauth_states',
+  // Its two scope columns are nullable: an event nobody can attribute to a project is still
+  // recorded, and the isolation policy is false for those rows, so nothing reaches them
+  // outside `stripe_event_record_unmatched`. See migration 0024.
+  'payment_provider_events',
 ] as const;
 
 export const CONTROL_PLANE_TABLES = ['accounts', 'projects', 'api_keys'] as const;

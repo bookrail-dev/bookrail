@@ -13,8 +13,8 @@ describe('the surface of the client', () => {
    * a key and those three are how a key comes into being, so `test/operations.ts` filters them
    * out. The number below is therefore still what it was before they existed.
    */
-  it('covers all 67 operations the specification offers this package', () => {
-    expect(OPERATIONS).toHaveLength(67);
+  it('covers all 72 operations the specification offers this package', () => {
+    expect(OPERATIONS).toHaveLength(72);
     const missing: string[] = [];
     for (const operation of OPERATIONS) {
       const path = sdkPath(operation.operationId);
