@@ -63,15 +63,21 @@ What exists today:
   free plan (1,000 confirmed live bookings a month, then new ones are refused until the next
   month or a paying plan). The dashboard at [bookrail.dev/dashboard](https://bookrail.dev/dashboard/)
   shows the plan and this month's usage, and creates and revokes keys.
+- **Paid plans**: Pro and Scale are bought from the dashboard through Stripe, for businesses,
+  VAT excluded ([pricing](https://bookrail.dev/pricing)).
+- **Payments on your own Stripe account**: a booking can take a deposit or the full price
+  through Stripe Connect (`bookrail stripe connect`); Bookrail stores the account id and never
+  a key of yours.
 
-Every API key has a **rate limit**: 20 requests a second with bursts of 40 on a `sk_test_` key,
-100 a second with bursts of 500 on a `sk_live_` one, with `RateLimit-Limit`, `RateLimit-Remaining`
-and `RateLimit-Reset` on every response and a `429 rate_limited` with `Retry-After` when a key runs
-out. The SDK, the CLI and the MCP server already wait for it.
+Every API key has a **rate limit**: 20 requests a second with bursts of 40 on a `sk_test_` key;
+a `sk_live_` key follows the plan of its account (20 and 40 on Free, 100 and 500 on Pro, 500 and
+2,500 on Scale). Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and
+`RateLimit-Reset`, and a key that runs out gets a `429 rate_limited` with `Retry-After`. The SDK,
+the CLI and the MCP server already wait for it.
 
-What does not exist, and is documented as not existing: payments (`payment.mode` other than
-`none` is a `400`), scope enforcement on API keys, per project quotas, the dashboard, browser SDKs,
-and UI components.
+What does not exist, and is documented as not existing: scope enforcement on API keys,
+publishable keys (`pk_`), a hosted MCP server (the MCP server runs locally with `npx`), per project
+quotas, browser SDKs, and UI components.
 
 The version numbers say the same thing: the packages are `0.x`, the surface can still change,
 and every change that breaks something is in [CHANGELOG.md](CHANGELOG.md).
@@ -90,9 +96,9 @@ and every change that breaks something is in [CHANGELOG.md](CHANGELOG.md).
   into the booking when it is made.
 - **Idempotent by construction.** Every `POST` accepts an `Idempotency-Key`, and the key is
   taken with a unique constraint rather than checked with a read.
-- **Made to be driven by an agent.** A CLI with `--json` on every command, an MCP server with
-  36 tools, an OpenAPI document generated from the schemas that validate each request, and
-  every documentation page also served as plain markdown.
+- **Made to be driven by an agent.** A CLI with `--json` on every command, an MCP server whose
+  tools carry real input schemas, an OpenAPI document generated from the schemas that validate
+  each request, and every documentation page also served as plain markdown.
 
 The list of what goes wrong in booking systems, what happens here for each case, and the test
 that proves it, is [The edge cases of booking](https://bookrail.dev/docs/edge-cases/).
