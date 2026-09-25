@@ -1,0 +1,77 @@
+---
+/**
+ * One of the two legal texts, as the build read it from its source: the title, the version, the
+ * date it is in force from, and the text.
+ *
+ * The build refuses to run on a text that is not approved (`scripts/generate.mjs`), and this
+ * refuses again when the page renders, reading the source again, so that a build started some
+ * other way (an `astro build` on its own, over pages an earlier run generated) cannot publish a
+ * draft either. Only the development server shows a draft, so that it can be read before it is
+ * approved. The headings of the text keep the anchors Astro gives them, which is how the
+ * sign up links to the clauses approved one by one (`/terms#17-specific-approval`).
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import type { MarkdownInstance } from 'astro';
+import Base from '../layouts/Base.astro';
+
+interface Props {
+  /** The generated page: its front matter has `title`, `version`, `status` and `effective`. */
+  text: MarkdownInstance<Record<string, unknown>>;
+  description: string;
+  /** The other text, linked under this one: the terms name the DPA and the DPA the terms. */
+  other: { href: string; label: string };
+}
+
+const { text, description, other } = Astro.props;
+const field = (name: string): string => String(text.frontmatter[name] ?? '');
+const [title, version, status, effective, source, sha256] = [
+  'title',
+  'version',
+  'status',
+  'effective',
+  'source',
+  'sha256',
+].map(field);
+
+// Not the generated file alone: its source, read again now. It must be in the directory of this
+// build (`BOOKRAIL_LEGAL_DIR`, or `legale/` of the repository), unchanged since the page was
+// generated, and approved. A page an earlier run left behind is refused. By the mode of the
+// command, not by `DEV`: Vite derives `DEV` from `NODE_ENV`, so a build run with `NODE_ENV=test`
+// (as a test runner sets it) would count as development and skip the check.
+if (import.meta.env.MODE !== 'development') {
+  const expectedDir = resolve(
+    process.env.BOOKRAIL_LEGAL_DIR ?? join(process.cwd(), '..', '..', 'legale'),
+  );
+  if (source === '' || dirname(resolve(source)) !== expectedDir) {
+    throw new Error(`${title}: the generated page does not come from ${expectedDir}.`);
+  }
+  let raw: string;
+  try {
+    raw = readFileSync(source, 'utf8');
+  } catch {
+    throw new Error(`${title}: its source ${source} is gone.`);
+  }
+  if (createHash('sha256').update(raw, 'utf8').digest('hex') !== sha256) {
+    throw new Error(`${title}: its source changed since the page was generated.`);
+  }
+  const sourceStatus = /^status:\s*(\S+)\s*$/m.exec(raw)?.[1];
+  if (status !== 'approved' || sourceStatus !== 'approved') {
+    throw new Error(`${title} is not approved (status: ${status}) and is never published.`);
+  }
+}
+const { Content } = text;
+---
+
+<Base title={`${title}, Bookrail`} description={description}>
+  <div class="wrap prose legal-text">
+    <h1>{title}</h1>
+    <p class="lede-note" data-legal-version={version}>
+      Version {version}, in force from {effective}. See also the <a href={other.href}
+        >{other.label}</a
+      >.
+    </p>
+    <Content />
+  </div>
+</Base>

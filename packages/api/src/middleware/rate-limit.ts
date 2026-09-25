@@ -52,6 +52,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { ThrottledWarner } from '@bookrail/engine';
 import { errors, REQUEST_ID_HEADER, type BookrailError } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
+import { plansOf } from '../plan.js';
 import type { RateLimitDecision } from '../rate-limit.js';
 
 export const RATE_LIMIT_LIMIT_HEADER = 'RateLimit-Limit';
@@ -69,7 +70,7 @@ export const WARN_WINDOW_MS = 60_000;
 export function rateLimitedError(rate: number, burst: number): BookrailError {
   return errors.rateLimited(
     `This key may make ${String(rate)} requests per second, with bursts of ${String(burst)}.`,
-    'Wait for Retry-After, or spread the calls. Live keys have higher limits.',
+    "Wait for Retry-After, or spread the calls. A live key has the limit of its account's plan: https://bookrail.dev/docs/errors/#rate-limits",
   );
 }
 
@@ -88,7 +89,12 @@ export function rateLimit(deps: AppDeps): MiddlewareHandler<AppEnv> {
     const auth = c.get('auth');
     if (auth === undefined) return next();
 
-    const policy = settings.limits[auth.environment];
+    // A test key has the test ceiling. A live key has the ceiling of its account's plan, unless
+    // the deployment has set `RATE_LIMIT_LIVE_*`, which then applies to every live key.
+    const policy =
+      auth.environment === 'test'
+        ? settings.limits.test
+        : (settings.limits.live ?? plansOf(deps)[auth.plan].rateLimit);
     let decision: RateLimitDecision;
     try {
       decision = await settings.limiter.check(auth.apiKeyId, policy.rate, policy.burst, Date.now());

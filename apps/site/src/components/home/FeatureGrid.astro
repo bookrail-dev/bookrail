@@ -1,0 +1,242 @@
+---
+/**
+ * «Product»: what Bookrail does today, in eight cards.
+ *
+ * One wide card (availability) with three smaller ones beside it, then a row of four. Every card
+ * is an icon, a title, two sentences (the first words in full ink, the rest in grey), and a small
+ * monochrome picture of the real thing, generated at build time by the code that owns it: the
+ * engine's `explain`, the API's status codes, the engine's transition matrix, the CLI's own help,
+ * the delivery worker's retry ladder, the CLI's `diff`, the MCP server's tool list and the CLI
+ * package's licence. The whole card links to the page of the documentation behind its claims.
+ */
+import Icon from './Icon.astro';
+import { EXPLAIN_QUESTION, GRID_DAY, GRID_RESOURCES } from '../../data/grid-day.mjs';
+import {
+  ATTEMPTS,
+  BOOKING_CODES,
+  DIFF,
+  FEATURED_EXPLAIN,
+  LADDER,
+  MATRIX,
+  MCP_TOOLS,
+  MCP_TOOL_COUNT,
+  OPEN_SOURCE,
+  STRIPE,
+} from '../../data/home';
+
+const featuredAt = FEATURED_EXPLAIN[0]?.local ?? '';
+
+/*
+ * The picture above the table: the three courts around the refused instant, drawn from the same
+ * day the engine was asked about, with the refused match as an outline across the three lanes.
+ */
+const openHour = Number(GRID_DAY.open.slice(0, 2));
+const [askHour = 0, askMinute = 0] = featuredAt.split(':').map(Number);
+const askAt = askHour + askMinute / 60 - openHour;
+const windowFrom = Math.max(0, Math.floor(askAt) - 1);
+const windowTo = Math.min(GRID_DAY.hours, windowFrom + 4);
+const span = windowTo - windowFrom;
+const pct = (hours: number): number => ((hours - windowFrom) / span) * 100;
+const lanes = GRID_RESOURCES.filter((resource) => resource.court).map((resource) => ({
+  name: resource.name,
+  slots: resource.slots
+    .filter((slot) => slot.from < windowTo && slot.from + slot.hours > windowFrom)
+    .map((slot) => {
+      const left = pct(Math.max(slot.from, windowFrom));
+      return { kind: slot.kind, left, width: pct(Math.min(slot.from + slot.hours, windowTo)) - left };
+    }),
+}));
+const ticks = Array.from({ length: span }, (_, index) =>
+  String(openHour + windowFrom + index).padStart(2, '0'),
+);
+const ask = { left: pct(askAt), width: (EXPLAIN_QUESTION.durationMinutes / 60 / span) * 100 };
+const shownTools = ['bookrail_availability', 'bookrail_booking_create', 'bookrail_config_push'].filter(
+  (name) => MCP_TOOLS.includes(name),
+);
+---
+
+<div class="features">
+  <article class="feature wide" data-feature="availability">
+    <Icon name="availability" />
+    <h3><a href="/docs/concepts/">Availability</a></h3>
+    <p>
+      <b>Slots or continuous ranges, computed across schedules, exceptions, blocks and bookings.</b>
+      <code>explain</code> names the booking, hold or block behind every instant it refuses.
+    </p>
+    <ul class="ticks">
+      <li>Time zones and DST handled</li>
+      <li>Every rejection explained</li>
+      <li>Resources, groups and capacity</li>
+    </ul>
+    <div class="feature-art">
+      <div class="mini-grid" aria-hidden="true">
+        <div class="mini-row mini-head">
+          <span></span>
+          <div class="mini-lane">
+            {ticks.map((tick, index) => <b style={`left:${(index / span) * 100}%`}>{tick}</b>)}
+          </div>
+        </div>
+        {
+          lanes.map((lane) => (
+            <div class="mini-row">
+              <span>{lane.name}</span>
+              <div class="mini-lane">
+                {lane.slots.map((slot) => (
+                  <i class={slot.kind} style={`left:${slot.left}%;width:${slot.width}%`} />
+                ))}
+              </div>
+            </div>
+          ))
+        }
+        <div class="mini-row mini-ask-row">
+          <span></span>
+          <div class="mini-lane">
+            <em style={`left:${ask.left}%;width:${ask.width}%`}>{featuredAt}</em>
+          </div>
+        </div>
+      </div>
+      <table class="mini-table" data-explain-featured>
+        <caption>
+          <code>explain</code> at {featuredAt}, a match on any of three courts
+        </caption>
+        <thead>
+          <tr><th scope="col">instant</th><th scope="col">code</th><th scope="col">resource</th><th scope="col">held by</th></tr>
+        </thead>
+        <tbody>
+          {
+            FEATURED_EXPLAIN.map((row) => (
+              <tr>
+                <td>{row.local}</td>
+                <td class:list={[{ accent: row.code === 'occupied' }]}>{row.code}</td>
+                <td>{row.resource}</td>
+                <td>{`${row.ref.slice(0, row.ref.indexOf('_') + 5)}…`}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="feature" data-feature="bookings">
+    <Icon name="bookings" />
+    <h3><a href="/docs/edge-cases/">Bookings without double booking</a></h3>
+    <p>
+      <b>Hold a slot for a few minutes, then book it, or book it directly.</b> Capacity is enforced by
+      Postgres, so two requests for the last unit get one {BOOKING_CODES.created} and one {
+        BOOKING_CODES.conflict
+      }.
+    </p>
+    <div class="feature-art mono-art" data-booking-codes>
+      <span class="dim">two POST /v1/bookings, one slot</span>
+      <span><b>{BOOKING_CODES.created}</b> confirmed</span>
+      <span><b class="accent">{BOOKING_CODES.conflict}</b> slot_unavailable</span>
+    </div>
+  </article>
+
+  <article class="feature" data-feature="policies">
+    <Icon name="policies" />
+    <h3><a href="/docs/guides/policies/">Policies and lifecycle</a></h3>
+    <p>
+      <b>Confirm, check in, complete, cancel, no-show, reschedule:</b> one transition matrix, held by
+      the engine as data. A paid booking that is cancelled is refunded by the policy frozen into it at
+      the sale.
+    </p>
+    <div class="feature-art">
+      <table class="state-matrix" data-matrix>
+        <caption class="visually-hidden">
+          Which action is legal from which status. An empty cell is 409 invalid_transition.
+        </caption>
+        <thead>
+          <tr>
+            <td></td>
+            {MATRIX.actions.map((action) => <th scope="col">{action}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {
+            MATRIX.rows.map((row) => (
+              <tr>
+                <th scope="row">{row.status}</th>
+                {MATRIX.actions.map((action) =>
+                  row.allowed.includes(action) ? (
+                    <td class="on">
+                      <span class="visually-hidden">allowed</span>
+                    </td>
+                  ) : (
+                    <td />
+                  ),
+                )}
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="feature span-2" data-feature="payments">
+    <Icon name="payments" />
+    <h3><a href="/docs/guides/stripe/">Payments on your own Stripe</a></h3>
+    <p>
+      <b>A deposit or the full price, charged on your own Stripe account through Stripe Connect.</b>
+      The money goes to your account, and Bookrail never sees or stores a Stripe key of yours.
+    </p>
+    <div class="feature-art mono-art" data-stripe>
+      <span><i>$</i> {STRIPE.command}</span>
+      <span class="dim"># {STRIPE.summary}</span>
+    </div>
+  </article>
+
+  <article class="feature" data-feature="webhooks">
+    <Icon name="webhooks" />
+    <h3><a href="/docs/guides/webhooks/">Webhooks and events</a></h3>
+    <p>
+      <b>Every change is an event in an ordered log.</b> Deliveries are signed with HMAC and retried
+      on a fixed ladder, {ATTEMPTS} attempts in all.
+    </p>
+    <ol class="feature-art ladder" data-ladder aria-label="Retry delays after the first attempt">
+      {LADDER.map((step) => <li>{step}</li>)}
+    </ol>
+  </article>
+
+  <article class="feature" data-feature="cli">
+    <Icon name="cli" />
+    <h3><a href="/docs/configuration/">CLI and config as code</a></h3>
+    <p>
+      <b>What is bookable lives in <code>bookrail.config.ts</code></b>, versioned with your app.
+      <code>push</code>, <code>pull</code> and <code>diff</code> keep the project and the file in step.
+    </p>
+    <div class="feature-art mono-art" data-diff>
+      <span><i>$</i> {DIFF.command}</span>
+      <span class="dim">{DIFF.summary}</span>
+      {DIFF.rows.map((row) => <span>{row.replace(/\s+/g, ' ')}</span>)}
+    </div>
+  </article>
+
+  <article class="feature" data-feature="mcp">
+    <Icon name="mcp" />
+    <h3><a href="/docs/mcp/">MCP server</a></h3>
+    <p>
+      <b data-mcp-count>{MCP_TOOL_COUNT} tools for a coding agent</b>, over the Model Context Protocol.
+      Test by default, and every irreversible tool answers with a preview until it is confirmed.
+    </p>
+    <div class="feature-art mono-art" data-mcp-tools>
+      {shownTools.map((name) => <span>{name}</span>)}
+      <span class="dim">and {MCP_TOOL_COUNT - shownTools.length} more</span>
+    </div>
+  </article>
+
+  <article class="feature" data-feature="open-source">
+    <Icon name="open-source" />
+    <h3><a href="/docs/open-source/">Open source</a></h3>
+    <p>
+      <b>The engine, the API, the SDK, the CLI and the MCP server</b>, in one public repository. Read
+      how concurrency and time zones are handled before you trust them.
+    </p>
+    <div class="feature-art mono-art" data-open-source>
+      <span>{OPEN_SOURCE.license}</span>
+      <span class="dim">{OPEN_SOURCE.repository}</span>
+    </div>
+  </article>
+</div>

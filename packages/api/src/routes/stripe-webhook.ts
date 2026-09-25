@@ -55,12 +55,15 @@ import {
   applyTransition,
   insertEvent,
   nextTransitionFor,
+  recordPlanUsage,
   requiresConfirmation,
   type AutomaticTransition,
+  type PlanUsageWarning,
 } from '@bookrail/engine';
 import { BookrailError, encodeId, uuidv7, type Environment } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
 import { invalidateTouchedDays } from '../cache.js';
+import { sendPlanWarnings } from '../plan.js';
 import { serializePayment } from '../serialize.js';
 import { stripeWebhookSecret } from '../stripe/platform.js';
 import { STRIPE_SIGNATURE_HEADER, verifyStripeSignature } from '../stripe/signature.js';
@@ -719,9 +722,19 @@ async function succeeded(
                updated_at = ${new Date(nowMs).toISOString()}::timestamptz
          WHERE id = ${payment.id}
       `);
+      // The paid volume of the plan, in the transaction that records the money. Nothing in the
+      // test environment.
+      await recordPlanUsage(tx, {
+        projectId: scope.projectId,
+        environment: scope.environment,
+        now: nowMs,
+        paymentVolume: received,
+        currency: payment.currency,
+      });
 
       let bookingStatus: string | null = null;
       let touchedDays: { resourceId: string; day: string }[] = [];
+      let planWarnings: readonly PlanUsageWarning[] = [];
       if (payment.bookingId !== null) {
         const { rows } = await tx.execute<Record<string, unknown>>(sql`
           UPDATE bookings
@@ -747,9 +760,11 @@ async function succeeded(
               action: 'confirm',
               actor: { type: 'system', id: null },
               now: nowMs,
+              ...(deps.plans === undefined ? {} : { plans: deps.plans }),
             });
             bookingStatus = applied.status;
             touchedDays = [...applied.touchedDays];
+            planWarnings = applied.planWarnings;
           } else if (bookingStatus === 'cancelled') {
             // The slot is gone, so the money goes back in full. `amount - amount_refunded`,
             // not `amount`, so a refund that somebody had already started is not duplicated.
@@ -785,11 +800,12 @@ async function succeeded(
         actor: { type: 'system', id: null },
         occurredAt: nowMs,
       });
-      return { touchedDays };
+      return { touchedDays, planWarnings };
     },
   );
   if (result === null) return 'ignored';
   await invalidateTouchedDays(deps, result.touchedDays);
+  sendPlanWarnings(deps, result.planWarnings);
   return 'applied';
 }
 
@@ -988,6 +1004,15 @@ async function chargeRefunded(
            WHERE id = ${parent.bookingId}
         `);
       }
+      // The money that went back comes off the month's paid volume: the month of the refund,
+      // which is the month this event is applied in. Nothing in the test environment.
+      await recordPlanUsage(tx, {
+        projectId: scope.projectId,
+        environment: scope.environment,
+        now: nowMs,
+        paymentVolume: -delta,
+        currency: parent.currency,
+      });
 
       for (const id of settled) {
         const object = await paymentEventObject(tx, id, {});

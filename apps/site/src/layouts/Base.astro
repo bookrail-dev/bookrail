@@ -23,8 +23,13 @@ interface Props {
    * palette. `site.css` carries the rest of what that component needs.
    */
   blog?: boolean;
+  /**
+   * Whether the header brings its own script. The homepage says no and imports the same module
+   * into its own script, so that it ships one JavaScript file rather than two.
+   */
+  navScript?: boolean;
 }
-const { title, description = DESCRIPTION, blog = false } = Astro.props;
+const { title, description = DESCRIPTION, blog = false, navScript = true } = Astro.props;
 const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
 // A social card has to be an absolute URL: no platform resolves a relative one.
 const social = Astro.site ? new URL('/og.png', Astro.site).href : '/og.png';
@@ -75,7 +80,7 @@ const social = Astro.site ? new URL('/og.png', Astro.site).href : '/og.png';
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <SiteNav />
+    <SiteNav script={navScript} />
     <main id="main">
       <slot />
     </main>

@@ -20,9 +20,18 @@ The rules this CLI is built to, so that an agent can drive it without guessing.
 
 ## Recommended order of operations
 
+`--accept-terms` accepts the Terms of Service (https://bookrail.dev/terms) and the Data
+Processing Agreement (https://bookrail.dev/dpa) on behalf of the person's business;
+`--approve-clauses` specifically approves the clauses of their Section 17 (Articles 1341 and
+1342 of the Italian Civil Code). Two acts, two flags: pass each only when the person has said so
+for that one. Without them, and without a terminal to ask on, `signup` fails with
+`terms_not_accepted`.
+
 ```bash
-bookrail signup --email you@example.com --json   # only if there is no key yet: a person has
-                                                 # to open the link that arrives by email
+bookrail signup --email you@example.com --accept-terms --approve-clauses --json
+                                             # only if there is no key yet, and only once the
+                                             # person has read and accepted the terms (below);
+                                             # they open the link that arrives by email
 bookrail doctor --json                       # what is configured, what is missing
 bookrail init --template <vertical> --json   # write bookrail.config.ts
 bookrail push --dry-run --json               # read `data.plan` before applying

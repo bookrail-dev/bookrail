@@ -45,6 +45,13 @@ export const DOC_BASE_URL = 'https://bookrail.dev/docs/errors';
  * Stripe can fail, a refusal we did not expect and no answer at all, are `502` (this service is
  * fine, the one behind it is not).
  *
+ * The dashboard adds two more with the sign up's reasons: a link that has run out is `410`, and
+ * a deployment with no mailer, which cannot send one, is `503`.
+ *
+ * Billing adds three with the Stripe connection's reasons: a deployment where Billing is switched
+ * off is `503`, and a refusal or a silence of Stripe while opening a checkout or the portal is
+ * `502`.
+ *
  * The family still decides everything else: the `type` in the body, the exit code a client
  * maps it to, and the way it reads in the reference. Only the status is overridden, by name,
  * in one table, so that the server and the specification cannot disagree about it.
@@ -58,7 +65,12 @@ export const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   stripe_not_configured: 503,
   stripe_provider_error: 502,
   stripe_unreachable: 502,
+  dashboard_login_expired: 410,
+  dashboard_disabled: 503,
   payload_too_large: 413,
+  billing_not_configured: 503,
+  billing_provider_error: 502,
+  billing_unreachable: 502,
 };
 
 export interface ErrorBody {

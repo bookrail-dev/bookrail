@@ -25,7 +25,7 @@ export const EVENT_TYPE_WILDCARD = '*';
 /**
  * What the engine and the API actually write into `events`.
  *
- * The `booking.*` and `hold.*` types are written by the engine; the two `stripe.*` ones are
+ * The `booking.*`, `hold.*` and `plan.*` types are written by the engine; the two `stripe.*` ones are
  * written by `/v1/stripe`, which is the first part of the API that records something of its
  * own in a project's log; the three `payment.*` ones are written by the Stripe webhook
  * receiver, which is the first part that records something a **provider** did.
@@ -51,6 +51,14 @@ export const EMITTED_EVENT_TYPES = [
   'payment.succeeded',
   'payment.failed',
   'payment.refunded',
+  // Written by the engine, in the live environment only, when an account reaches 80 % or 100 %
+  // of the bookings its plan includes in a month: once per account, month and threshold, in the
+  // log of the project whose booking crossed it.
+  'plan.usage_warning',
+  // Written by the database, in the same transaction that changes the plan of an account, in the
+  // live log of every project of that account: by a signed Stripe Billing event, or by an
+  // operator's `bookrail-plan`.
+  'plan.changed',
 ] as const;
 
 /** Every documented type, emitted today or not. A superset of {@link EMITTED_EVENT_TYPES}. */

@@ -19,7 +19,9 @@ GET /v1/project
 
 Answers the project the calling key belongs to (`id`, `name`, `environment`, `api_version`,
 `default_timezone`, `default_currency`) plus `api_key` with the key's own `id`, `kind`,
-`scopes` and `tenant_id`. Singular and with no id in the path: the key **is** the selector, so
+`scopes` and `tenant_id`, and the `plan` of the account with its `usage` this month (confirmed
+live bookings and paid volume, and what the plan includes: always the live numbers, whichever
+key asks). Singular and with no id in the path: the key **is** the selector, so
 `GET /v1/projects` and `GET /v1/project/{id}` are `404 unknown_endpoint`. No secret material is
 returned. It is what `bookrail whoami` and `bookrail doctor` call.
 

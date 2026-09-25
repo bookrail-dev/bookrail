@@ -4,7 +4,38 @@ import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const siteRoot = dirname(fileURLToPath(import.meta.url)).replace(/\/test$/, '');
-export const distRoot = join(siteRoot, 'dist');
+/**
+ * The build the suite asserts on: `dist-test`, never `dist`.
+ *
+ * `dist` is the directory that is published (`rsync` of `apps/site/dist/`), and the suite builds
+ * with a copy of the legal texts marked approved, so a suite that built `dist` would leave there
+ * a site with the drafts of the terms, ready to be uploaded by the next person who publishes
+ * without building first. The suite's build goes somewhere nobody publishes from.
+ */
+export const distRoot = join(siteRoot, 'dist-test');
+
+/** The directory that is published. The suite reads it only to prove it never writes it. */
+export const publishedDistRoot = join(siteRoot, 'dist');
+
+/**
+ * What `dist` holds, as one string: every file with its size and modification time, or `absent`.
+ * The same before and after the suite means the suite did not write it.
+ */
+export async function distFingerprint(directory = publishedDistRoot): Promise<string> {
+  let files: string[];
+  try {
+    files = await walk(directory);
+  } catch {
+    return 'absent';
+  }
+  const lines = await Promise.all(
+    files.sort().map(async (file) => {
+      const info = await stat(join(directory, file));
+      return `${file} ${String(info.size)} ${String(info.mtimeMs)}`;
+    }),
+  );
+  return lines.join('\n');
+}
 export const repoRoot = join(siteRoot, '..', '..');
 
 /** Every file under `dist`, as paths relative to it. */

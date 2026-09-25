@@ -94,7 +94,8 @@ html.lenis body {
   border-bottom: 1px solid transparent;
   transition: border-color var(--dur);
 }
-.nav.scrolled {
+.nav.scrolled,
+.nav.menu-open {
   border-color: var(--line);
 }
 .nav .wrap {
@@ -109,24 +110,52 @@ html.lenis body {
   gap: 10px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  flex: none;
 }
 .logo svg {
   display: block;
 }
+.nav-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
 .nav-links {
   display: flex;
   gap: 22px;
+  margin: 0 auto;
   color: var(--ink-2);
   font-size: 14px;
 }
-.nav-links a:hover {
+.nav-links a:hover,
+.nav-github:hover {
   color: var(--ink);
 }
+.nav-aside {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.nav-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.nav-github .gh-mark {
+  display: block;
+  flex: none;
+}
 .nav-right {
-  margin-left: auto;
   display: flex;
   gap: 10px;
   align-items: center;
+  flex: none;
+}
+.menu-button[hidden] {
+  display: none;
 }
 
 .btn {
@@ -136,11 +165,13 @@ html.lenis body {
   height: 40px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-control);
+  font: inherit;
   font-size: 14px;
   font-weight: 500;
   border: 1px solid var(--line-2);
   background: var(--card);
   color: var(--ink);
+  cursor: pointer;
   transition:
     background var(--dur-fast),
     border-color var(--dur-fast);
@@ -164,18 +195,21 @@ html.lenis body {
   font-size: var(--step--1);
 }
 
-/* ------------------------------------------------------------------ hero */
+/* A label that a screen reader says and the page does not show. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 
-.hero {
-  padding: var(--space-10) 0 var(--space-9);
-}
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(340px, 1.1fr) minmax(0, 1.75fr) minmax(210px, 0.7fr);
-  gap: var(--space-6);
-  align-items: center;
-  min-height: 520px;
-}
+/* ------------------------------------------------------------------ type */
+
 h1 {
   font-size: var(--step-3);
   line-height: 1;
@@ -188,44 +222,822 @@ h1 em {
   font-style: normal;
   color: var(--ink-3);
 }
+h2 {
+  font-size: var(--step-2);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+  margin: 0 0 var(--space-5);
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.lede {
+  color: var(--ink-2);
+  font-size: var(--step-1);
+  max-width: 58ch;
+  margin: 0;
+}
+.lede a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .cta {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-.lines {
+
+/* ------------------------------------------------------------------ homepage */
+
+/*
+ * Two line titles: the second line is grey, the way the pricing page does it. The one exception
+ * is the h1 of the homepage, whose second line is in the accent (the founder's decision of
+ * 24 September 2026, `DESIGN.md`).
+ */
+.home h2 {
+  max-width: none;
+}
+.home h2 em {
+  font-style: normal;
+  color: var(--ink-3);
+}
+.home code {
+  font-size: 0.9em;
+}
+
+.hero {
+  padding: var(--space-10) 0 var(--space-9);
+}
+.hero-top {
   display: grid;
-  gap: 14px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+  margin-bottom: var(--space-8);
+}
+.hero h1 {
+  /* Each of the two lines on one line of its own on a desktop, down to the 900px of the menu. */
+  font-size: clamp(38px, 3.9vw, 56px);
+}
+.hero h1 em {
+  color: var(--accent);
+}
+.hero-lede {
+  margin: 0.55em 0 0;
+  color: var(--ink-2);
+  font-size: var(--step-1);
+  line-height: 1.55;
+  max-width: 44ch;
+}
+
+section.block {
+  padding: var(--space-9) 0;
+}
+section.block + section.block {
+  border-top: 1px solid var(--line);
+}
+.section-head {
+  margin-bottom: var(--space-8);
+}
+.split-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+.split-head h2 {
+  margin: 0;
+}
+.more {
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The feature cards: hairline cells, one wide, then a row of four. */
+.features {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+.feature {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--card);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--dur-fast);
+}
+.feature:hover {
+  background: #fcfcfc;
+}
+.feature.wide {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.feature.span-2 {
+  grid-column: span 2;
+}
+.feature-icon {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+.feature h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+/* The whole card is the link, and the title is its name. */
+.feature h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.feature p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.feature p b {
+  color: var(--ink);
+  font-weight: 400;
+}
+.ticks {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.ticks li {
+  position: relative;
+  padding-left: 22px;
+}
+.ticks li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 5px;
+  width: 9px;
+  height: 5px;
+  border-left: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  transform: rotate(-45deg);
+}
+.feature-art {
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+.mono-art {
+  display: grid;
+  gap: 4px;
+  font: 12px/1.5 var(--mono);
+  color: var(--ink-2);
+}
+.mono-art span {
+  overflow-wrap: anywhere;
+}
+.mono-art i {
+  font-style: normal;
+  color: var(--ink-3);
+}
+.mono-art b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.mono-art .dim {
+  color: var(--ink-3);
+}
+.feature .accent,
+.explain-table .accent {
+  color: var(--accent);
+}
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+.mini-table caption {
+  caption-side: bottom;
+  text-align: left;
+  padding-top: var(--space-2);
+  font: 12px/1.5 var(--sans);
+  color: var(--ink-3);
+}
+.mini-table th,
+.mini-table td {
+  text-align: left;
+  padding: 6px var(--space-2);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.mini-table th {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+/* The courts around the refused instant, above the explain rows of the Availability card. */
+.mini-grid {
+  position: relative;
+  margin-bottom: var(--space-4);
+  font: 11px/1 var(--mono);
+  color: var(--ink-2);
+}
+.mini-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  height: 24px;
+}
+.mini-head {
+  height: 18px;
+  color: var(--ink-3);
+}
+.mini-lane {
+  position: relative;
+  height: 100%;
+  border-left: 1px solid var(--line);
+}
+.mini-row:not(.mini-head, .mini-ask-row) .mini-lane {
+  border-bottom: 1px solid var(--line);
+}
+.mini-lane b {
+  position: absolute;
+  top: 2px;
+  padding-left: 4px;
+  font-weight: 400;
+  border-left: 1px solid var(--line);
+  height: 16px;
+}
+.mini-lane i {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: var(--ink);
+  border-right: 2px solid var(--card);
+}
+.mini-lane i.hold {
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+}
+.mini-lane i.block {
+  background: var(--line-2);
+}
+.mini-lane em {
+  position: absolute;
+  top: -76px;
+  height: 94px;
+  border: 1.5px solid var(--accent);
+  font-style: normal;
+  color: var(--accent);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0 2px 4px;
+  pointer-events: none;
+}
+.state-matrix {
+  border-collapse: collapse;
+  font: 11px/1 var(--mono);
+  color: var(--ink-2);
+}
+.state-matrix thead th {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 400;
+  color: var(--ink-3);
+  padding: 0 0 6px;
+  text-align: left;
+  height: 72px;
+}
+.state-matrix tbody th {
+  font-weight: 400;
+  text-align: left;
+  padding-right: var(--space-3);
+  white-space: nowrap;
+}
+.state-matrix td {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid var(--card);
+  background: #f2f2f2;
+}
+.state-matrix thead td {
+  background: none;
+  border: 0;
+}
+.state-matrix td.on {
+  background: var(--ink);
+}
+.ladder {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font: 12px/1 var(--mono);
+  color: var(--ink-2);
+}
+.ladder li {
+  border: 1px solid var(--line-2);
+  padding: 5px 7px;
+}
+
+/* Tabs: a row of links to their panels, and a tablist once the script has run. */
+.tab-list {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-5);
+  overflow-x: auto;
+}
+.tab {
+  padding: var(--space-3) 0;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.tab-panel + .tab-panel {
+  margin-top: var(--space-6);
+}
+[data-tabs-ready] .tab-panel + .tab-panel {
+  margin-top: 0;
+}
+.tab-panel[hidden] {
+  display: none;
+}
+
+.window {
+  border: 1px solid var(--line-2);
+  background: var(--card);
+}
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 42px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-2);
+  flex-wrap: wrap;
+}
+.dots {
+  display: inline-flex;
+  gap: 6px;
+}
+.dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+}
+.window-status {
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+}
+.window-status.ok {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.window-foot {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.window-foot a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.explain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.explain-table th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 12px;
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.explain-table td {
+  padding: 7px var(--space-4);
+  white-space: nowrap;
+}
+.explain-table tr.first td {
+  border-top: 1px solid var(--line);
+}
+.explain-table tbody tr:first-child td {
+  border-top: 0;
+}
+.explain-table tr:not(.first) td:first-child {
+  color: var(--ink-3);
+}
+.explain-table .mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.explain-table .ref {
+  color: var(--ink-3);
+}
+.code-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+}
+.code-chip.occupied {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+pre.json {
+  margin: 0;
+  padding: var(--space-5) 22px;
+  font: 13px/1.7 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.json-line {
+  display: block;
+}
+.json .key {
+  color: var(--ink-2);
+}
+.json .str {
+  color: var(--ink);
+}
+.json .num {
+  color: var(--accent);
+}
+
+/* Code, in four tabs, on the code surface. */
+.code-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+.code-frame {
+  border: 1px solid var(--code-line);
+  background: var(--code-bg);
+}
+.code-tabs {
+  margin: 0;
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--code-line);
+}
+.code-tabs .tab {
+  color: var(--code-comment);
+}
+.code-tabs .tab:hover,
+.code-tabs .tab[aria-selected='true'] {
+  color: var(--code-ink);
+}
+.code-panel + .code-panel {
+  border-top: 1px solid var(--code-line);
+}
+pre.code {
+  margin: 0;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 22px 24px;
+  font-size: var(--step--1);
+  line-height: 1.65;
+  overflow-x: auto;
+}
+.code-docs {
+  display: block;
+  text-align: right;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--code-line);
+  font-size: 13px;
+  color: var(--code-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.code-intro .lede {
+  margin-top: var(--space-2);
+}
+
+/* Templates: two big cards, four small ones, and the rest in a line. */
+.templates {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.template {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.template.big {
+  grid-column: span 2;
+  padding: var(--space-6);
+}
+.template-name {
+  margin: 0;
+  font: 12px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.template h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.template-summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.template-art {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 var(--space-2);
+}
+.art-label {
+  display: block;
+  margin-bottom: 6px;
+  font: 11px/1 var(--mono);
+  color: var(--ink-3);
+}
+.template-art ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font: 12px/1 var(--mono);
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+  padding: 6px 8px;
+}
+.chip span {
+  color: var(--ink-3);
+}
+.template-cmd {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.templates-rest {
+  margin: var(--space-5) 0 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.templates-rest code {
+  color: var(--ink);
+}
+
+/* The section for agents, and its terminal. */
+.two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 64px;
+  align-items: start;
+}
+#agents .cta {
+  margin-top: var(--space-6);
+}
+.term {
+  border: 1px solid #2a2a2a;
+  background: var(--code-bg-deep);
+  font: 12px / 1.7 var(--mono);
+  padding: var(--space-5) 22px;
+  color: #d6d6d6;
+  overflow-x: auto;
+  margin: 0;
+}
+.term .line {
+  display: block;
+  min-height: 1.7em;
+}
+.term .p {
+  color: #8fa9ff;
+}
+.term .d {
+  color: #a0a0a0;
+}
+.term-foot {
+  margin: var(--space-3) 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+/* Prices, in short. */
+.price-band {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  padding: var(--space-9) 0;
+}
+.price-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-7);
+}
+.price-head h2 {
+  margin: 0;
+}
+.price-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+.price-figures div {
+  padding: var(--space-5) var(--space-5) 0 0;
+}
+.price-figures div + div {
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--line);
+}
+.price-figures dt {
+  font-size: var(--step-2);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.price-figures dd {
+  margin: var(--space-2) 0 0;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.price-note {
+  margin: var(--space-6) 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.community {
+  text-align: center;
+}
+.community h2 {
+  margin-left: auto;
+  margin-right: auto;
+}
+.community .lede {
+  margin: 0 auto;
+}
+.community .cta {
+  justify-content: center;
+  margin-top: var(--space-6);
+}
+
+/* Open source: a thin band of the grid, in grey and without the accent, then one line. */
+.oss {
+  border-top: 1px solid var(--line);
+  padding: var(--space-8) 0;
+}
+.oss-strip {
+  margin-bottom: var(--space-6);
+}
+.oss-lane {
+  position: relative;
+  height: 5px;
+  margin-bottom: 3px;
+}
+.oss-lane i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--line);
+  border-right: 3px solid var(--bg);
+}
+.oss-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-3) var(--space-6);
+}
+.oss-row h2 {
+  margin: 0;
+  font-size: var(--step-1);
+  letter-spacing: -0.01em;
+}
+.oss-row p {
+  margin: 0;
   color: var(--ink-2);
   font-size: 14px;
-  line-height: 1.5;
 }
-.lines b {
+.oss-links {
+  display: flex;
+  gap: var(--space-5);
+  font-size: 14px;
+}
+.oss-links a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.closing .wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+.closing h2 {
+  margin: 0;
+}
+section.block.closing {
+  border-top: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 56px 0 72px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
+  gap: var(--space-7) var(--space-6);
+}
+.footer-brand .logo {
   color: var(--ink);
-  font-weight: 500;
 }
-.lines ul {
+.footer-brand p {
+  margin: var(--space-3) 0 0;
+}
+.footer-copy {
+  font-size: var(--step--1);
+}
+.footer-col h2 {
+  margin: 0 0 var(--space-4);
+  max-width: none;
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.footer-col ul {
+  list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 14px;
+  gap: var(--space-2);
 }
-.lines li {
-  list-style: none;
-  padding-left: 18px;
-  position: relative;
+.footer-col a {
+  overflow-wrap: anywhere;
 }
-.lines li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 9px;
-  width: 8px;
-  height: 4px;
-  background: var(--ink);
-}
-.lines li:nth-child(2)::before {
-  background: var(--accent);
+.footer-col a:hover {
+  color: var(--ink);
 }
 
 /* ------------------------------------------------------------------ the grid */
@@ -319,17 +1131,23 @@ h1 em {
   transform: scaleX(1);
   opacity: 1;
 }
+/*
+ * The refused request is drawn over the capacity it asked for: transparent, so the booking that
+ * holds that capacity shows through the outline, with the answer at the free end of it.
+ */
 .rejected {
   position: absolute;
-  top: 6px;
-  bottom: 6px;
-  border: 1px solid var(--accent);
+  z-index: 1;
+  top: 4px;
+  bottom: 4px;
+  border: 1.5px solid var(--accent);
   color: var(--accent);
   font: 10px/1 var(--mono);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   padding: 0 6px;
-  background: var(--card);
+  background: transparent;
   white-space: nowrap;
   overflow: hidden;
   opacity: 0;
@@ -371,371 +1189,6 @@ h1 em {
 .grid-foot b {
   color: var(--ink);
   font-weight: 500;
-}
-
-/* ------------------------------------------------------------------ built on */
-
-.runs {
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  padding: 26px 0;
-}
-.runs .wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-7);
-  color: var(--ink-3);
-  font-size: var(--step--1);
-  flex-wrap: wrap;
-}
-.runs .label {
-  color: var(--ink-3);
-  font-weight: 400;
-}
-.runs span:not(.label) {
-  color: var(--ink-2);
-  font-weight: 500;
-}
-.runs .last {
-  margin-left: auto;
-}
-
-/* ------------------------------------------------------------------ sections */
-
-section.block {
-  padding: var(--space-10) 0;
-}
-.kicker {
-  font: 12px/1 var(--mono);
-  color: var(--accent);
-  margin-bottom: var(--space-5);
-}
-h2 {
-  font-size: var(--step-2);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  font-weight: 500;
-  margin: 0 0 var(--space-5);
-  text-wrap: balance;
-  max-width: 22ch;
-}
-.lede {
-  color: var(--ink-2);
-  font-size: var(--step-1);
-  max-width: 58ch;
-  margin: 0;
-}
-.two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 64px;
-  align-items: start;
-}
-.three {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-  margin-top: var(--space-8);
-}
-.three > div {
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  padding: var(--space-6);
-}
-.three h3 {
-  margin: 0 0 var(--space-2);
-  font-size: 16px;
-  font-weight: 500;
-}
-.three p {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: 14px;
-}
-.three code {
-  font-size: 12px;
-  color: var(--ink);
-  background: #f1f1f1;
-  padding: 2px 5px;
-}
-
-/* ------------------------------------------------------------------ code */
-
-pre.code {
-  margin: 0;
-  background: var(--code-bg);
-  color: var(--code-ink);
-  border: 1px solid var(--code-line);
-  padding: 22px 24px;
-  font-size: var(--step--1);
-  line-height: 1.65;
-  overflow-x: auto;
-}
-pre.code .c {
-  color: var(--code-comment);
-}
-pre.code .k {
-  color: var(--code-keyword);
-}
-pre.code .s {
-  color: var(--code-string);
-}
-pre.code .n {
-  color: var(--code-number);
-}
-.code-tabs {
-  display: flex;
-  border: 1px solid var(--code-line);
-  border-bottom: 0;
-  background: var(--code-bg);
-}
-.code-tabs span {
-  font: 12px/1 var(--mono);
-  color: var(--code-comment);
-  padding: var(--space-3) var(--space-4);
-  border-right: 1px solid var(--code-line);
-}
-.code-tabs span.on {
-  color: var(--card);
-}
-
-/* ------------------------------------------------------------------ request / response */
-
-.split {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  border: 1px solid var(--line-2);
-  background: var(--card);
-  margin-top: var(--space-8);
-}
-.pane {
-  min-height: 400px;
-  display: flex;
-  flex-direction: column;
-}
-.pane + .pane {
-  border-left: 1px solid var(--line-2);
-}
-.pane-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 40px;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--line);
-  font: 12px/1.4 var(--mono);
-  color: var(--ink-3);
-  flex-wrap: wrap;
-}
-.pane-head b {
-  color: var(--ink);
-  font-weight: 500;
-}
-.pane-head .st {
-  margin-left: auto;
-  padding: 3px 7px;
-  border: 1px solid var(--line-2);
-  color: var(--ink-2);
-}
-.pane-head .st.ok {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.pane pre {
-  margin: 0;
-  flex: 1;
-  padding: var(--space-5) 22px;
-  font-size: var(--step--1);
-  line-height: 1.7;
-  overflow: auto;
-}
-.pane-foot {
-  border-top: 1px solid var(--line);
-  padding: 10px var(--space-4);
-  font-size: 12px;
-  color: var(--ink-3);
-}
-.pane.dark {
-  background: var(--code-bg);
-  color: var(--code-ink);
-}
-.pane.dark .pane-head {
-  border-color: var(--code-line);
-  color: var(--code-comment);
-}
-.pane.dark .pane-head b {
-  color: var(--card);
-}
-.pane.dark .pane-head .st {
-  border-color: var(--code-line);
-  color: var(--code-comment);
-}
-.pane.dark .c {
-  color: var(--code-comment);
-}
-.pane.dark .k {
-  color: var(--code-keyword);
-}
-.pane.dark .s {
-  color: var(--code-string);
-}
-.pane.dark .n {
-  color: var(--code-number);
-}
-.cursor {
-  display: inline-block;
-  width: 7px;
-  height: 15px;
-  background: var(--code-ink);
-  vertical-align: -2px;
-  animation: blink 1s steps(1) infinite;
-}
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-.pane pre.resp {
-  /* JSON wraps rather than hiding a nested object behind a scroll bar nobody notices. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.resp .key {
-  color: var(--ink-2);
-}
-.resp .str {
-  color: var(--ink);
-}
-.resp .num {
-  color: var(--accent);
-}
-.resp .dim {
-  color: var(--ink-3);
-}
-.req-line {
-  display: block;
-  min-height: 1.7em;
-}
-.resp-line {
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity var(--dur),
-    transform var(--dur);
-  display: block;
-}
-.resp-line.in {
-  opacity: 1;
-  transform: none;
-}
-
-/* ------------------------------------------------------------------ steps */
-
-.steps {
-  display: grid;
-  border-top: 1px solid var(--line);
-  margin-top: var(--space-7);
-}
-.step {
-  display: grid;
-  grid-template-columns: 56px 1fr 1.2fr;
-  gap: 24px;
-  padding: var(--space-6) 0;
-  border-bottom: 1px solid var(--line);
-  align-items: start;
-}
-.step .n {
-  font: var(--step--1) / 1 var(--mono);
-  color: var(--ink-3);
-  padding-top: 4px;
-}
-.step h3 {
-  margin: 0 0 6px;
-  font-size: var(--step-1);
-  font-weight: 500;
-}
-.step p {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: 14px;
-  max-width: 42ch;
-}
-.step pre {
-  margin: 0;
-  font: 12.5px/1.6 var(--mono);
-  background: var(--card);
-  border: 1px solid var(--line);
-  padding: 14px var(--space-4);
-  color: var(--ink);
-  overflow-x: auto;
-}
-
-/* ------------------------------------------------------------------ agents */
-
-.agents {
-  background: var(--ink);
-  color: var(--card);
-}
-.agents h2 {
-  color: var(--card);
-}
-.agents .lede {
-  color: #b3b3b3;
-}
-.agents .kicker {
-  color: #8fa9ff;
-}
-.agents code {
-  color: var(--card);
-}
-.agents .btn {
-  background: transparent;
-  border-color: #3a3a3a;
-  color: var(--card);
-}
-.agents .btn:hover {
-  background: #1d1d1d;
-  border-color: #575757;
-}
-.term {
-  border: 1px solid #2a2a2a;
-  background: var(--code-bg-deep);
-  font: var(--step--1) / 1.7 var(--mono);
-  padding: var(--space-5) 22px;
-  color: #d6d6d6;
-  overflow-x: auto;
-  margin: 0;
-}
-.term .p {
-  color: #8fa9ff;
-}
-.term .d {
-  color: #a0a0a0;
-}
-
-/* ------------------------------------------------------------------ footer */
-
-.site-footer {
-  border-top: 1px solid var(--line);
-  padding: 48px 0 64px;
-  color: var(--ink-3);
-  font-size: var(--step--1);
-}
-.site-footer .wrap {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-.site-footer nav {
-  display: flex;
-  gap: var(--space-5);
-  flex-wrap: wrap;
-}
-.site-footer nav a:hover {
-  color: var(--ink);
 }
 
 /* ------------------------------------------------------------------ prose page */
@@ -905,21 +1358,26 @@ pre.code .n {
 
 /* ------------------------------------------------------------------ reveal */
 
-[data-reveal] {
+/*
+ * Only what the script armed is hidden: an element that was below the fold when the page loaded.
+ * Without JavaScript nothing is armed and everything is visible, and nothing above the fold ever
+ * disappears to come back.
+ */
+[data-reveal].armed {
   opacity: 0;
   transform: translateY(14px);
   transition:
     opacity var(--dur-slow) var(--ease),
     transform var(--dur-slow) var(--ease);
 }
-[data-reveal].in {
+[data-reveal].armed.in {
   opacity: 1;
   transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-reveal],
-  [data-reveal].in {
+  [data-reveal].armed,
+  [data-reveal].armed.in {
     opacity: 1;
     transform: none;
     transition: none;
@@ -935,75 +1393,147 @@ pre.code .n {
     opacity: 1;
     transition: none;
   }
-  .resp-line,
-  .resp-line.in {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-  .cursor {
-    animation: none;
-  }
 }
 
 /* ------------------------------------------------------------------ small screens */
 
 /*
- * Two breakpoints, not one.
- *
- * The prototype stacks everything at 1000px, which leaves a 1024 laptop with a three column
- * hero whose middle column is 350px: the grid, the one thing the page is about, becomes
- * unreadable exactly at the most common small laptop width. So the hero and the two pane
- * section stack at 1100px, and the chrome keeps its links down to 1000px.
+ * The grid takes a floor under 1100px and scrolls sideways inside its frame: only the head and the
+ * lanes, which are inside `.grid-scroll`. The caption is a sibling of that scroller, so a floor on
+ * it would widen the frame itself and push the whole page sideways on a phone; it wraps instead.
  */
 @media (max-width: 1100px) {
-  .hero-grid {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-  .hero {
-    padding: var(--space-8) 0 var(--space-7);
-  }
-  .lines {
-    order: 3;
-    max-width: 62ch;
-  }
-  /*
-   * Only the head and the lanes take a floor: they are inside `.grid-scroll` and scroll
-   * sideways. The caption is a sibling of that scroller, so a floor on it would widen the
-   * frame itself and push the whole page sideways on a phone; it wraps instead.
-   */
   .grid-head,
   .row {
     min-width: 680px;
   }
-  .split {
-    grid-template-columns: 1fr;
+  .features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .pane + .pane {
-    border-left: 0;
-    border-top: 1px solid var(--line-2);
+  .feature.wide {
+    grid-row: auto;
   }
-  .pane {
-    min-height: 0;
+  .templates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .footer-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .footer-brand {
+    grid-column: 1 / -1;
   }
 }
 
-@media (max-width: 1000px) {
-  .two,
-  .step {
-    grid-template-columns: 1fr;
-  }
-  .three {
-    grid-template-columns: 1fr;
+/* The GitHub link keeps its icon and its name for a screen reader, and gives up its text. */
+@media (max-width: 1140px) and (min-width: 900px) {
+  .nav-github-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .nav-links {
+    gap: 18px;
+  }
+}
+
+/*
+ * Under 900px the links, the repository and «Sign in» are a full width panel behind «Menu».
+ * «Get API keys» stays in the bar. Without JavaScript the button is not shown, and every link of
+ * the header is in the footer.
+ */
+@media (max-width: 899px) {
+  .nav-panel {
     display: none;
   }
-  .nav-right .btn:not(.primary) {
-    display: none;
+  .nav.menu-open .nav-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-6);
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: var(--space-5) var(--gutter) var(--space-8);
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .nav.menu-open .nav-links {
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    font-size: var(--step-1);
+    color: var(--ink);
+  }
+  .nav.menu-open .nav-links a {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .nav.menu-open .nav-aside {
+    justify-content: space-between;
+  }
+  .nav-right {
+    margin-left: auto;
+  }
+  .hero-top,
+  .code-section,
+  .two {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+  .hero {
+    padding: var(--space-8) 0 var(--space-7);
+  }
+  .hero-top {
+    margin-bottom: var(--space-7);
+  }
+  .hero-lede {
+    margin-top: 0;
   }
   section.block {
     padding: var(--space-9) 0;
+  }
+  .price-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .price-figures div:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .oss-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) {
+  .menu-button {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .features,
+  .templates {
+    grid-template-columns: 1fr;
+  }
+  .feature.wide,
+  .feature.span-2,
+  .template.big {
+    grid-column: auto;
+  }
+  .template-art {
+    grid-template-columns: 1fr;
+  }
+  .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .feature,
+  .template.big {
+    padding: var(--space-5);
   }
 }

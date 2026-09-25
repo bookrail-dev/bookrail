@@ -6,7 +6,13 @@
  * them (`bk_…`, `hold_…`) is the API's job, and so is turning these `BookrailError`s into
  * HTTP responses.
  */
-import { BookrailError, type Environment, type PriceRuleRef } from '@bookrail/shared';
+import {
+  BookrailError,
+  type Environment,
+  type PlanTable,
+  type PriceRuleRef,
+} from '@bookrail/shared';
+import type { PlanUsageWarning } from '../plan/usage.js';
 import type { PaymentMode } from './payment.js';
 
 /**
@@ -133,6 +139,14 @@ export interface CreateBookingInput {
    * the identifier back.
    */
   readonly payment?: PaymentRequest | null;
+  /**
+   * The plan table, when it is not the published one.
+   *
+   * Only a test passes it, to reach a threshold of three bookings instead of a thousand. The
+   * plan itself is never taken from the caller: it is read from the account inside the
+   * transaction, so a plan changed a second ago applies to the next booking.
+   */
+  readonly plans?: PlanTable;
 }
 
 /** What `POST /v1/bookings` asks the transaction to charge for. */
@@ -195,6 +209,13 @@ export interface TouchedDay {
 }
 
 export interface CreateBookingResult {
+  /**
+   * The usage warnings this creation claimed, each with its `plan.usage_warning` event already
+   * written. Empty unless a live booking born `confirmed` took its account to 80 % or 100 % of
+   * the included bookings for the first time this month. The caller sends the emails, after the
+   * commit.
+   */
+  readonly planWarnings: readonly PlanUsageWarning[];
   readonly kind: BookingKind;
   /** The booking id, or the hold id when `kind` is `hold`. */
   readonly id: string;

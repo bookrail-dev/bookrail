@@ -1,6 +1,6 @@
 {
   "name": "@bookrail/node",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Bookrail SDK for TypeScript. Types generated from the OpenAPI specification, one hand-written idiomatic layer on top. ESM only.",
   "license": "Apache-2.0",
   "author": "MP Informatica Srl",

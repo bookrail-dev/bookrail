@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { resolveDatabaseUrls } from '@bookrail/db';
+import { LEGAL_VERSIONS, legalVersionsRefusal } from '@bookrail/shared';
 import { TEST_DB_NAME } from './db-name.js';
 
 const SERVER = fileURLToPath(new URL('../src/server.ts', import.meta.url));
@@ -83,6 +84,35 @@ async function startServer(env: Record<string, string | undefined>): Promise<Run
   };
 }
 
+/** Starts the server with an environment it must refuse, and answers how it exited. */
+async function startServerExpectingExit(
+  env: Record<string, string | undefined>,
+): Promise<{ code: number | null; output: string }> {
+  const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
+  const child = fork(SERVER, [], {
+    execArgv: ['--import', 'tsx'],
+    env: {
+      ...process.env,
+      DATABASE_URL: urls.admin,
+      PORT: String(nextPort++),
+      HOST: undefined,
+      BOOKRAIL_WORKER: 'off',
+      BOOKRAIL_BOOTSTRAP_TOKEN: undefined,
+      ...env,
+    },
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  let output = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    output += chunk.toString('utf8');
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    output += chunk.toString('utf8');
+  });
+  const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+  return { code, output };
+}
+
 describe('the API entry point and its privileged pool', () => {
   let observer: Client;
   let appRole: string;
@@ -111,6 +141,17 @@ describe('the API entry point and its privileged pool', () => {
     // API keys on the connection that bypasses RLS. In production the only thing that may
     // reach it is the machine itself: a firewall rule is the second line of defence, and until
     // this test existed it was the first.
+    //
+    // While the terms the API records are drafts, a production server does not start at all
+    // (`legalVersionsRefusal`): that refusal is what this case proves until they are approved,
+    // and the binding is proved by `loadConfig` in `config.test.ts` meanwhile. One case, not a
+    // skipped one: whichever state the constant is in, the real process is asked.
+    if (legalVersionsRefusal(LEGAL_VERSIONS) !== null) {
+      const refused = await startServerExpectingExit({ NODE_ENV: 'production' });
+      expect(refused.code).not.toBe(0);
+      expect(refused.output).toContain('are drafts');
+      return;
+    }
     const server = await startServer({ NODE_ENV: 'production' });
     try {
       const health = await fetch(`http://127.0.0.1:${String(server.port)}/health`);

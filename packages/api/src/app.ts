@@ -8,8 +8,10 @@ import { errorHandler, notFoundHandler, requestContext } from './middleware/requ
 import { contractGuard } from './openapi/contract.js';
 import { openApiDocument } from './openapi/generate.js';
 import { availabilityRoutes } from './routes/availability.js';
+import { billingWebhookRoutes } from './routes/billing-webhook.js';
 import { bookingsRoutes } from './routes/bookings.js';
 import { customersRoutes } from './routes/customers.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 import { eventsRoutes } from './routes/events.js';
 import { holdsRoutes } from './routes/holds.js';
 import { internalRoutes } from './routes/internal.js';
@@ -81,12 +83,16 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   // Every POST of /v1 honours `Idempotency-Key`, availability included: an SDK with a retry
   // policy sends it on every write, and one endpoint answering differently would be a trap.
   v1.use('*', idempotency(deps));
-  // The three parts of `/v1` with no key in front of them, and the reason the middlewares above
+  // The five parts of `/v1` with no key in front of them, and the reason the middlewares above
   // carry an exemption (`routes/public.ts`): `/v1/signups` is where a key comes from, so there
-  // cannot be one yet; `GET /v1/stripe/callback` is followed by a browser coming back from
-  // Stripe, which has none to send; and `POST /v1/stripe/webhook/{mode}` is called by Stripe
+  // cannot be one yet; `/v1/dashboard` is where keys are managed, so a key must not open it and a
+  // dashboard session does instead, checked and limited by its own router;
+  // `GET /v1/stripe/callback` is followed by a browser coming back from Stripe, which has none to
+  // send; and `POST /v1/stripe/webhook/{mode}` and `POST /v1/billing/webhook` are called by Stripe
   // itself, which proves who it is with a signature over the raw body instead.
   v1.route('/signups', signupsRoutes(deps));
+  v1.route('/dashboard', dashboardRoutes(deps));
+  v1.route('/billing', billingWebhookRoutes(deps));
   // Before `/stripe`, because it is the more specific prefix and because reading it first is
   // how a reader of this file learns that the two exist.
   v1.route('/stripe/webhook', stripeWebhookRoutes(deps));

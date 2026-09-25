@@ -1,0 +1,65 @@
+---
+/**
+ * The templates of `bookrail init`, read from the CLI at build time (`packages/cli`, through
+ * `scripts/generate.mjs`): a template added to the CLI appears here without touching this file.
+ *
+ * Two big cards draw the configuration they write (resources and services), four small ones say
+ * what they are, and the rest are named in a line. Every card ends with the command that writes it.
+ */
+import { templateGroups } from '../../data/home';
+
+const { big, small, rest } = templateGroups();
+const names = rest.map((template) => template.name);
+const restNames =
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('');
+---
+
+<div class="templates">
+  {
+    big.map((template) => (
+      <article class="template big" data-template={template.name}>
+        <p class="template-name">{template.name}</p>
+        <h3>{template.vertical}</h3>
+        <p class="template-summary">{template.summary}</p>
+        <div class="template-art">
+          <div>
+            <span class="art-label">resources</span>
+            <ul>
+              {template.resources.map((name) => (
+                <li class="chip">{name}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <span class="art-label">services</span>
+            <ul>
+              {template.services.map((service) => (
+                <li class="chip">
+                  {service.name} <span>{service.length}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <code class="template-cmd">npx bookrail init --template {template.name}</code>
+      </article>
+    ))
+  }
+  {
+    small.map((template) => (
+      <article class="template" data-template={template.name}>
+        <p class="template-name">{template.name}</p>
+        <h3>{template.vertical}</h3>
+        <p class="template-summary">{template.summary}</p>
+        <code class="template-cmd">npx bookrail init --template {template.name}</code>
+      </article>
+    ))
+  }
+</div>
+{
+  rest.length > 0 && (
+    <p class="templates-rest" data-templates-rest>
+      And {rest.length} more, {restNames}. <code>bookrail init --help</code> lists every one of them.
+    </p>
+  )
+}

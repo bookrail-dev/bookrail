@@ -8,11 +8,11 @@
   },
   "scripts": {
     "generate": "node scripts/generate.mjs",
-    "dev": "node scripts/generate.mjs && astro dev",
+    "dev": "node scripts/generate.mjs --preview-legal && astro dev",
     "build": "node scripts/generate.mjs && astro build",
     "preview": "astro preview",
-    "check": "node scripts/generate.mjs && astro check",
-    "typecheck": "node scripts/generate.mjs && astro check",
+    "check": "node scripts/generate.mjs --preview-legal && astro check",
+    "typecheck": "node scripts/generate.mjs --preview-legal && astro check",
     "lint": "eslint scripts test src/data src/scripts src/content.config.ts",
     "test": "vitest run",
     "lighthouse": "node scripts/lighthouse.mjs"
@@ -26,6 +26,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@bookrail/mcp": "workspace:*",
+    "@bookrail/shared": "workspace:*",
     "@types/node": "^20.17.10",
     "chrome-launcher": "^1.2.1",
     "lighthouse": "^13.4.1",

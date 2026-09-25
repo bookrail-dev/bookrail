@@ -156,10 +156,11 @@ site-search button[data-open-modal] {
 /* The header row that carries the site nav links, so the two chromes agree. */
 .sl-nav-extra {
   display: flex;
-  gap: 22px;
+  gap: 18px;
   font-size: 14px;
   color: var(--ink-2);
   align-items: center;
+  white-space: nowrap;
 }
 .sl-nav-extra a {
   color: var(--ink-2);
@@ -167,6 +168,44 @@ site-search button[data-open-modal] {
 }
 .sl-nav-extra a:hover {
   color: var(--ink);
+}
+/* The repository link, with the GitHub mark in the colour of the link. */
+.sl-nav-extra .sl-nav-extra-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* «Sign in» and «Get API keys», the two small buttons of the marketing header. */
+.sl-nav-extra .sl-nav-extra-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+.sl-nav-extra .sl-nav-extra-btn.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--card);
+}
+/* On a narrow desktop the text links give way to the search; the mark and the two buttons stay. */
+@media (max-width: 1240px) {
+  .sl-nav-extra a:not(.sl-nav-extra-btn, .sl-nav-extra-github) {
+    display: none;
+  }
+  .sl-nav-extra .sl-nav-extra-github span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 @media (max-width: 800px) {
   .sl-nav-extra {

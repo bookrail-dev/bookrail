@@ -1,3 +1,4 @@
+import { describeUsage, type PlanUsage } from '../plans.js';
 import { ApiClient } from '../api/client.js';
 import type { Context } from '../context.js';
 import { assertKeyMatchesEnvironment } from '../context.js';
@@ -163,6 +164,10 @@ export async function whoami(ctx: Context): Promise<CommandResult> {
       default_currency: project.default_currency,
     },
     api_key: project.api_key,
+    // The plan of the account and this month's usage of it. `null` from a deployment that
+    // predates the plans, which is a deployment this CLI still talks to.
+    plan: project.plan ?? null,
+    usage: project.usage ?? null,
   };
 
   return {
@@ -173,6 +178,15 @@ export async function whoami(ctx: Context): Promise<CommandResult> {
       `key      ${data.key} (from ${auth.source === 'env' ? 'BOOKRAIL_SECRET_KEY' : 'credentials file'}), scopes ${project.api_key.scopes.length === 0 ? 'all' : project.api_key.scopes.join(',')}${project.api_key.tenant_id === null ? '' : `, tenant ${project.api_key.tenant_id}`}`,
       `api      ${data.api_version_served} (cli asks for ${API_VERSION})`,
       `defaults ${project.default_timezone}, ${project.default_currency}`,
+      ...(project.plan === undefined
+        ? []
+        : project.usage === undefined || project.usage === null
+          ? // A key scoped to a tenant sees the plan and not the numbers of the whole account.
+            [`plan     ${project.plan}`]
+          : [
+              `plan     ${project.plan}${project.usage.blocks_at_limit ? ', stops new live bookings at the limit' : ''}`,
+              `usage    ${describeUsage(project.usage)}`,
+            ]),
     ].join('\n'),
     nextSteps: ['Run `bookrail doctor --json` for the full check list.'],
   };
@@ -195,6 +209,13 @@ export interface ProjectBody {
     scopes: string[];
     tenant_id: string | null;
   };
+  /** The plan of the account. Absent from a deployment older than the plans. */
+  plan?: string;
+  /**
+   * This month's usage of the plan, the account's live numbers whichever key asks; `null` for a
+   * key scoped to a tenant, which does not see the numbers of the whole account.
+   */
+  usage?: PlanUsage | null;
   created_at: string;
 }
 

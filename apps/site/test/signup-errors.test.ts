@@ -106,6 +106,8 @@ describe('/signup when the proxy refuses the request', () => {
     const page = await pageWith('/signup', 429, NGINX_429);
     try {
       await page.fill('#signup-email', 'someone@example.com');
+      await page.check('#signup-accept-terms');
+      await page.check('#signup-approve-clauses');
       await page.click('#signup-submit');
       await page.waitForFunction(
         () => (document.getElementById('signup-status')?.textContent ?? '') !== 'Sending...',
@@ -131,6 +133,8 @@ describe('/signup when the proxy refuses the request', () => {
       await page.route('https://api.bookrail.dev/**', (route) => route.abort('failed'));
       await page.goto(`${origin}/signup`);
       await page.fill('#signup-email', 'someone@example.com');
+      await page.check('#signup-accept-terms');
+      await page.check('#signup-approve-clauses');
       await page.click('#signup-submit');
       await page.waitForFunction(
         () => (document.getElementById('signup-status')?.textContent ?? '') !== 'Sending...',
@@ -177,6 +181,8 @@ describe('a 429 from the API itself', () => {
     const form = await pageWith('/signup', 429, API_429);
     try {
       await form.fill('#signup-email', 'someone@example.com');
+      await form.check('#signup-accept-terms');
+      await form.check('#signup-approve-clauses');
       await form.click('#signup-submit');
       await form.waitForFunction(
         () => (document.getElementById('signup-status')?.textContent ?? '') !== 'Sending...',

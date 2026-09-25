@@ -102,4 +102,10 @@ jobs:
 
       - run: pnpm format:check
 
+      # The site publishes /terms and /dpa from texts that are approved outside this repository
+      # and are not part of it, and refuses to build without them. The fixtures of its test
+      # suite stand in for them here: this build proves that the site builds, it is not the one
+      # that is published.
       - run: pnpm build
+        env:
+          BOOKRAIL_LEGAL_DIR: ${{ github.workspace }}/apps/site/test/fixtures/legal

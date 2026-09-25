@@ -50,6 +50,7 @@ import {
   type Transaction,
 } from '@bookrail/db';
 import {
+  claimReachedWarnings,
   createBooking,
   stripeNotConnected,
   transition,
@@ -62,6 +63,7 @@ import { BookrailError, encodeId, errors, type Environment } from '@bookrail/sha
 import { StripeApiError, StripeUnreachableError } from '../stripe/client.js';
 import { stripePlatform } from '../stripe/platform.js';
 import { stripeProviderError, stripeUnreachable } from './stripe.js';
+import { sendPlanWarnings } from '../plan.js';
 import type { AppDeps, AppEnv, AuthContext } from '../context.js';
 import { invalidateTouchedDays } from '../cache.js';
 import { assertCustomerExists, upsertCustomer } from '../customers.js';
@@ -426,6 +428,54 @@ async function createIntent(
   }
 }
 
+/**
+ * `createBooking`, and on the free plan's `402` for the bookings, the warnings the account has
+ * reached and nobody has claimed.
+ *
+ * The transaction that refused has rolled back, so whatever it could have claimed went with it.
+ * An account can reach its threshold through two increments on two projects at the same instant,
+ * each of which saw the total without the other: neither claims the 100 %, and after the
+ * threshold nothing increments again. So the refusal claims it, in a short transaction of its
+ * own, and the email goes out like any other. `plan_usage_warning_claim` is idempotent: a warning
+ * already sent is not sent twice. A refusal for the paid volume (`param: payment.mode`) is not
+ * about the bookings and claims nothing.
+ */
+async function createBookingOrClaim(
+  deps: AppDeps,
+  auth: AuthContext,
+  input: Parameters<typeof createBooking>[1],
+): Promise<CreateBookingResult> {
+  try {
+    return await createBooking(deps.db, input);
+  } catch (error) {
+    if (
+      error instanceof BookrailError &&
+      error.code === 'plan_limit_reached' &&
+      error.param === undefined
+    ) {
+      try {
+        sendPlanWarnings(
+          deps,
+          await claimReachedWarnings(deps.db, {
+            projectId: auth.projectId,
+            environment: auth.environment,
+            now: input.now,
+            ...(deps.plans === undefined ? {} : { plans: deps.plans }),
+          }),
+        );
+      } catch (claimError) {
+        // The answer is the 402 either way: a warning that could not be claimed now is claimed
+        // by the next refusal, and says so in the log.
+        deps.logger.warn('plan_usage_warning_claim_failed', {
+          project_id: encodeId('project', auth.projectId),
+          error: claimError instanceof Error ? claimError.message : String(claimError),
+        });
+      }
+    }
+    throw error;
+  }
+}
+
 export function bookingsRoutes(deps: AppDeps): Hono<AppEnv> {
   const routes = new Hono<AppEnv>();
 
@@ -457,7 +507,7 @@ export function bookingsRoutes(deps: AppDeps): Hono<AppEnv> {
 
     const customerId = await resolveCustomerId(c, deps, body);
 
-    const result = await createBooking(deps.db, {
+    const result = await createBookingOrClaim(deps, auth, {
       projectId: auth.projectId,
       environment: auth.environment,
       serviceId: body.service_id,
@@ -472,6 +522,7 @@ export function bookingsRoutes(deps: AppDeps): Hono<AppEnv> {
       source: body.source,
       notes: body.notes ?? null,
       metadata: body.metadata,
+      ...(deps.plans === undefined ? {} : { plans: deps.plans }),
       // `booking.created` used to carry a NULL actor, which made the single
       // most important event of the system the only one that did not say who wrote it.
       actor: eventActor(c, auth),
@@ -491,6 +542,8 @@ export function bookingsRoutes(deps: AppDeps): Hono<AppEnv> {
     c.set('effectCommitted', true);
 
     await invalidateTouchedDays(deps, result.touchedDays);
+    // The usage warnings this booking claimed, mailed after the commit and not waited for.
+    sendPlanWarnings(deps, result.planWarnings);
 
     // Step 3: Stripe, outside every transaction. On failure this throws, after having cancelled
     // the booking it could not collect for.
@@ -601,12 +654,14 @@ export function bookingsRoutes(deps: AppDeps): Hono<AppEnv> {
       // the object instead of rebuilding it from two named fields.
       actor: eventActor(c, auth),
       now: Date.now(),
+      ...(deps.plans === undefined ? {} : { plans: deps.plans }),
       ...params,
     });
     // The transaction has committed. Everything below can still fail and must not release the
     // `Idempotency-Key`.
     c.set('effectCommitted', true);
     await invalidateTouchedDays(deps, result.touchedDays);
+    sendPlanWarnings(deps, result.planWarnings);
 
     // A reschedule answers with the booking that now holds the slot: it is the object the
     // caller will act on next, and the one it closed is one `GET` away through

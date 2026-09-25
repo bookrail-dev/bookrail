@@ -32,6 +32,7 @@ import {
   RETRY_AFTER_HEADER,
 } from '../middleware/rate-limit.js';
 import { IDEMPOTENCY_HEADER_NAME, REPLAYED_HEADER } from './headers.js';
+import { PLAN_USAGE_HEADER } from '../plan.js';
 import { z } from '../zod.js';
 import { errorSchema, type OpenApiDocument } from '../schemas/responses.js';
 import {
@@ -72,7 +73,11 @@ const TAG_DESCRIPTIONS: Readonly<Record<string, string>> = {
   payments: 'The money of a booking: the deposit or the full price, and the refunds.',
   events: 'The append-only log of everything that happened.',
   webhooks: 'Delivery endpoints, their signing secret and their delivery log.',
-  signups: 'How a test key comes into being, without a key and without a person.',
+  signups: 'How a test key and a live key come into being, without a key and without a person.',
+  dashboard:
+    "The account's own view, for the dashboard page: plan, usage, projects and keys, and the checkout and portal of the paid plans. Opened by a dashboard session, never by an API key.",
+  billing:
+    "The receiver of the Stripe events of Bookrail's own account, where the paid plans are sold. Called by Stripe, never by an integration.",
   stripe: "The customer's own Stripe account, connected to their project over OAuth.",
 };
 
@@ -80,6 +85,8 @@ const TAG_DESCRIPTIONS: Readonly<Record<string, string>> = {
 const TAG_ORDER: readonly string[] = [
   'meta',
   'signups',
+  'dashboard',
+  'billing',
   'project',
   'stripe',
   'availability',
@@ -181,6 +188,7 @@ interface HeaderRefs {
   reset: HeaderRef;
   policy: HeaderRef;
   retryAfter: HeaderRef;
+  planUsage: HeaderRef;
 }
 
 function registerResponseHeaders(registry: OpenAPIRegistry): HeaderRefs {
@@ -228,6 +236,11 @@ function registerResponseHeaders(registry: OpenAPIRegistry): HeaderRefs {
       'Whole seconds to wait before sending this request again. At least 1.',
       false,
     ),
+    planUsage: header(
+      PLAN_USAGE_HEADER,
+      '`<confirmed>/<included>`: the confirmed live bookings of the account this month, over the ones its plan includes, as they stood when this request started. On responses to live keys only, and absent for a plan whose included bookings are negotiated and for a key scoped to a tenant.',
+      false,
+    ),
   };
 }
 
@@ -238,6 +251,8 @@ interface HeaderChoice {
   limited?: boolean;
   /** The `429` of an operation that takes a key. */
   retryAfter?: boolean;
+  /** `Bookrail-Plan-Usage`, which rides with the rate limit of an API key but not of a session. */
+  planUsage?: boolean;
 }
 
 /** Which of the registered headers a given response carries. */
@@ -252,6 +267,7 @@ function responseHeaders(refs: HeaderRefs, choice: HeaderChoice): ResponseHeader
     headers[RATE_LIMIT_REMAINING_HEADER] = refs.remaining;
     headers[RATE_LIMIT_RESET_HEADER] = refs.reset;
     headers[RATE_LIMIT_POLICY_HEADER] = refs.policy;
+    if (choice.planUsage !== false) headers[PLAN_USAGE_HEADER] = refs.planUsage;
   }
   if (choice.retryAfter === true) headers[RETRY_AFTER_HEADER] = refs.retryAfter;
   return headers;
@@ -261,7 +277,10 @@ function responseHeaders(refs: HeaderRefs, choice: HeaderChoice): ResponseHeader
 
 /** The codes an operation can produce: its own, plus the ones the middleware chain can. */
 export function errorCodesOf(operation: OperationDefinition): string[] {
-  const codes = new Set<string>(operation.public ? [] : COMMON_ERROR_CODES);
+  // A public operation takes no credential, and a dashboard one takes a session: neither passes
+  // through the API key middleware chain, so neither gets its codes. Each lists its own.
+  const keyed = operation.public !== true && operation.auth !== 'dashboard';
+  const codes = new Set<string>(keyed ? COMMON_ERROR_CODES : []);
   if (operation.body !== undefined || operation.query !== undefined) {
     for (const code of COMMON_INPUT_ERROR_CODES) codes.add(code);
   }
@@ -306,18 +325,28 @@ export function buildOpenApiDocument(
       'A secret API key: `Authorization: Bearer sk_test_...`. Publishable (`pk_`) keys are refused on every endpoint of this document.',
   });
 
+  registry.registerComponent('securitySchemes', 'dashboardSession', {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'bds_...',
+    description:
+      'A dashboard session: `Authorization: Bearer bds_...`, from `POST /v1/dashboard/login/confirm`. Opens the dashboard operations and nothing else; an API key does not open them.',
+  });
+
   registry.register('Error', errorSchema);
   const parameters = commonRequestParameters(registry);
   const headerRefs = registerResponseHeaders(registry);
 
   for (const operation of operations) {
-    const headers = operation.public
-      ? []
-      : [
-          parameters.version,
-          parameters.actor,
-          ...(operation.idempotent === true ? [parameters.idempotency] : []),
-        ];
+    const dashboard = operation.auth === 'dashboard';
+    const headers =
+      operation.public || dashboard
+        ? []
+        : [
+            parameters.version,
+            parameters.actor,
+            ...(operation.idempotent === true ? [parameters.idempotency] : []),
+          ];
 
     const params =
       operation.pathParams === undefined
@@ -328,25 +357,37 @@ export function buildOpenApiDocument(
             ),
           );
 
-    // Every operation that is not `public` is one that takes a key, and therefore one whose
-    // responses carry the counters of that key's bucket, the accepted ones included.
+    // Every operation that is not `public` takes a credential, an API key or a dashboard session,
+    // and therefore has a bucket whose counters its responses carry, the accepted ones included.
+    // Only an API key's responses carry the plan's counter as well.
     const limited = operation.public !== true;
+    const planUsage = !dashboard;
 
     const responses: RouteConfig['responses'] = {};
     for (const [status, schema] of Object.entries(operation.responses)) {
-      responses[status] = {
-        description: successDescription(operation, Number(status)),
-        headers: responseHeaders(headerRefs, {
-          idempotent: operation.idempotent === true,
-          limited,
-        }),
-        content: { 'application/json': { schema } },
-      };
+      const headers = responseHeaders(headerRefs, {
+        idempotent: operation.idempotent === true,
+        limited,
+        planUsage,
+      });
+      // A `204` has no body, so it declares none.
+      responses[status] =
+        Number(status) === 204
+          ? { description: 'No content.', headers }
+          : {
+              description: successDescription(operation, Number(status)),
+              headers,
+              content: { 'application/json': { schema } },
+            };
     }
     for (const [status, codes] of [...errorResponsesOf(operation)].sort((a, b) => a[0] - b[0])) {
       responses[String(status)] = {
         description: `Error codes: ${codes.map((code) => `\`${code}\``).join(', ')}.`,
-        headers: responseHeaders(headerRefs, { limited, retryAfter: limited && status === 429 }),
+        headers: responseHeaders(headerRefs, {
+          limited,
+          planUsage,
+          retryAfter: limited && status === 429,
+        }),
         content: { 'application/json': { schema: errorSchema } },
       };
     }
@@ -359,6 +400,7 @@ export function buildOpenApiDocument(
       ...(operation.description === undefined ? {} : { description: operation.description }),
       tags: [...operation.tags],
       ...(operation.public ? { security: [] } : {}),
+      ...(dashboard ? { security: [{ dashboardSession: [] }] } : {}),
       // Read by the SDK generator, which builds one method per operation and skips the ones
       // marked here: an SDK is constructed with a key, and the sign up operations are how a
       // key comes into being.

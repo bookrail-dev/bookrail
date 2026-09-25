@@ -1,0 +1,49 @@
+---
+/**
+ * Where the link in the dashboard message lands.
+ *
+ * The token is in the **fragment**, which a browser never sends to a server. The script reads it,
+ * exchanges it for a session with `POST /v1/dashboard/login/confirm`, keeps the session in
+ * `sessionStorage` (the tab, and nothing longer), takes the fragment off the address bar with
+ * `history.replaceState`, and goes to `/dashboard/`. The script is a file of this site, never
+ * inline: the server refuses inline scripts on these pages.
+ */
+import Base from '../../layouts/Base.astro';
+
+const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
+---
+
+<Base
+  title="Signing in, Bookrail"
+  description="The last step of signing in to the Bookrail dashboard: the link becomes a session in this tab."
+>
+  <div class="wrap dash-confirm prose" id="dashboard-confirm" data-api-url={API_URL}>
+    <h1>Signing in</h1>
+    <p id="confirm-status" role="status" aria-live="polite">Checking the link...</p>
+    <p id="confirm-again" hidden>
+      <a href="/dashboard/">Ask for a new link</a>.
+    </p>
+    <noscript>
+      <p>
+        Signing in needs JavaScript: the token is in the part of the link after the
+        <code>#</code>, which a browser never sends to a server. From a terminal,
+        <code>bookrail whoami</code> shows the plan and this month's usage.
+      </p>
+    </noscript>
+  </div>
+</Base>
+
+<script>
+  import '../../scripts/dashboard-confirm';
+</script>
+
+<style>
+  .dash-confirm {
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-9);
+  }
+  #confirm-again a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+</style>

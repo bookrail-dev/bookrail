@@ -1,10 +1,11 @@
 /**
  * Sending one message, and the two ways this deployment can send it.
  *
- * There is exactly one message in the whole product: the confirmation link of a sign up. That
- * is why this module is forty lines of interface and no template engine, no HTML, no queue and
- * no provider abstraction beyond the two implementations below. The day a second message
- * exists, the shape it needs is `send`, and nothing else here has to move.
+ * The messages of the product are few and plain: the confirmation link of a sign up, the
+ * dashboard link, the usage warnings and the daily digest, and, with Billing, the change of a
+ * plan, a failed payment, and the data of every paid invoice for the person who issues the
+ * electronic invoice. That is why this module is a small interface and no template engine, no
+ * HTML, no queue and no provider abstraction beyond the two implementations below.
  *
  * ## Why a mailer at all, and why SMTP
  *
@@ -33,6 +34,18 @@ export interface MailMessage {
   subject: string;
   /** Plain text. No HTML anywhere, so there is no second rendering of anything. */
   text: string;
+  /**
+   * Files that ride with the text. One message has one: the monthly list of paid invoices, whose
+   * CSV goes into the accounting software. `nodemailer` sends attachments natively, so this adds
+   * nothing to the dependencies.
+   */
+  attachments?: readonly MailAttachment[];
+}
+
+export interface MailAttachment {
+  filename: string;
+  content: string;
+  contentType: string;
 }
 
 export interface Mailer {
@@ -89,6 +102,15 @@ export async function createSmtpMailer(options: SmtpMailerOptions): Promise<Mail
         to: message.to,
         subject: message.subject,
         text: message.text,
+        ...(message.attachments === undefined
+          ? {}
+          : {
+              attachments: message.attachments.map((attachment) => ({
+                filename: attachment.filename,
+                content: attachment.content,
+                contentType: attachment.contentType,
+              })),
+            }),
       });
     },
     close(): Promise<void> {

@@ -5,7 +5,12 @@
  * data and the page says so. What is real is the shape, seven resources on a twelve hour band,
  * three kinds of occupancy and one refusal, and the counts under the frame, which are computed
  * from this array and cannot drift from what the reader sees.
+ *
+ * The day itself is `grid-day.mjs`, in hours, because the build script hands the same day to the
+ * availability engine and prints what it answers. This file only turns hours into the
+ * percentages of the lane.
  */
+import { GRID_DAY, GRID_RESOURCES } from './grid-day.mjs';
 
 export type SlotKind = 'booking' | 'hold' | 'block';
 
@@ -24,68 +29,33 @@ export interface GridRow {
   rejected?: { left: number; width: number; label: string };
 }
 
-const H = 100 / 12; // one hour of the twelve hour band
+const H = 100 / GRID_DAY.hours; // one hour of the band
 
-export const GRID_DATE = 'Tue 8 Sep';
-export const GRID_HOURS = ['08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19'];
+export const GRID_DATE = GRID_DAY.label;
 
-export const GRID_ROWS: GridRow[] = [
-  {
-    name: 'Court 1',
-    slots: [
-      { left: 0, width: 2 * H, label: 'bk_… 2h', kind: 'booking' },
-      { left: 3 * H, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 6 * H, width: 2 * H, label: 'bk_… 2h', kind: 'booking' },
-    ],
-    rejected: { left: 8 * H, width: 4 * H, label: '409 slot_unavailable' },
-  },
-  {
-    name: 'Court 2',
-    slots: [
-      { left: H, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 4 * H, width: 3 * H, label: 'hold · 9:41', kind: 'hold' },
-      { left: 8 * H, width: 3 * H, label: 'bk_… 3h', kind: 'booking' },
-    ],
-  },
-  {
-    name: 'Court 3',
-    slots: [
-      { left: 0, width: 4 * H, label: 'blocked', kind: 'block' },
-      { left: 5 * H, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 9 * H, width: 2 * H, label: 'bk_… 2h', kind: 'booking' },
-    ],
-  },
-  {
-    name: 'Coach Ada',
-    slots: [
-      { left: 2 * H, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 3 * H, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 7 * H, width: 3 * H, label: 'bk_… 2 seats', kind: 'booking' },
-    ],
-  },
-  {
-    name: 'Room A',
-    slots: [
-      { left: H, width: 3 * H, label: 'bk_… 6 of 8', kind: 'booking' },
-      { left: 6 * H, width: 3 * H, label: 'hold · 10:00', kind: 'hold' },
-    ],
-  },
-  {
-    name: 'Room B',
-    slots: [
-      { left: 0, width: H, label: 'bk_…', kind: 'booking' },
-      { left: 4 * H, width: 2 * H, label: 'bk_… 2h', kind: 'booking' },
-      { left: 10 * H, width: 2 * H, label: 'bk_…', kind: 'booking' },
-    ],
-  },
-  {
-    name: 'Van 12',
-    slots: [
-      { left: 2 * H, width: 5 * H, label: 'bk_… rental 5h', kind: 'booking' },
-      { left: 8 * H, width: H, label: 'bk_…', kind: 'booking' },
-    ],
-  },
-];
+/** `08` to `19`: the label of every hour the band starts. */
+export const GRID_HOURS = Array.from({ length: GRID_DAY.hours }, (_, index) =>
+  String(Number(GRID_DAY.open.slice(0, 2)) + index).padStart(2, '0'),
+);
+
+export const GRID_ROWS: GridRow[] = GRID_RESOURCES.map((resource) => ({
+  name: resource.name,
+  slots: resource.slots.map((slot) => ({
+    left: slot.from * H,
+    width: slot.hours * H,
+    label: slot.label,
+    kind: slot.kind,
+  })),
+  ...(resource.rejected === undefined
+    ? {}
+    : {
+        rejected: {
+          left: resource.rejected.from * H,
+          width: resource.rejected.hours * H,
+          label: resource.rejected.label,
+        },
+      }),
+}));
 
 /** Counted, never typed: the caption under the grid can only say what the grid draws. */
 export function gridCounts(rows: GridRow[] = GRID_ROWS) {

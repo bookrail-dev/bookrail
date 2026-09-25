@@ -1,10 +1,11 @@
 /**
- * `/v1/signups`: how somebody who has never spoken to us gets a test key, at eleven at night,
- * without writing to anybody.
+ * `/v1/signups`: how somebody who has never spoken to us gets a test key and a live key, at
+ * eleven at night, without writing to anybody.
  *
  * These routes take no API key, which is the whole point and also the reason every decision
- * below is about what an unauthenticated caller may learn or cause. The only other path of
- * `/v1` without one is the Stripe OAuth callback; both are named in `routes/public.ts`.
+ * below is about what an unauthenticated caller may learn or cause. The other paths of `/v1`
+ * without one (the dashboard, the Stripe OAuth callback and the Stripe webhooks) are named with
+ * these in `routes/public.ts`.
  *
  * ## Nothing here writes to the database directly
  *
@@ -14,6 +15,12 @@
  * calls one of the four `SECURITY DEFINER` functions of migration 0021, each of which does one
  * thing and checks its own preconditions inside the database, in one transaction, under a row
  * lock where a race would otherwise be possible.
+ *
+ * ## The terms
+ *
+ * A request carries the two ticks of the terms (`accept_terms`, `approve_clauses`) or is refused
+ * with `400 terms_not_accepted`. The versions accepted are recorded with the request, and the
+ * confirm writes them next to the account it creates (migration 0027).
  *
  * ## What the two tokens are for
  *
@@ -37,20 +44,26 @@
  * A claim needs the identifier **and** the poll token, both matched in the same `WHERE`, so a
  * wrong token is indistinguishable from a wrong identifier.
  *
- * ## Live keys are not here
+ * ## Two keys, and the live one is real
  *
- * The confirm mints one key, `test`, with no scopes and no tenant. A live key still comes from
- * a person, and will until there is a paid plan behind it.
+ * Since 24 September 2026 the confirm mints two keys, a test one and a live one, both secret, with no
+ * scopes and no tenant. The live one books for real, on the free plan the account is born on,
+ * which refuses new live bookings once the month's included ones are used (`402
+ * plan_limit_reached`, migration 0025): that refusal, decided in the transaction of the booking,
+ * is what makes it safe to hand a live key to whoever can read a mailbox. Both keys travel in the
+ * same answer (a browser) or in the same envelope (a terminal), and both are shown once.
  */
 import { Hono } from 'hono';
 import type { Context, MiddlewareHandler } from 'hono';
 import { createHash, randomBytes } from 'node:crypto';
 import { sql, withAuthContext } from '@bookrail/db';
-import { BookrailError, encodeId, errors, uuidv7 } from '@bookrail/shared';
+import { BookrailError, LEGAL_VERSIONS, encodeId, errors, uuidv7 } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
 import { parseJsonBody, pathId } from '../http.js';
+import { callerHash } from '../caller.js';
 import { generateApiKey, parseApiKey } from '../keys.js';
 import { confirmationMessage } from '../mail/messages.js';
+import { plansOf } from '../plan.js';
 import { signupClaimSchema, signupConfirmSchema, signupCreateSchema } from '../schemas/index.js';
 import type { Signup } from '../schemas/responses.js';
 import { decryptSecret, encryptSecret, webhookKeyMissing } from '../webhooks/secrets.js';
@@ -142,6 +155,47 @@ function disabled(): BookrailError {
   );
 }
 
+/**
+ * The keys a terminal collects, as the plain text of the envelope: a JSON object with the two of
+ * them, in the `v1` envelope the webhook secrets use. An envelope written before 24 September 2026
+ * holds the test key alone, as a bare string, and still decrypts to a test key.
+ */
+interface EnvelopedKeys {
+  test: string;
+  live: string | null;
+}
+
+export function sealKeys(keys: { test: string; live: string }): string {
+  return JSON.stringify({ test: keys.test, live: keys.live });
+}
+
+export function openKeys(plain: string): EnvelopedKeys {
+  if (plain.startsWith('{')) {
+    const parsed = JSON.parse(plain) as { test?: unknown; live?: unknown };
+    if (typeof parsed.test === 'string') {
+      return { test: parsed.test, live: typeof parsed.live === 'string' ? parsed.live : null };
+    }
+  }
+  return { test: plain, live: null };
+}
+
+/**
+ * A sign up without the two ticks of the terms.
+ *
+ * `400` and a code of its own, not `parameter_missing`: the request is well formed, and what is
+ * missing is an agreement, which the form, the terminal command and an agent each have to ask a
+ * person for.
+ */
+export function termsNotAccepted(): BookrailError {
+  return new BookrailError(
+    'invalid_request',
+    'terms_not_accepted',
+    'API keys are issued under the Terms of Service and the Data Processing Agreement, and this request did not accept them.',
+    'accept_terms',
+    'Read https://bookrail.dev/terms and https://bookrail.dev/dpa, then send accept_terms: true and approve_clauses: true. From a terminal: npx bookrail@latest signup, which asks for both (an older version of the CLI cannot).',
+  );
+}
+
 function emailFailed(): BookrailError {
   return new BookrailError(
     'internal',
@@ -191,7 +245,9 @@ export function signupCorsHeaders(siteOrigin: string): Readonly<Record<string, s
  * produce included.
  */
 function cors(deps: AppDeps): MiddlewareHandler<AppEnv> {
-  const headers = signupCorsHeaders(deps.siteOrigin);
+  // `no-store` on every answer of these routes: the confirm of a browser and the claim of a
+  // terminal carry the two keys in clear text, and nothing in between should keep a copy.
+  const headers = { ...signupCorsHeaders(deps.siteOrigin), 'Cache-Control': 'no-store' };
   return async (c, next) => {
     if (c.req.method === 'OPTIONS') {
       for (const [name, value] of Object.entries(headers)) c.header(name, value);
@@ -221,6 +277,7 @@ interface ConfirmRow {
   account_id: string | null;
   project_id: string | null;
   api_key_id: string | null;
+  live_api_key_id: string | null;
   account_name: string;
   project_name: string;
   default_timezone: string;
@@ -236,6 +293,7 @@ interface ClaimRow {
   account_id: string | null;
   project_id: string | null;
   api_key_id: string | null;
+  live_api_key_id: string | null;
   account_name: string;
   project_name: string;
   default_timezone: string;
@@ -260,6 +318,9 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
   routes.post('/', async (c) => {
     const send = mailer();
     const body = await parseJsonBody(c, signupCreateSchema);
+    // Both ticks, or nothing is recorded and nothing is sent: a key is issued under the terms,
+    // and a live key books for real from the moment the link is opened.
+    if (body.accept_terms !== true || body.approve_clauses !== true) throw termsNotAccepted();
 
     const id = uuidv7();
     const token = newToken();
@@ -273,11 +334,13 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
           ${sha256(token)},
           ${pollToken === null ? null : sha256(pollToken)},
           ${body.client},
-          ${sha256(callerAddress(c, deps.trustForwardedFor === true))},
+          ${callerHash(callerAddress(c, deps.trustForwardedFor === true))},
           ${body.account_name ?? accountNameFromEmail(body.email)},
           ${body.project_name ?? 'Default'},
           ${body.default_timezone ?? 'UTC'},
-          ${body.default_currency ?? 'EUR'}
+          ${body.default_currency ?? 'EUR'},
+          ${LEGAL_VERSIONS.terms},
+          ${LEGAL_VERSIONS.dpa}
         )
       `),
     );
@@ -290,7 +353,14 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
     // row stays behind on a failure, and the daily limit counts it, deliberately: a mail server
     // that refuses is not an invitation to try the same address fifty times.
     try {
-      await send.send(confirmationMessage({ to: body.email, siteUrl: deps.siteUrl, token }));
+      await send.send(
+        confirmationMessage({
+          to: body.email,
+          siteUrl: deps.siteUrl,
+          token,
+          freeBookingsIncluded: plansOf(deps).free.bookingsIncluded ?? 0,
+        }),
+      );
     } catch (error) {
       // The **class** of the failure and nothing else. An SMTP refusal quotes the envelope
       // (`550 5.1.1 <you@example.com>: Recipient address rejected`), so writing `error.message`
@@ -326,11 +396,15 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
     // sees the hash. The identifier of the key is also the additional authenticated data of the
     // envelope, so a stored envelope that was moved to another sign up row fails to decrypt
     // rather than quietly handing somebody another account's key.
-    const generated = generateApiKey('test');
+    const test = generateApiKey('test');
+    const live = generateApiKey('live');
     const accountId = uuidv7();
     const projectId = uuidv7();
     const keyId = uuidv7();
-    const envelope = encryptSecret(generated.key, key, keyId);
+    const liveKeyId = uuidv7();
+    // Sealed with the test key's identifier as additional data, as before: the envelope carries
+    // both keys, and moving it to another sign up row fails to decrypt.
+    const envelope = encryptSecret(sealKeys({ test: test.key, live: live.key }), key, keyId);
 
     const { rows } = await withAuthContext(deps.db, (tx) =>
       tx.execute<ConfirmRow>(sql`
@@ -339,9 +413,13 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
           ${accountId}::uuid,
           ${projectId}::uuid,
           ${keyId}::uuid,
-          ${generated.prefix},
-          ${generated.keyHash},
+          ${test.prefix},
+          ${test.keyHash},
           ${'test secret key'},
+          ${liveKeyId}::uuid,
+          ${live.prefix},
+          ${live.keyHash},
+          ${'live secret key'},
           ${envelope}
         )
       `),
@@ -362,8 +440,10 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
       id: encodeId('signup', row.id),
       object: 'signup',
       status: 'confirmed',
-      ...created(row, generated.prefix),
-      ...(row.client === 'cli' ? { delivered_to: 'cli' as const } : { secret_key: generated.key }),
+      ...created(row, test.prefix, live.prefix),
+      ...(row.client === 'cli'
+        ? { delivered_to: 'cli' as const }
+        : { secret_key: test.key, live_secret_key: live.key }),
     };
     return c.json(payload);
   });
@@ -379,8 +459,8 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
       tx.execute<ClaimRow>(
         sql`
           SELECT status, previous_status, pending_secret, expires_at::text AS expires_at,
-                 account_id, project_id, api_key_id, account_name, project_name,
-                 default_timezone, default_currency
+                 account_id, project_id, api_key_id, live_api_key_id, account_name,
+                 project_name, default_timezone, default_currency
             FROM signup_claim(${id}::uuid, ${sha256(body.poll_token)})
         `,
       ),
@@ -420,15 +500,19 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
       );
     }
 
-    const secret = decryptSecret(row.pending_secret, key, row.api_key_id ?? '');
-    const parsed = parseApiKey(secret);
-    if (parsed === null) throw errors.internal('The stored key could not be read.');
+    const keys = openKeys(decryptSecret(row.pending_secret, key, row.api_key_id ?? ''));
+    const parsed = parseApiKey(keys.test);
+    const parsedLive = keys.live === null ? null : parseApiKey(keys.live);
+    if (parsed === null || (keys.live !== null && parsedLive === null)) {
+      throw errors.internal('The stored key could not be read.');
+    }
     const payload: Signup = {
       id: encodeId('signup', id),
       object: 'signup',
       status: 'confirmed',
-      ...created(row, parsed.prefix),
-      secret_key: secret,
+      ...created(row, parsed.prefix, parsedLive?.prefix ?? null),
+      secret_key: keys.test,
+      ...(keys.live === null ? {} : { live_secret_key: keys.live }),
     };
     return c.json(payload);
   });
@@ -437,24 +521,44 @@ export function signupsRoutes(deps: AppDeps): Hono<AppEnv> {
 }
 
 /**
- * The three objects a confirmed sign up produced, in the shape every answer carries them.
+ * The objects a confirmed sign up produced, in the shape every answer carries them.
  *
- * The prefix is passed in rather than read from a row: it is the first eight characters of the
- * key's own random body, and this process is the only place the key exists in clear text.
+ * The prefixes are passed in rather than read from a row: each is the first eight characters of
+ * the key's own random body, and this process is the only place the keys exist in clear text.
+ * `livePrefix` is `null` for a sign up confirmed before the live key existed.
  */
 function created(
   row: {
     account_id: string | null;
     project_id: string | null;
     api_key_id: string | null;
+    live_api_key_id: string | null;
     account_name: string;
     project_name: string;
     default_timezone: string;
     default_currency: string;
   },
   prefix: string,
+  livePrefix: string | null,
 ): Partial<Signup> {
   if (row.account_id === null || row.project_id === null || row.api_key_id === null) return {};
+  const testKey = {
+    id: encodeId('api_key', row.api_key_id),
+    object: 'api_key' as const,
+    environment: 'test' as const,
+    kind: 'secret' as const,
+    prefix,
+  };
+  const liveKey =
+    row.live_api_key_id === null || livePrefix === null
+      ? null
+      : {
+          id: encodeId('api_key', row.live_api_key_id),
+          object: 'api_key' as const,
+          environment: 'live' as const,
+          kind: 'secret' as const,
+          prefix: livePrefix,
+        };
   return {
     account: {
       id: encodeId('account', row.account_id),
@@ -468,12 +572,7 @@ function created(
       default_timezone: row.default_timezone,
       default_currency: row.default_currency,
     },
-    api_key: {
-      id: encodeId('api_key', row.api_key_id),
-      object: 'api_key',
-      environment: 'test',
-      kind: 'secret',
-      prefix,
-    },
+    api_key: testKey,
+    api_keys: liveKey === null ? [testKey] : [testKey, liveKey],
   };
 }

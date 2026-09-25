@@ -1,7 +1,8 @@
 import type { Database } from '@bookrail/db';
 import type { AvailabilityCache } from '@bookrail/engine';
-import type { Environment, Logger } from '@bookrail/shared';
+import type { Environment, Logger, PlanId, PlanTable } from '@bookrail/shared';
 import type { StripePlatformConfig } from './config.js';
+import type { StripeBillingClient } from './stripe/billing-client.js';
 import type { Mailer } from './mail/index.js';
 import type { RateLimiter } from './rate-limit.js';
 import type { UsageCounters } from './usage-counters.js';
@@ -13,6 +14,24 @@ export interface AuthContext {
   kind: 'secret' | 'publishable';
   scopes: string[];
   tenantId: string | null;
+  /** The account the key's project belongs to. */
+  accountId: string;
+  /**
+   * The plan of that account, as the key lookup read it at the start of this request. The rate
+   * limiter and the `Bookrail-Plan-Usage` header read it from here; the booking transaction
+   * reads it again from the account row, inside the transaction that decides.
+   */
+  plan: PlanId;
+}
+
+/** What the Billing routes, the Billing receiver and the Billing jobs are handed. */
+export interface BillingDeps {
+  mode: 'test' | 'live';
+  client: StripeBillingClient;
+  /** The signing secret of the endpoint of the account, for `POST /v1/billing/webhook`. */
+  webhookSecret: string;
+  /** Who receives the data of each paid invoice. */
+  invoiceTo: string;
 }
 
 /** One policy: how fast, and how much of it may arrive at once. */
@@ -26,14 +45,16 @@ export interface RateLimitPolicy {
 export interface RateLimitSettings {
   limiter: RateLimiter;
   /**
-   * The policy per environment of the key, not per plan.
+   * The policy of a test key, and the override of every live key.
    *
-   * There are no plans, so there is nothing to read one from; what there is instead is the one
-   * distinction that already exists and already means something, which is whether the key is a
-   * test key or a live one. A test key belongs to somebody exploring the API, a live key to
-   * somebody serving customers with it, and the second deserves the higher ceiling.
+   * A test key belongs to somebody exploring the API and has the test ceiling whatever the plan
+   * of its account. A live key has the ceiling of its account's **plan**
+   * (`PLANS[plan].rateLimit`), unless `live` is set here: that is a deployment that has written
+   * `RATE_LIMIT_LIVE_RPS` or `RATE_LIMIT_LIVE_BURST`, and the value it wrote applies to every
+   * live key of every plan. The override exists for an operator who needs to cap or lift the
+   * whole live traffic at once, without a release.
    */
-  limits: Readonly<Record<Environment, RateLimitPolicy>>;
+  limits: { readonly test: RateLimitPolicy; readonly live: RateLimitPolicy | null };
 }
 
 export interface AppDeps {
@@ -85,6 +106,14 @@ export interface AppDeps {
    */
   stripe?: StripePlatformConfig | null;
   /**
+   * Stripe Billing, where Bookrail sells its own plans, or nothing.
+   *
+   * Absent (and `null`) switches Billing off: the checkout and the portal answer
+   * `503 billing_not_configured`, and so does the receiver of the Billing events. Never the same
+   * object as {@link stripe}: that one acts for connected accounts, this one for Bookrail itself.
+   */
+  billing?: BillingDeps | null;
+  /**
    * How many minutes a booking waits for its payment before the scheduler cancels it.
    *
    * Thirty unless a deployment says otherwise (`DEFAULT_PAYMENT_TIMEOUT_MINUTES`). It is on the
@@ -93,6 +122,16 @@ export interface AppDeps {
    * measures the transition at that instant.
    */
   paymentTimeoutMinutes: number;
+  /**
+   * The plan table: included quantities, whether the plan blocks at them, and the rate limit of
+   * a live key. The published `PLANS` of `@bookrail/shared` when absent.
+   *
+   * On the dependencies, like `paymentTimeoutMinutes`, so that a test can lower the threshold of
+   * the free plan from a thousand bookings to three and reach it. **Not readable from the
+   * environment**: a deployment that could change what the free plan includes with a variable
+   * would be a deployment that could give it away by accident.
+   */
+  plans?: PlanTable;
   /** The one origin allowed to call `/v1/signups` from a browser. */
   siteOrigin: string;
   /**
@@ -124,6 +163,16 @@ export interface AppDeps {
    * thing that passes this.
    */
   trustForwardedFor?: boolean;
+  /**
+   * The clock of the dashboard, in milliseconds since the epoch. `Date.now` when absent.
+   *
+   * **Deliberately not readable from the environment**, like the flags below. It exists so that a
+   * test can ask what a session looks like thirteen hours on without waiting for them, and it is
+   * harmless by construction: the database checks sessions and links against
+   * `greatest(this, now())`, so this clock can move time forward and never back, and it cannot
+   * lengthen a session or bring an expired one back (migration 0026).
+   */
+  now?: () => number;
   /**
    * Let webhooks point at loopback and private addresses.
    *
@@ -171,8 +220,23 @@ export type ApiActor = (typeof API_ACTORS)[number];
 
 export const ACTOR_HEADER = 'Bookrail-Actor';
 
+/**
+ * A dashboard session, as the dashboard router resolved it from `Authorization: Bearer bds_...`.
+ *
+ * Never an {@link AuthContext}: a session belongs to an account and opens the dashboard routes
+ * only, and nothing under `/v1` that reads `auth` can be reached with one.
+ */
+export interface DashboardContext {
+  sessionId: string;
+  accountId: string;
+  /** SHA-256 of the session token: what every dashboard function takes as its argument. */
+  tokenHash: string;
+  expiresAt: string;
+}
+
 export interface AppVariables {
   requestId: string;
+  dashboard: DashboardContext;
   apiVersion: string;
   auth: AuthContext;
   /**

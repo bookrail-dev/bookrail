@@ -20,12 +20,11 @@ minute for every one after it.
 Bookrail is in early access, and the honest version of that is a short list.
 
 - **The API is live** at `https://api.bookrail.dev`. It is the same code the tests run against.
-- **A test key is self service.** Run `npx bookrail signup`, or open
-  [/signup](/signup), type an address and open the link we send: that creates the account, the
-  project and one `sk_test_...` key, in under two minutes and without writing to anybody. A
-  **live** key still comes from a person, so for that one write to
-  [hello@bookrail.dev](mailto:hello@bookrail.dev?subject=Bookrail%20live%20key) and say what you
-  are building.
+- **Keys are self service.** Run `npx bookrail signup`, or open [/signup](/signup), type an
+  address and open the link we send: that creates the account, the project, one `sk_test_...`
+  key and one `sk_live_...` key, in under two minutes and without writing to anybody. The live
+  key books for real on the [Free plan](/pricing/). The [dashboard](/dashboard/) shows the plan
+  and this month's usage, and makes and revokes keys.
 - **The packages are on npm.** `bookrail`, `@bookrail/node`, `@bookrail/mcp` and
   `@bookrail/webhook-signature` are published, Apache 2.0
   ([Open source](/docs/open-source/) says what is open and what is not), so the `npx` and
@@ -45,7 +44,8 @@ Bookrail is in early access, and the honest version of that is a short list.
 npx bookrail signup
 ```
 
-It asks for an address, sends a link there, and waits. Open the link and the command stores the
+It asks you to accept the [Terms of Service](/terms) and the [Data Processing Agreement](/dpa)
+(`--accept-terms` and `--approve-clauses` do it for a script), then asks for an address, sends a link there, and waits. Open the link and the command stores the
 key with mode 600 in `~/.config/bookrail/credentials.json`. `--no-store` prints it once instead.
 
 If you already have a key, `npx bookrail login` stores it. It asks for the key, checks it

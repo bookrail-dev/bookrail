@@ -23,9 +23,9 @@ export function registerProjectTools(server: McpServer, workspace: Workspace): v
     name: 'bookrail_project_info',
     title: 'Which project, key and API this server is talking to',
     description: [
-      'Returns the project the configured key belongs to, the API URL and version, the key (masked) and where it came from, and whether the live environment is reachable from this server at all.',
-      'Use it first, before any other call that touches data: it proves the key works and names the project you are about to change.',
-      'Returns: `{ environment, project: { id, name, default_timezone, default_currency }, api_key: { id, scopes, tenant_id }, api_url, api_version_served, live_allowed }`.',
+      'Returns the project the configured key belongs to, the API URL and version, the key (masked) and where it came from, the plan of the account and how much of it the account has used this month, and whether the live environment is reachable from this server at all.',
+      'Use it first, before any other call that touches data: it proves the key works and names the project you are about to change. On the free plan, `usage.bookings_confirmed` reaching `usage.bookings_included` means every new live booking answers `402 plan_limit_reached`; the numbers are the live ones even with a test key.',
+      'Returns: `{ environment, project: { id, name, default_timezone, default_currency }, api_key: { id, scopes, tenant_id }, plan, usage: { month, bookings_confirmed, bookings_included, payment_volume, payment_volume_included, currency, blocks_at_limit }, api_url, api_version_served, live_allowed }`.',
       'Next: `bookrail_doctor` if anything looks wrong; `bookrail_config_pull` to see what the project already contains.',
     ].join('\n'),
     inputSchema: { environment: environmentArgument },
@@ -49,7 +49,7 @@ export function registerProjectTools(server: McpServer, workspace: Workspace): v
     name: 'bookrail_doctor',
     title: 'Check the environment and say how to fix it',
     description: [
-      'Runs every check the `bookrail doctor` command runs (Node version, credentials and their file permissions, environment against key prefix, API reachability, API version drift, authentication, project and project environment, configuration file validity) and returns each as ok / warn / fail with a `fix` sentence.',
+      'Runs every check the `bookrail doctor` command runs (Node version, credentials and their file permissions, environment against key prefix, API reachability, API version drift, authentication, project and project environment, plan usage, Stripe connection, configuration file validity) and returns each as ok / warn / fail with a `fix` sentence.',
       'Use it when a call failed and you do not know why, or before starting work in a new project directory.',
       'Returns: `{ checks: [{ name, status, message, fix? }], summary: { ok, warn, fail } }`. `ok: false` is never returned for a failed check: read `summary.fail`.',
       'Next: act on the `fix` of every failing check, then call `bookrail_project_info`.',

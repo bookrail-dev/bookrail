@@ -146,7 +146,7 @@ describe('the headers, and the refusal', () => {
       type: 'rate_limit',
       code: 'rate_limited',
       message: 'This key may make 2 requests per second, with bursts of 2.',
-      fix: 'Wait for Retry-After, or spread the calls. Live keys have higher limits.',
+      fix: "Wait for Retry-After, or spread the calls. A live key has the limit of its account's plan: https://bookrail.dev/docs/errors/#rate-limits",
       doc_url: 'https://bookrail.dev/docs/errors#rate_limited',
     });
     expect(refused.body.error.request_id).toBe(refused.headers.get('bookrail-request-id'));
@@ -228,7 +228,12 @@ describe('what the bucket is, and what it is not', () => {
       // A caller address of its own: the sign up endpoints have a limit per address in the
       // database, and this test is not about that one.
       headers: { 'x-forwarded-for': '203.0.113.251' },
-      body: { email: `no-bucket-${String(Date.now())}@example.com`, client: 'web' },
+      body: {
+        email: `no-bucket-${String(Date.now())}@example.com`,
+        client: 'web',
+        accept_terms: true,
+        approve_clauses: true,
+      },
     });
     expect(response.status).toBe(202);
     expect(response.headers.get(RATE_LIMIT_LIMIT_HEADER)).toBeNull();

@@ -6,10 +6,12 @@
  * Three reasons, and they are the reasons rather than a preference.
  *
  * The whole 009 family needs **seven** calls: exchange an OAuth code, revoke an OAuth grant,
- * create, read and cancel a PaymentIntent, create a refund, read an account. The official
- * package carries a runtime for several hundred endpoints, a resource tree generated from the
- * whole API surface, and its own HTTP stack with its own retry policy and its own telemetry.
- * Seven calls do not pay for that.
+ * create, read and cancel a PaymentIntent, create a refund, read an account. Billing, where
+ * Bookrail sells its own plans, adds about as many again (`billing-client.ts`): a customer, a
+ * checkout, the portal, a subscription, an invoice item, and the reads of the catalogue. The
+ * official package carries a runtime for several hundred endpoints, a resource tree generated
+ * from the whole API surface, and its own HTTP stack with its own retry policy and its own
+ * telemetry. Twenty calls do not pay for that.
  *
  * The repository has **no runtime HTTP dependency at all**, by decision: webhook delivery, the
  * SDK and the CLI all speak through the global `fetch` of Node 20. A payment client that brought
@@ -189,8 +191,8 @@ export interface StripeClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-interface RequestOptions {
-  method: 'GET' | 'POST';
+export interface RequestOptions {
+  method: 'GET' | 'POST' | 'DELETE';
   /** Absolute URL, built by the caller from one of the two bases. */
   url: string;
   form?: Record<string, unknown>;
@@ -246,21 +248,126 @@ interface StripeErrorBody {
   error_description?: unknown;
 }
 
-export class StripeClient {
-  private readonly secretKey: string;
-  private readonly clientId: string | undefined;
-  private readonly apiBase: string;
-  private readonly connectBase: string;
+/**
+ * The wire: one request, the headers every call carries, and the two shapes of error.
+ *
+ * Shared by the two clients that talk to Stripe with the platform's secret key, and that must
+ * never be mistaken for each other: {@link StripeClient}, which acts **for a connected account**
+ * of a customer (Connect, with `Stripe-Account`), and `StripeBillingClient`, which acts as
+ * Bookrail **selling** its own plans on its own account (Billing, never with `Stripe-Account`).
+ * They are two classes and not one with two sets of methods, so that a function handed one cannot
+ * call a method of the other.
+ */
+export class StripeTransport {
+  protected readonly secretKey: string;
+  protected readonly apiBase: string;
+  protected readonly connectBase: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: StripeClientOptions) {
     this.secretKey = options.secretKey;
-    this.clientId = options.clientId;
     this.apiBase = trimSlash(options.apiBase ?? DEFAULT_STRIPE_API_BASE);
     this.connectBase = trimSlash(options.connectBase ?? DEFAULT_STRIPE_CONNECT_BASE);
     this.timeoutMs = options.timeoutMs ?? STRIPE_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  /**
+   * One request, one attempt.
+   *
+   * No retry here on purpose: whether a call may be repeated depends on what it is, and the
+   * caller is the only thing that knows. A token exchange must never be repeated (the code is
+   * single use); a read may be repeated freely.
+   */
+  protected async request<T>(options: RequestOptions): Promise<T> {
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${this.secretKey}`,
+      'stripe-version': STRIPE_API_VERSION,
+      accept: 'application/json',
+    };
+    if (options.form !== undefined) {
+      headers['content-type'] = 'application/x-www-form-urlencoded';
+    }
+    if (options.stripeAccount !== undefined) headers['stripe-account'] = options.stripeAccount;
+    if (options.idempotencyKey !== undefined) {
+      headers['idempotency-key'] = options.idempotencyKey;
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(options.url, {
+        method: options.method,
+        headers,
+        ...(options.form === undefined ? {} : { body: encodeStripeForm(options.form) }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (error) {
+      // The class, never the message: a `fetch` failure prints the URL it was given, and an
+      // OAuth URL is not something to copy into a log beside the reason it failed.
+      throw new StripeUnreachableError(transportReason(error));
+    }
+
+    const text = await response.text().catch(() => '');
+    const requestId = response.headers.get('request-id') ?? undefined;
+
+    if (!response.ok) throw this.errorFrom(response.status, text, requestId);
+
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new StripeApiError({
+        status: response.status,
+        type: 'invalid_response',
+        message: 'Stripe answered with a body that is not JSON.',
+        requestId,
+      });
+    }
+  }
+
+  private errorFrom(status: number, text: string, requestId: string | undefined): StripeApiError {
+    let parsed: StripeErrorBody = {};
+    try {
+      parsed = JSON.parse(text) as StripeErrorBody;
+    } catch {
+      // A non JSON error body is reported as the status alone. Echoing the body would be
+      // echoing whatever a proxy in the middle decided to write.
+      return new StripeApiError({
+        status,
+        type: 'api_error',
+        message: `Stripe answered ${String(status)}.`,
+        requestId,
+      });
+    }
+    // `/v1` answers `{error: {type, code, message}}` and the OAuth endpoints answer
+    // `{error: "invalid_grant", error_description: "..."}`. Both are read here so that the rest
+    // of the code has one shape to reason about.
+    const nested = typeof parsed.error === 'object' && parsed.error !== null ? parsed.error : {};
+    const flatCode = typeof parsed.error === 'string' ? parsed.error : undefined;
+    const type = asString(nested.type) ?? (flatCode === undefined ? 'api_error' : 'oauth_error');
+    const code = asString(nested.code) ?? flatCode;
+    const message =
+      asString(nested.message) ??
+      asString(parsed.error_description) ??
+      asString(nested.error_description) ??
+      `Stripe answered ${String(status)}.`;
+    // Stripe attaches the PaymentIntent itself to an error about one. Its `status` is the
+    // documented way to know which state refused the call, and it costs one read to keep.
+    const intent =
+      typeof nested.payment_intent === 'object' && nested.payment_intent !== null
+        ? (nested.payment_intent as Record<string, unknown>)
+        : undefined;
+    const paymentIntentStatus = intent === undefined ? undefined : asString(intent.status);
+    return new StripeApiError({ status, type, code, message, requestId, paymentIntentStatus });
+  }
+}
+
+export class StripeClient extends StripeTransport {
+  private readonly clientId: string | undefined;
+
+  constructor(options: StripeClientOptions) {
+    super(options);
+    this.clientId = options.clientId;
   }
 
   /**
@@ -477,94 +584,6 @@ export class StripeClient {
       amount: typeof body.amount === 'number' ? body.amount : params.amount,
       status: typeof body.status === 'string' ? body.status : null,
     };
-  }
-
-  /**
-   * One request, one attempt.
-   *
-   * No retry here on purpose: whether a call may be repeated depends on what it is, and the
-   * caller is the only thing that knows. A token exchange must never be repeated (the code is
-   * single use); a read may be repeated freely.
-   */
-  private async request<T>(options: RequestOptions): Promise<T> {
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${this.secretKey}`,
-      'stripe-version': STRIPE_API_VERSION,
-      accept: 'application/json',
-    };
-    if (options.form !== undefined) {
-      headers['content-type'] = 'application/x-www-form-urlencoded';
-    }
-    if (options.stripeAccount !== undefined) headers['stripe-account'] = options.stripeAccount;
-    if (options.idempotencyKey !== undefined) {
-      headers['idempotency-key'] = options.idempotencyKey;
-    }
-
-    let response: Response;
-    try {
-      response = await this.fetchImpl(options.url, {
-        method: options.method,
-        headers,
-        ...(options.form === undefined ? {} : { body: encodeStripeForm(options.form) }),
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (error) {
-      // The class, never the message: a `fetch` failure prints the URL it was given, and an
-      // OAuth URL is not something to copy into a log beside the reason it failed.
-      throw new StripeUnreachableError(transportReason(error));
-    }
-
-    const text = await response.text().catch(() => '');
-    const requestId = response.headers.get('request-id') ?? undefined;
-
-    if (!response.ok) throw this.errorFrom(response.status, text, requestId);
-
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw new StripeApiError({
-        status: response.status,
-        type: 'invalid_response',
-        message: 'Stripe answered with a body that is not JSON.',
-        requestId,
-      });
-    }
-  }
-
-  private errorFrom(status: number, text: string, requestId: string | undefined): StripeApiError {
-    let parsed: StripeErrorBody = {};
-    try {
-      parsed = JSON.parse(text) as StripeErrorBody;
-    } catch {
-      // A non JSON error body is reported as the status alone. Echoing the body would be
-      // echoing whatever a proxy in the middle decided to write.
-      return new StripeApiError({
-        status,
-        type: 'api_error',
-        message: `Stripe answered ${String(status)}.`,
-        requestId,
-      });
-    }
-    // `/v1` answers `{error: {type, code, message}}` and the OAuth endpoints answer
-    // `{error: "invalid_grant", error_description: "..."}`. Both are read here so that the rest
-    // of the code has one shape to reason about.
-    const nested = typeof parsed.error === 'object' && parsed.error !== null ? parsed.error : {};
-    const flatCode = typeof parsed.error === 'string' ? parsed.error : undefined;
-    const type = asString(nested.type) ?? (flatCode === undefined ? 'api_error' : 'oauth_error');
-    const code = asString(nested.code) ?? flatCode;
-    const message =
-      asString(nested.message) ??
-      asString(parsed.error_description) ??
-      asString(nested.error_description) ??
-      `Stripe answered ${String(status)}.`;
-    // Stripe attaches the PaymentIntent itself to an error about one. Its `status` is the
-    // documented way to know which state refused the call, and it costs one read to keep.
-    const intent =
-      typeof nested.payment_intent === 'object' && nested.payment_intent !== null
-        ? (nested.payment_intent as Record<string, unknown>)
-        : undefined;
-    const paymentIntentStatus = intent === undefined ? undefined : asString(intent.status);
-    return new StripeApiError({ status, type, code, message, requestId, paymentIntentStatus });
   }
 }
 

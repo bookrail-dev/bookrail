@@ -140,7 +140,7 @@ describe('the OpenAPI document', () => {
         .map((operation) => operation.operationId)
         .filter((id): id is string => id !== undefined),
     );
-    expect(ids).toHaveLength(77);
+    expect(ids).toHaveLength(88);
 
     const pages = new Set(await readdir(join(distRoot, 'docs', 'api', 'reference', 'operations')));
     const missing = ids.filter((id) => !pages.has(id.toLowerCase().replace(/[^a-z0-9_]/g, '')));
@@ -221,7 +221,9 @@ describe('llms.txt', () => {
     const urls = [...llms.matchAll(/\]\((https:\/\/[^)]+)\)/g)].map((match) => match[1] ?? '');
     expect(urls.length).toBeGreaterThan(10);
     for (const url of urls) {
-      const path = new URL(url).pathname;
+      const pathname = new URL(url).pathname;
+      // A page, rather than a file, is its directory's `index.html`, which is what nginx serves.
+      const path = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
       await expect(readFile(join(distRoot, path)), url).resolves.toBeTruthy();
     }
   });

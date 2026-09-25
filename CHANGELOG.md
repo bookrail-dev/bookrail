@@ -10,17 +10,26 @@ The four published packages are versioned together: `bookrail`, `@bookrail/node`
 `@bookrail/mcp` and `@bookrail/webhook-signature`. `@bookrail/webhook-signature` is a
 dependency of the first two, so it is always published first or in the same batch.
 
-## Unreleased
+## 0.4.0
 
-Stripe payments on the customer's own Stripe account (API 2026-09-01, server release of
-23 September 2026). The packages on npm are still 0.3.1; the next published version carries
-the commands below.
+Released on 25 September 2026, with the server release of the same day (API 2026-09-01). Live
+keys at sign-up, the Terms of Service, and payments on your own Stripe account. **Upgrade the CLI
+before signing up again: 0.3.1 cannot accept the terms, and the server now requires them.**
 
 ### Added
 
-- **`bookrail stripe connect`, `stripe status`, `stripe disconnect`.** Connect the project's own
-  Stripe account through Stripe Connect OAuth. Bookrail never sees a key of yours: it stores
-  the account id and charges on it with `Stripe-Account`. `doctor` reports the connection.
+- **A live key at sign-up.** `bookrail signup` now stores two keys: a `sk_test_` key, free and
+  never counted, and a `sk_live_` key on the Free plan (up to 1,000 confirmed live bookings a
+  month). Test stays the default; live needs `--live`. More keys, and revoking them, are in the
+  dashboard at https://bookrail.dev/dashboard/.
+- **The Terms of Service and the Data Processing Agreement** (https://bookrail.dev/terms,
+  https://bookrail.dev/dpa) are accepted at sign-up. In a terminal `bookrail signup` asks, one at
+  a time, to accept them and to approve the clauses of their Section 17; without a terminal,
+  `--accept-terms` and `--approve-clauses` are required.
+- **Stripe payments on your own Stripe account.** `bookrail stripe connect`, `stripe status`,
+  `stripe disconnect` connect the project's own Stripe account through Stripe Connect OAuth:
+  Bookrail never sees a key of yours, it stores the account id and charges on it with
+  `Stripe-Account`. `doctor` reports the connection.
 - **`bookrail bookings create --payment deposit|full`.** The booking is created `pending` with a
   PaymentIntent on the connected account; the response carries `payment_intent` with the
   `client_secret` once, the connected account id and the platform's publishable key for
@@ -30,12 +39,19 @@ the commands below.
   events `payment.succeeded`, `payment.failed` and `payment.refunded`. A cancellation queues the
   refund the policy promises, and the refund is executed on Stripe.
 - **`@bookrail/node`:** `client.stripe` (`connect`, `retrieve`, `disconnect`) and
-  `client.payments` (`retrieve`, `list`); `bookings.create` returns the `payment_intent`.
+  `client.payments` (`retrieve`, `list`); `bookings.create` returns the `payment_intent`; the
+  types of the new errors and fields.
 - **`@bookrail/mcp`:** `stripe_status`, `stripe_connect`, `bookrail_payment_get`,
   `bookrail_payment_list`; `bookings_create` accepts `payment_mode`.
 
 ### Changed
 
+- **Sign-up requires the terms.** The server answers `400 terms_not_accepted` to a sign-up that
+  does not accept them, which is what `bookrail@0.3.1` sends. Run `npx bookrail@latest signup`.
+- **Live keys follow the plan.** A live key on the Free plan may make 20 requests a second with
+  bursts of 40 (0.3.0 said 100 and 500 for every live key); a paying plan raises it. At the
+  monthly limit of the Free plan a new live booking is refused with `402 plan_limit_reached`,
+  whose `fix` points to the upgrade in the dashboard.
 - Rescheduling a booking that has a payment is refused with `422 reschedule_not_supported`:
   cancel it, which refunds it according to the policy, and create a new one.
 

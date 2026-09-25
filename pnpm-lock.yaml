@@ -60,6 +60,9 @@ importers:
       '@bookrail/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@bookrail/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@types/node':
         specifier: ^20.17.10
         version: 20.19.43

@@ -142,6 +142,21 @@ export async function purgeSignups(deps: { db: Database; logger: Logger }): Prom
 }
 
 /**
+ * Clears the dashboard rows nothing can use any more (migration 0026).
+ *
+ * The requests for a sign in link past the hour their ceilings look back over, which carry an
+ * address, and the sessions that expired or were revoked more than a week ago. Housekeeping and a
+ * retention promise, like the sign up purge beside it, through a `SECURITY DEFINER` function whose
+ * result is a count.
+ */
+export async function purgeDashboard(deps: { db: Database; logger: Logger }): Promise<number> {
+  const { rows } = await deps.db.execute<{ touched: number }>(
+    sql`SELECT dashboard_purge() AS touched`,
+  );
+  return rows[0]?.touched ?? 0;
+}
+
+/**
  * Deletes the Stripe OAuth states whose fifteen minutes have run out.
  *
  * Cross project by nature, like the two purges above, and for the same reason it goes through a

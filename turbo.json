@@ -1,6 +1,8 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["legale/*.md"],
   "globalEnv": [
+    "BOOKRAIL_LEGAL_DIR",
     "DATABASE_URL",
     "DATABASE_ADMIN_URL",
     "DATABASE_APP_URL",

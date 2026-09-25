@@ -1,5 +1,10 @@
 import { resolveDatabaseUrls, type DatabaseUrls } from '@bookrail/db';
-import type { LogLevel } from '@bookrail/shared';
+import {
+  LEGAL_VERSIONS,
+  legalVersionsRefusal,
+  type LegalVersions,
+  type LogLevel,
+} from '@bookrail/shared';
 import type { RateLimitPolicy } from './context.js';
 import {
   DEFAULT_HOLD_EXPIRY_INTERVAL_SECONDS,
@@ -135,6 +140,14 @@ export interface ApiConfig {
    */
   stripe: StripePlatformConfig | null;
   /**
+   * Stripe Billing, where Bookrail sells its own plans, or `null` when it is switched off.
+   *
+   * `null` is a deployment with no `BILLING_STRIPE_MODE`: the checkout and the portal answer
+   * `503 billing_not_configured`, the receiver of the Billing events answers the same, and the
+   * plans move only with `bookrail-plan`. See {@link loadBillingConfig}.
+   */
+  billing: BillingConfig | null;
+  /**
    * How many minutes a booking waits for its payment. See
    * {@link DEFAULT_PAYMENT_TIMEOUT_MINUTES}.
    */
@@ -151,7 +164,13 @@ export interface ApiConfig {
   rateLimit: {
     enabled: boolean;
     test: RateLimitPolicy;
-    live: RateLimitPolicy;
+    /**
+     * The override of every live key, or `null` when the deployment sets neither
+     * `RATE_LIMIT_LIVE_RPS` nor `RATE_LIMIT_LIVE_BURST`, which is the default: a live key then has
+     * the ceiling of its account's plan. Setting either variable replaces the plan's ceiling for
+     * every live key of every plan, with the unset half taken from {@link DEFAULT_RATE_LIMITS}.
+     */
+    live: RateLimitPolicy | null;
   };
 }
 
@@ -160,7 +179,10 @@ export interface ApiConfig {
  *
  * The test ceiling is the one the pricing table has always printed against the free tier, 20
  * requests a second. The live one is the number the API reference has always printed, 100 a
- * second with a burst of 500. Neither is a measurement: they are both far above anything a real
+ * second with a burst of 500, and since the plans exist it is no longer what a live key gets by
+ * default: a live key has the ceiling of its account's plan (`PLANS[plan].rateLimit` of
+ * `@bookrail/shared`), and this number is only the half an operator did not write when they set
+ * one of the two `RATE_LIMIT_LIVE_*` overrides. Neither is a measurement: they are both far above anything a real
  * integration does (a booking flow is a handful of calls per customer) and far below what one
  * process can serve, so they bound a runaway script without being in anybody's way. The burst of
  * a test key is twice its rate, which covers a cold start that sets up a project in one go.
@@ -240,7 +262,22 @@ export interface StripePlatformConfig {
 
 const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
+/**
+ * The configuration of a process, from its environment.
+ *
+ * Under `NODE_ENV=production` it refuses to start while the versions of the terms and of the DPA
+ * the API records are drafts (`legalVersionsRefusal`): an API released before the texts are
+ * approved would record real acceptances of texts nobody published. `legalVersions` is the
+ * constant of `@bookrail/shared`; a test passes others.
+ */
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { legalVersions?: LegalVersions } = {},
+): ApiConfig {
+  if (env.NODE_ENV === 'production') {
+    const refusal = legalVersionsRefusal(options.legalVersions ?? LEGAL_VERSIONS);
+    if (refusal !== null) throw new Error(refusal);
+  }
   const level = env.LOG_LEVEL;
   return {
     urls: resolveDatabaseUrls({ env }),
@@ -286,6 +323,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     siteUrl: trimSlash(trimmed(env.BOOKRAIL_SITE_URL) ?? DEFAULT_SITE_URL),
     apiUrl: trimSlash(trimmed(env.BOOKRAIL_API_URL) ?? DEFAULT_API_URL),
     stripe: loadStripeConfig(env),
+    billing: loadBillingConfig(env),
     paymentTimeoutMinutes: positiveInt(
       env.BOOKRAIL_PAYMENT_TIMEOUT_MINUTES,
       DEFAULT_PAYMENT_TIMEOUT_MINUTES,
@@ -294,7 +332,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     rateLimit: {
       enabled: !OFF.has((env.RATE_LIMIT ?? 'on').toLowerCase()),
       test: rateLimitPolicy('TEST', env.RATE_LIMIT_TEST_RPS, env.RATE_LIMIT_TEST_BURST),
-      live: rateLimitPolicy('LIVE', env.RATE_LIMIT_LIVE_RPS, env.RATE_LIMIT_LIVE_BURST),
+      live:
+        trimmed(env.RATE_LIMIT_LIVE_RPS) === undefined &&
+        trimmed(env.RATE_LIMIT_LIVE_BURST) === undefined
+          ? null
+          : rateLimitPolicy('LIVE', env.RATE_LIMIT_LIVE_RPS, env.RATE_LIMIT_LIVE_BURST),
     },
   };
 }
@@ -424,6 +466,95 @@ export function loadStripeConfig(env: NodeJS.ProcessEnv): StripePlatformConfig |
     },
     apiBase,
     connectBase,
+  };
+}
+
+/** Where the data of each paid invoice goes when a deployment says nothing. */
+export const DEFAULT_BILLING_INVOICE_TO = 'hello@bookrail.dev';
+
+/**
+ * Stripe Billing: Bookrail as a **seller** on its own Stripe account.
+ *
+ * The account is the same one that is a Connect platform for the customers' payments, and the
+ * secret key is the same one: `BILLING_STRIPE_MODE` only says which of the two existing keys
+ * (`STRIPE_SECRET_KEY_TEST` or `STRIPE_SECRET_KEY_LIVE`) Billing acts with. What is **not** shared
+ * is the receiver of the events and its signing secret: the Billing events are the account's own,
+ * delivered to `POST /v1/billing/webhook` and signed with `STRIPE_BILLING_WEBHOOK_SECRET`, and the
+ * events of the connected accounts go to the two Connect receivers with their own secrets.
+ */
+export interface BillingConfig {
+  mode: 'test' | 'live';
+  /** The platform's secret key of that mode. Never leaves the process. */
+  secretKey: string;
+  /** The signing secret of the endpoint of the account (not Connect), `whsec_...`. */
+  webhookSecret: string;
+  /** Who receives the data of each paid invoice, and the monthly list. */
+  invoiceTo: string;
+  /** Overridden only by a test. A non default value refuses to start in production. */
+  apiBase: string;
+}
+
+/**
+ * The Billing configuration of a deployment, or `null` when `BILLING_STRIPE_MODE` is unset.
+ *
+ * Four refusals to start, each for a configuration that would take money wrongly or take it and
+ * never act on it:
+ *
+ * - a mode that is not `test` or `live`;
+ * - `live` outside `NODE_ENV=production`, and `test` inside it: a development machine must not
+ *   sell real plans, and the machine that does must not sell pretend ones;
+ * - a mode whose secret key is missing or of the other mode;
+ * - a mode without `STRIPE_BILLING_WEBHOOK_SECRET`: a checkout would take the money and no event
+ *   would ever be accepted, so the plan would never change. Half a configuration is worse than
+ *   none.
+ */
+export function loadBillingConfig(env: NodeJS.ProcessEnv): BillingConfig | null {
+  const raw = trimmed(env.BILLING_STRIPE_MODE)?.toLowerCase();
+  if (raw === undefined) return null;
+  if (raw !== 'test' && raw !== 'live') {
+    throw new Error(
+      `BILLING_STRIPE_MODE must be test or live, or unset to switch Billing off. Got "${raw}".`,
+    );
+  }
+  const production = env.NODE_ENV === 'production';
+  if (raw === 'live' && !production) {
+    throw new Error(
+      'BILLING_STRIPE_MODE=live sells real plans for real money, so it runs with NODE_ENV=production only.',
+    );
+  }
+  if (raw === 'test' && production) {
+    throw new Error(
+      'BILLING_STRIPE_MODE=test with NODE_ENV=production would sell pretend plans on the machine that ' +
+        'takes real money. Set BILLING_STRIPE_MODE=live, or unset it to switch Billing off.',
+    );
+  }
+  const keyName = `STRIPE_SECRET_KEY_${raw.toUpperCase()}`;
+  const secretKey = trimmed(env[keyName]);
+  if (secretKey === undefined || !new RegExp(`^[sr]k_${raw}_`).test(secretKey)) {
+    throw new Error(
+      `BILLING_STRIPE_MODE=${raw} acts with ${keyName}, which must be set to a ${raw} mode secret key (sk_${raw}_...).`,
+    );
+  }
+  const webhookSecret = trimmed(env.STRIPE_BILLING_WEBHOOK_SECRET);
+  if (webhookSecret === undefined || !webhookSecret.startsWith('whsec_')) {
+    throw new Error(
+      'BILLING_STRIPE_MODE is set and STRIPE_BILLING_WEBHOOK_SECRET is not (it starts with whsec_): ' +
+        'a checkout would take the money and no event would ever change the plan. Register the ' +
+        'endpoint /v1/billing/webhook of the account (not a Connect endpoint) and set its secret.',
+    );
+  }
+  const apiBase = trimSlash(trimmed(env.STRIPE_API_BASE) ?? DEFAULT_STRIPE_API_BASE);
+  if (production && apiBase !== DEFAULT_STRIPE_API_BASE) {
+    throw new Error(
+      `STRIPE_API_BASE must not be set to anything other than ${DEFAULT_STRIPE_API_BASE} with NODE_ENV=production.`,
+    );
+  }
+  return {
+    mode: raw,
+    secretKey,
+    webhookSecret,
+    invoiceTo: trimmed(env.BILLING_INVOICE_TO) ?? DEFAULT_BILLING_INVOICE_TO,
+    apiBase,
   };
 }
 

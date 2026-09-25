@@ -57,6 +57,8 @@ says what to do next.
 | `invalid_webhook_url` | invalid_request | Not public, or `http` on live. |
 | `rate_limited` | rate_limit | The key called faster than its ceiling. See below. |
 | `signup_rate_limited` | rate_limit | Too many sign up requests for one address, or from one caller. |
+| `terms_not_accepted` | invalid_request | A sign up, or a checkout from the dashboard, without both ticks of the terms: the Terms of Service with the Data Processing Agreement, and the specific approval of the clauses in their Section 17. From a terminal, `npx bookrail@latest signup`, or `--accept-terms --approve-clauses` without one. |
+| `plan_limit_reached` | payment_required | Live only, free plan: the confirmed live bookings of the month plus the open `pending` ones have reached what the plan includes, or this payment, with the month's paid volume and the open payments, would go past the included volume (`param: payment.mode`). Nothing was taken. The `fix` sends to the dashboard, where Pro is bought with a card. Like every 4xx it stays stored on its `Idempotency-Key` for 24 hours: after the upgrade, retry with a new key. |
 
 Two codes that people expect and that do **not** exist: `capacity_exceeded` (a quantity above
 capacity is `slot_unavailable`, whose message is more precise) and `schedule_conflict` (a
@@ -65,9 +67,10 @@ calendar change that invalidates a future booking is not an error: it emits a
 
 ## Rate limits
 
-Every API key has a ceiling: **20 requests a second with bursts of 40** on a `sk_test_` key, **100
-a second with bursts of 500** on a `sk_live_` one. Every response carries the budget, so a client
-can pace itself instead of discovering the ceiling by hitting it:
+Every API key has a ceiling: **20 requests a second with bursts of 40** on a `sk_test_` key, and on
+a `sk_live_` one the ceiling of the account's plan (20 with bursts of 40 on free, 100 and 500 on
+pro, 500 and 2 500 on scale). Every response carries the budget, so a client can pace itself
+instead of discovering the ceiling by hitting it:
 
 | Header | Meaning |
 |---|---|
@@ -75,6 +78,7 @@ can pace itself instead of discovering the ceiling by hitting it:
 | `RateLimit-Remaining` | How many more requests would be accepted right now. |
 | `RateLimit-Reset` | Whole seconds until `RateLimit-Remaining` is back at `RateLimit-Limit`. |
 | `RateLimit-Policy` | Only ever `unavailable`, which means no limit could be applied and the request was served anyway. |
+| `Bookrail-Plan-Usage` | Live keys only: `<confirmed>/<included>`, the account's confirmed live bookings this month over the ones its plan includes, as they stood when the request started. |
 
 Over the ceiling the answer is `429 rate_limited` with `Retry-After` in whole seconds, at least 1,
 and a `fix`. The CLI exits **3** for it, the family's code, because waiting and running the command

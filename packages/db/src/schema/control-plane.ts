@@ -18,6 +18,10 @@ export const accounts = pgTable(
     origin: text('origin').notNull().default('bootstrap').$type<'bootstrap' | 'self_serve'>(),
     /** The address that confirmed the sign up, lower case. NULL for an account made by hand. */
     ownerEmail: text('owner_email'),
+    /** The Stripe customer of the account in Billing, once it has one (migration 0027). */
+    stripeCustomerId: text('stripe_customer_id').unique(),
+    /** The last Checkout Session opened for the account, expired before another (0027). */
+    stripeCheckoutSessionId: text('stripe_checkout_session_id'),
     metadata: jsonb('metadata').notNull().default({}),
     ...timestampColumns(),
   },

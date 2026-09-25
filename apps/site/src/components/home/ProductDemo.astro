@@ -1,0 +1,135 @@
+---
+/**
+ * The product, in three tabs: why an instant is refused, the booking that comes back, and the
+ * webhook that follows it.
+ *
+ * Every pane is generated at build time. The `explain` table is what the availability engine
+ * answers about the synthetic day of the hero grid; the booking is built from the `Booking` schema
+ * of the OpenAPI document (`scripts/generate.mjs`, `bookingSample`); the delivery is the event
+ * object of `GET /v1/events` with that booking in it, signed by `@bookrail/webhook-signature`.
+ *
+ * Without JavaScript the three panes are one under the other and the tabs are links to them; the
+ * script of the homepage turns them into a tablist (arrows, Home, End).
+ */
+import {
+  BOOKING,
+  EXPLAIN,
+  WEBHOOK,
+  explainSummary,
+  jsonLines,
+  jsonTokens,
+} from '../../data/home';
+
+const tabs = [
+  { id: 'explain', label: 'Explain' },
+  { id: 'booking', label: 'Booking' },
+  { id: 'webhook', label: 'Webhook' },
+];
+
+const bookingLines = jsonLines(BOOKING.value);
+const eventLines = jsonLines(WEBHOOK.event);
+const tz = EXPLAIN.timezone;
+---
+
+<div class="tabs demo" data-tabs>
+  <div class="tab-list" role="tablist" aria-label="Product demo">
+    {
+      tabs.map((tab, index) => (
+        <a
+          class="tab"
+          role="tab"
+          id={`demo-tab-${tab.id}`}
+          href={`#demo-${tab.id}`}
+          aria-controls={`demo-${tab.id}`}
+          aria-selected={index === 0 ? 'true' : 'false'}
+        >
+          {tab.label}
+        </a>
+      ))
+    }
+  </div>
+
+  <div class="tab-panel window" role="tabpanel" id="demo-explain" aria-labelledby="demo-tab-explain">
+    <div class="window-bar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="window-title">POST /v1/availability &middot; explain: true</span>
+      <span class="window-status" data-explain-status>
+        {EXPLAIN.slots} slots &middot; {EXPLAIN.instants} instants refused
+      </span>
+    </div>
+    <div class="table-scroll">
+      <table class="explain-table" data-explain-table>
+        <caption class="visually-hidden">
+          Every instant the engine refused on the synthetic day, one row per court.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Instant ({tz})</th>
+            <th scope="col">Code</th>
+            <th scope="col">Resource</th>
+            <th scope="col">Held by</th>
+            <th scope="col">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            EXPLAIN.rows.map((row, index) => (
+              <tr class:list={[{ first: index === 0 || EXPLAIN.rows[index - 1]?.at !== row.at }]}>
+                <td class="mono">{row.local}</td>
+                <td class="mono">
+                  <span class:list={['code-chip', row.code]}>{row.code}</span>
+                </td>
+                <td>{row.resource}</td>
+                <td class="mono ref">{row.ref}</td>
+                <td class="why">{row.message}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="window-foot">
+      {explainSummary()}. What the availability engine answers, at build time, about the day the grid
+      above draws: a match of 60 minutes on any of the three courts. Synthetic data.
+    </p>
+  </div>
+
+  <div class="tab-panel window" role="tabpanel" id="demo-booking" aria-labelledby="demo-tab-booking">
+    <div class="window-bar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="window-title">POST /v1/bookings</span>
+      <span class="window-status ok">201 Created</span>
+    </div>
+    <pre class="json" data-response>{bookingLines.map((line) => (
+      <span class="json-line">{jsonTokens(line).map((token) => (
+        token.kind === 'punct' ? token.text : <span class={token.kind}>{token.text}</span>
+      ))}</span>
+    ))}</pre>
+    <p class="window-foot">
+      {BOOKING.fields.length} of the {BOOKING.total} fields a booking always carries, built from the
+      <code>Booking</code> schema of the OpenAPI document. The other {BOOKING.omitted} are in the
+      <a href="/docs/api/reference/">API reference</a>.
+    </p>
+  </div>
+
+  <div class="tab-panel window" role="tabpanel" id="demo-webhook" aria-labelledby="demo-tab-webhook">
+    <div class="window-bar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="window-title">POST https://example.com/hooks/bookrail</span>
+      <span class="window-status">booking.created</span>
+    </div>
+    <pre class="json" data-webhook>{WEBHOOK.headers.map(([name, value]) => (
+      <span class="json-line"><span class="key">{name}:</span> {value}</span>
+    ))}<span class="json-line"> </span>{eventLines.map((line) => (
+      <span class="json-line">{jsonTokens(line).map((token) => (
+        token.kind === 'punct' ? token.text : <span class={token.kind}>{token.text}</span>
+      ))}</span>
+    ))}</pre>
+    <p class="window-foot">
+      The event is the object <code>GET /v1/events</code> returns, with the booking of the previous tab
+      in it. It travels as one compact line of JSON, and <code>Bookrail-Signature</code> is the HMAC of
+      those bytes, computed at build time with a synthetic secret by the function
+      <a href="/docs/guides/webhooks/">your receiver verifies it with</a>.
+    </p>
+  </div>
+</div>

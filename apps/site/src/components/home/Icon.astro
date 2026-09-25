@@ -1,0 +1,93 @@
+---
+/**
+ * The small line icons of the feature cards, drawn here by hand on a 20px grid.
+ *
+ * They carry no colour of their own: every stroke and fill is a class of `figures.css`, which
+ * reads the tokens, like the figures of the documentation. They are decoration next to a title
+ * that says the same thing, so they are hidden from a screen reader.
+ */
+interface Props {
+  name:
+    | 'availability'
+    | 'bookings'
+    | 'policies'
+    | 'payments'
+    | 'webhooks'
+    | 'cli'
+    | 'mcp'
+    | 'open-source';
+}
+const { name } = Astro.props;
+---
+
+<svg class="feature-icon" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+  {
+    name === 'availability' && (
+      <>
+        <rect class="bk-stroke-ink" x="1.5" y="3.5" width="17" height="13" />
+        <path class="bk-stroke-ink" d="M1.5 8.5h17M1.5 12.5h17M7.5 3.5v13M13.5 3.5v13" />
+        <rect class="bk-fill-ink" x="7.5" y="8.5" width="6" height="4" />
+      </>
+    )
+  }
+  {
+    name === 'bookings' && (
+      <>
+        <rect class="bk-stroke-ink" x="2.5" y="4.5" width="10" height="6" />
+        <rect class="bk-stroke-ink bk-dashed" x="7.5" y="9.5" width="10" height="6" />
+      </>
+    )
+  }
+  {
+    name === 'policies' && (
+      <>
+        <path class="bk-stroke-ink" d="M4.5 1.5h8l3 3v14h-11z" />
+        <path class="bk-stroke-ink" d="M7 8.5h6M7 11.5h6M7 14.5h4" />
+      </>
+    )
+  }
+  {
+    name === 'payments' && (
+      <>
+        <rect class="bk-stroke-ink" x="1.5" y="4.5" width="17" height="11" />
+        <path class="bk-stroke-ink" d="M1.5 8.5h17M4.5 12.5h4" />
+      </>
+    )
+  }
+  {
+    name === 'webhooks' && (
+      <>
+        <rect class="bk-stroke-ink" x="1.5" y="6.5" width="7" height="7" />
+        <path class="bk-stroke-ink" d="M8.5 10h9M14.5 7l3 3-3 3" />
+      </>
+    )
+  }
+  {
+    name === 'cli' && (
+      <>
+        <rect class="bk-stroke-ink" x="1.5" y="3.5" width="17" height="13" />
+        <path class="bk-stroke-ink" d="M5 8l2.5 2L5 12M9.5 12.5H14" />
+      </>
+    )
+  }
+  {
+    name === 'mcp' && (
+      <>
+        <circle class="bk-stroke-ink" cx="5" cy="5" r="2.5" />
+        <circle class="bk-stroke-ink" cx="15" cy="5" r="2.5" />
+        <circle class="bk-stroke-ink" cx="10" cy="15" r="2.5" />
+        <path class="bk-stroke-ink" d="M7.5 5h5M6.3 7.2l2.4 5.6M13.7 7.2l-2.4 5.6" />
+      </>
+    )
+  }
+  {
+    name === 'open-source' && (
+      <>
+        <circle class="bk-stroke-ink" cx="5.5" cy="4.5" r="2" />
+        <circle class="bk-stroke-ink" cx="5.5" cy="15.5" r="2" />
+        <circle class="bk-stroke-ink" cx="14.5" cy="6.5" r="2" />
+        <path class="bk-stroke-ink" d="M5.5 6.5v7M14.5 8.5c0 3-2.5 3.6-7 5" />
+      </>
+    )
+  }
+</svg>

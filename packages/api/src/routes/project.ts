@@ -17,6 +17,11 @@
  *     ones), and flattening them would say otherwise.
  *  3. **No secret, not even a prefix of one.** `id` and `environment` identify the credential
  *     for support; the `prefix` column is a lookup detail and stays out.
+ *  4. **The plan and this month's usage of it are here**, because "where do I stand" is part of
+ *     "who am I" once a plan can refuse a booking. The usage is the account's, summed over its
+ *     projects, and always the live numbers, whichever key asks: a key of the test environment
+ *     is how somebody exploring finds out how far the account is from the threshold. A key
+ *     scoped to a tenant gets `usage: null`: the numbers are the whole account's.
  *
  * `projects` is control-plane: the application role has `SELECT` and nothing else (migration
  * 0007), and the table carries no `project_id` column and therefore no RLS policy, so the
@@ -29,6 +34,7 @@ import { projects } from '@bookrail/db';
 import { CURRENT_API_VERSION, encodeId, errors } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
 import { inProject } from '../http.js';
+import { plansOf, usagePayload } from '../plan.js';
 
 export function projectRoutes(deps: AppDeps): Hono<AppEnv> {
   const routes = new Hono<AppEnv>();
@@ -54,6 +60,14 @@ export function projectRoutes(deps: AppDeps): Hono<AppEnv> {
           scopes: auth.scopes,
           tenant_id: auth.tenantId,
         },
+        plan: auth.plan,
+        // Not for a key scoped to a tenant: the usage is the whole account's, summed over its
+        // projects, and a key handed to one tenant of a marketplace must not read the
+        // marketplace's volume of business.
+        usage:
+          auth.tenantId === null
+            ? await usagePayload(tx, plansOf(deps), auth.accountId, auth.plan, Date.now())
+            : null,
         created_at: row.createdAt.toISOString(),
       };
     });

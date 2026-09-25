@@ -5,3 +5,5 @@ export * from './api-version.js';
 export * from './signature.js';
 export * from './event-types.js';
 export * from './pricing.js';
+export * from './plans.js';
+export * from './legal.js';

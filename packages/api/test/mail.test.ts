@@ -12,7 +12,12 @@ import type { AddressInfo } from 'node:net';
 import { SMTPServer } from 'smtp-server';
 import { silentLogger } from '@bookrail/shared';
 import { createLogMailer, createSmtpMailer, type Mailer } from '../src/mail/index.js';
-import { confirmationLink, confirmationMessage } from '../src/mail/messages.js';
+import {
+  confirmationLink,
+  confirmationMessage,
+  dashboardLink,
+  dashboardLinkMessage,
+} from '../src/mail/messages.js';
 
 interface Received {
   from: string;
@@ -84,6 +89,7 @@ describe('the SMTP mailer', () => {
       to: 'ada@example.com',
       siteUrl: 'https://bookrail.dev',
       token: 'a-token-that-only-the-mailbox-sees',
+      freeBookingsIncluded: 1000,
     });
     await mailer.send(message);
 
@@ -92,7 +98,7 @@ describe('the SMTP mailer', () => {
     expect(sent?.from).toBe(USER);
     expect(sent?.to).toEqual(['ada@example.com']);
     const body = decodeQuotedPrintable(sent?.data ?? '');
-    expect(body).toContain('Subject: Confirm your Bookrail test key');
+    expect(body).toContain('Subject: Confirm your Bookrail keys');
     expect(body).toContain('To: ada@example.com');
     expect(body).toContain(`From: Bookrail <${USER}>`);
     // The token travels in the fragment, which no browser sends to a server.
@@ -130,9 +136,44 @@ describe('the confirmation message', () => {
       to: 'ada@example.com',
       siteUrl: 'https://bookrail.dev',
       token: 'token',
+      freeBookingsIncluded: 1000,
     });
     expect(message.text).not.toContain(emDash);
     expect(message.subject).not.toContain(emDash);
+    const dashboard = dashboardLinkMessage({
+      to: 'ada@example.com',
+      siteUrl: 'https://bookrail.dev',
+      token: 'token',
+    });
+    expect(dashboard.text).not.toContain(emDash);
+    expect(dashboard.subject).not.toContain(emDash);
+  });
+
+  it('says the link hands over a test key and a live key on the free plan', () => {
+    const message = confirmationMessage({
+      to: 'ada@example.com',
+      siteUrl: 'https://bookrail.dev',
+      token: 'token',
+      freeBookingsIncluded: 1000,
+    });
+    expect(message.text).toContain('a test key, which is free and never counted');
+    expect(message.text).toContain('a live key, which makes real bookings, on the free plan');
+    expect(message.text).toContain('1,000 confirmed live bookings a month');
+  });
+});
+
+describe('the dashboard link', () => {
+  it('puts the token in the fragment of the dashboard confirm page', () => {
+    const link = dashboardLink('https://bookrail.dev/', 'bls_tok/+=');
+    expect(link).toBe('https://bookrail.dev/dashboard/confirm#token=bls_tok%2F%2B%3D');
+    const message = dashboardLinkMessage({
+      to: 'ada@example.com',
+      siteUrl: 'https://bookrail.dev',
+      token: 'bls_abc',
+    });
+    expect(message.subject).toBe('Your Bookrail dashboard link');
+    expect(message.text).toContain('https://bookrail.dev/dashboard/confirm#token=bls_abc');
+    expect(message.text).toContain('within 15 minutes');
   });
 });
 

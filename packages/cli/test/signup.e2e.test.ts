@@ -30,8 +30,10 @@ interface SignupData {
   account: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
   api_key: { id: string; prefix: string } | null;
+  api_keys: { id: string; environment: string; prefix: string }[];
   stored_in?: string;
   secret_key?: string;
+  live_secret_key?: string;
 }
 
 let counter = 0;
@@ -88,9 +90,16 @@ describe('bookrail signup', () => {
     await h.close();
   });
 
-  it('waits for the link, stores the key, and never prints it', async () => {
+  it('waits for the link, stores both keys, and never prints them', async () => {
     const email = freshEmail();
-    const running = h.cli(['signup', '--email', email, '--json']);
+    const running = h.cli([
+      'signup',
+      '--accept-terms',
+      '--approve-clauses',
+      '--email',
+      email,
+      '--json',
+    ]);
     await openTheLink(h, await tokenFor(h, email));
     const result = await running;
 
@@ -102,34 +111,50 @@ describe('bookrail signup', () => {
     expect(data?.account?.id).toMatch(/^acct_/);
     expect(data?.project?.id).toMatch(/^proj_/);
     expect(data?.api_key?.id).toMatch(/^key_/);
-    // Stored, therefore not printed: the key is on disk and nowhere else.
+    expect(data?.api_keys.map((key) => key.environment)).toEqual(['test', 'live']);
+    // Stored, therefore not printed: the keys are on disk and nowhere else.
     expect(data?.secret_key).toBeUndefined();
+    expect(data?.live_secret_key).toBeUndefined();
     expect(typeof data?.stored_in).toBe('string');
-    expect(result.stdout).not.toMatch(/sk_test_[A-Za-z0-9_-]{20,}/);
+    expect(result.stdout).not.toMatch(/sk_(test|live)_[A-Za-z0-9_-]{20,}/);
 
     const path = join(h.configHome, 'bookrail', 'credentials.json');
-    const stored = JSON.parse(await readFile(path, 'utf8')) as { keys: { test?: string } };
+    const stored = JSON.parse(await readFile(path, 'utf8')) as {
+      keys: { test?: string; live?: string };
+    };
     expect(stored.keys.test).toMatch(/^sk_test_/);
+    expect(stored.keys.live).toMatch(/^sk_live_/);
+    expect(stored.keys.live).toContain(data?.api_keys[1]?.prefix ?? 'nothing');
     expect((await stat(path)).mode & 0o777).toBe(0o600);
 
-    // And it is a key: it opens the project it was made for.
+    // And they are keys: each opens the project it was made for, test by default and live only
+    // when asked.
     const whoami = await h.cli(['whoami', '--json']);
     expect(whoami.code).toBe(0);
     expect(whoami.json<{ project: { id: string } }>().data?.project.id).toBe(data?.project?.id);
+    expect(whoami.json().environment).toBe('test');
+    const live = await h.cli(['whoami', '--live', '--json']);
+    expect(live.code).toBe(0);
+    expect(live.json<{ project: { id: string } }>().data?.project.id).toBe(data?.project?.id);
+    expect(live.json().environment).toBe('live');
   });
 
-  it('prints the key once and stores nothing with --no-store', async () => {
+  it('prints both keys once and stores nothing with --no-store', async () => {
     const email = freshEmail();
-    const running = h.cli(['signup', '--email', email, '--no-store', '--json'], {
-      home: await h.workdir(),
-      env: { XDG_CONFIG_HOME: await h.workdir() },
-    });
+    const running = h.cli(
+      ['signup', '--accept-terms', '--approve-clauses', '--email', email, '--no-store', '--json'],
+      {
+        home: await h.workdir(),
+        env: { XDG_CONFIG_HOME: await h.workdir() },
+      },
+    );
     await openTheLink(h, await tokenFor(h, email));
     const result = await running;
 
     expect(result.code).toBe(0);
     const data = result.json<SignupData>().data;
     expect(data?.secret_key).toMatch(/^sk_test_/);
+    expect(data?.live_secret_key).toMatch(/^sk_live_/);
     expect(data?.stored_in).toBeUndefined();
   });
 
@@ -140,11 +165,54 @@ describe('bookrail signup', () => {
     expect(piped.json().error?.fix).toContain('bookrail signup --email');
 
     const email = freshEmail();
-    const running = h.cli(['signup', '--json'], { tty: true, answers: [email] });
+    const running = h.cli(['signup', '--json'], { tty: true, answers: [email, 'yes', 'yes'] });
     await openTheLink(h, await tokenFor(h, email));
     const result = await running;
     expect(result.code).toBe(0);
     expect(result.questions[0]).toContain('Email address');
+    // And, on a terminal, the two ticks of the terms, each with its own question.
+    expect(result.questions[1]).toContain(
+      'I accept the Terms of Service and the Data Processing Agreement on behalf of my business',
+    );
+    expect(result.questions[2]).toContain('Articles 1341 and 1342 of the Italian Civil Code');
+  });
+
+  it('refuses to sign up without the terms: no flag in a pipe, or a no on a terminal', async () => {
+    const before = h.mailer.sent.length;
+    const piped = await h.cli(['signup', '--email', freshEmail(), '--json']);
+    expect(piped.code).toBe(1);
+    expect(piped.json().error?.code).toBe('terms_not_accepted');
+    expect(piped.json().error?.fix).toContain('--accept-terms');
+    expect(piped.json().error?.fix).toContain('https://bookrail.dev/terms');
+
+    const declined = await h.cli(['signup', '--email', freshEmail(), '--json'], {
+      tty: true,
+      answers: ['yes', 'no'],
+    });
+    expect(declined.code).toBe(1);
+    expect(declined.json().error?.code).toBe('terms_not_accepted');
+
+    // One flag is one tick: the approval of the clauses is never implied by the acceptance.
+    const half = await h.cli(['signup', '--accept-terms', '--email', freshEmail(), '--json']);
+    expect(half.code).toBe(1);
+    expect(half.json().error?.code).toBe('terms_not_accepted');
+    expect(half.json().error?.fix).toContain('missing: --approve-clauses');
+    // Nothing was asked of the server: no message went out.
+    expect(h.mailer.sent.length).toBe(before);
+  });
+
+  it('asks a terminal only for the tick its flags did not give, one question each', async () => {
+    const email = freshEmail();
+    const running = h.cli(['signup', '--accept-terms', '--email', email, '--json'], {
+      tty: true,
+      answers: ['yes'],
+    });
+    await openTheLink(h, await tokenFor(h, email));
+    const result = await running;
+    expect(result.code).toBe(0);
+    expect(result.questions).toHaveLength(1);
+    expect(result.questions[0]).toContain('Articles 1341 and 1342 of the Italian Civil Code');
+    expect(result.questions[0]).not.toContain('I accept the Terms of Service');
   });
 
   it('takes the names and the defaults of the project from the command line', async () => {
@@ -152,6 +220,8 @@ describe('bookrail signup', () => {
     const running = h.cli(
       [
         'signup',
+        '--accept-terms',
+        '--approve-clauses',
         '--email',
         email,
         '--account-name',
@@ -179,16 +249,22 @@ describe('bookrail signup', () => {
   it('says what to do when the address already has an account', async () => {
     const email = freshEmail();
     const firstSince = h.mailer.sent.length;
-    const first = h.cli(['signup', '--email', email, '--no-store', '--json'], {
-      env: { XDG_CONFIG_HOME: await h.workdir() },
-    });
+    const first = h.cli(
+      ['signup', '--accept-terms', '--approve-clauses', '--email', email, '--no-store', '--json'],
+      {
+        env: { XDG_CONFIG_HOME: await h.workdir() },
+      },
+    );
     await openTheLink(h, await tokenFor(h, email, firstSince));
     expect((await first).code).toBe(0);
 
     const secondSince = h.mailer.sent.length;
-    const again = h.cli(['signup', '--email', email, '--no-store', '--json'], {
-      env: { XDG_CONFIG_HOME: await h.workdir() },
-    });
+    const again = h.cli(
+      ['signup', '--accept-terms', '--approve-clauses', '--email', email, '--no-store', '--json'],
+      {
+        env: { XDG_CONFIG_HOME: await h.workdir() },
+      },
+    );
     const taken = await openTheLink(h, await tokenFor(h, email, secondSince));
     expect(taken.status).toBe('email_taken');
     const result = await again;
@@ -197,7 +273,7 @@ describe('bookrail signup', () => {
     const error = result.json().error;
     expect(error?.code).toBe('signup_email_taken');
     expect(error?.message).toContain('already has a Bookrail account');
-    expect(error?.message).toContain('hello@bookrail.dev');
+    expect(error?.message).toContain('https://bookrail.dev/dashboard/');
   });
 
   /**
@@ -219,13 +295,16 @@ describe('bookrail signup', () => {
       h.seenRequests.slice(before).filter((request) => request.endsWith('/claim')).length;
     let atInterrupt = -1;
 
-    const result = await h.cli(['signup', '--email', email], {
-      interruptWhen: () => {
-        if (claims() === 0) return false;
-        atInterrupt = h.seenRequests.length;
-        return true;
+    const result = await h.cli(
+      ['signup', '--accept-terms', '--approve-clauses', '--email', email],
+      {
+        interruptWhen: () => {
+          if (claims() === 0) return false;
+          atInterrupt = h.seenRequests.length;
+          return true;
+        },
       },
-    });
+    );
 
     expect(result.code).toBe(1);
     expect(result.stdout).toContain('Stopped waiting.');
@@ -243,7 +322,7 @@ describe('bookrail signup', () => {
   it('has no em dash and no key in anything it prints', async () => {
     const emDash = String.fromCharCode(0x2014);
     const email = freshEmail();
-    const running = h.cli(['signup', '--email', email], {
+    const running = h.cli(['signup', '--accept-terms', '--approve-clauses', '--email', email], {
       env: { XDG_CONFIG_HOME: await h.workdir() },
     });
     await openTheLink(h, await tokenFor(h, email));
@@ -253,14 +332,24 @@ describe('bookrail signup', () => {
     expect(result.stdout).not.toContain(emDash);
     expect(result.stderr).not.toContain(emDash);
     expect(result.stdout).toContain('We sent a link to');
-    expect(result.stdout).toMatch(/key\s+sk_test_[A-Za-z0-9_-]{8}\.\.\./);
-    // The masked prefix only. The whole key is never on a stream.
-    expect(result.stdout).not.toMatch(/sk_test_[A-Za-z0-9_-]{20,}/);
+    expect(result.stdout).toMatch(/test key\s+sk_test_[A-Za-z0-9_-]{8}\.\.\./);
+    expect(result.stdout).toMatch(/live key\s+sk_live_[A-Za-z0-9_-]{8}\.\.\./);
+    // The masked prefixes only. The whole keys are never on a stream.
+    expect(result.stdout).not.toMatch(/sk_(test|live)_[A-Za-z0-9_-]{20,}/);
   });
 
   it('says where it was looking when it cannot reach the API at all', async () => {
     const result = await h.cli(
-      ['signup', '--email', freshEmail(), '--api-url', 'http://127.0.0.1:1', '--json'],
+      [
+        'signup',
+        '--accept-terms',
+        '--approve-clauses',
+        '--email',
+        freshEmail(),
+        '--api-url',
+        'http://127.0.0.1:1',
+        '--json',
+      ],
       { env: { XDG_CONFIG_HOME: await h.workdir() } },
     );
     expect(result.code).toBe(3);
@@ -312,7 +401,16 @@ describe('bookrail signup', () => {
 
     try {
       const running = h.cli(
-        ['signup', '--email', email, '--api-url', `http://127.0.0.1:${String(port)}`, '--json'],
+        [
+          'signup',
+          '--accept-terms',
+          '--approve-clauses',
+          '--email',
+          email,
+          '--api-url',
+          `http://127.0.0.1:${String(port)}`,
+          '--json',
+        ],
         { env: { XDG_CONFIG_HOME: await h.workdir() } },
       );
       await openTheLink(h, await tokenFor(h, email));
@@ -347,7 +445,14 @@ describe('bookrail signup against a deployment with no sign up', () => {
    * test for `FIX_BY_CODE[code] ?? error.fix`.
    */
   it('repeats the fix the server sent, word for word', async () => {
-    const result = await h.cli(['signup', '--email', freshEmail(), '--json']);
+    const result = await h.cli([
+      'signup',
+      '--accept-terms',
+      '--approve-clauses',
+      '--email',
+      freshEmail(),
+      '--json',
+    ]);
     expect(result.code).toBe(3);
     const error = result.json().error;
     expect(error?.code).toBe('signup_disabled');

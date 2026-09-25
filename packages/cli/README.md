@@ -63,6 +63,16 @@ A refund is what `bookrail bookings cancel` does, according to your policy; ther
 Not here yet: a deferred balance, saved cards, charging a no-show, and rescheduling a booking
 that has money on it.
 
+## Your plan
+
+Every account is on a plan (`free`, `pro`, `scale` or `enterprise`). `bookrail whoami` prints it,
+with how many confirmed live bookings and how much paid volume the account has used this month
+(a calendar month in UTC), and `bookrail doctor` has a `plan_usage` check: `ok` below 80 % of the
+bookings the plan includes, `warn` from 80 %, and `fail` at 100 % of the free plan, which from
+that moment answers every new live booking with `402 plan_limit_reached`. The numbers are the
+account's live ones even with a test key, and the test environment never counts. When a booking
+is refused, `bookrail bookings create` exits 1 and the `fix` says how to move to a paying plan.
+
 ## Configuration as code
 
 `bookrail.config.ts` describes locations, schedules, resources, groups, policies and services.
@@ -103,9 +113,10 @@ a terminal, and always off with `--json`.
 
 ## Status
 
-Early access. The API is live at `https://api.bookrail.dev`, a **test key is self service**
-(`npx bookrail signup`, or [bookrail.dev/signup](https://bookrail.dev/signup)) while a **live
-key** still comes from a person (hello@bookrail.dev), and this package is on npm as
+Early access. The API is live at `https://api.bookrail.dev`, **keys are self service**
+(`npx bookrail signup`, or [bookrail.dev/signup](https://bookrail.dev/signup), hands you a test
+key and a live key on the free plan, and [bookrail.dev/dashboard](https://bookrail.dev/dashboard/)
+makes and revokes more), and this package is on npm as
 [`bookrail`](https://www.npmjs.com/package/bookrail), Apache 2.0, with its source in
 [github.com/bookrail-dev/bookrail](https://github.com/bookrail-dev/bookrail) under
 `packages/cli`. `logs`, `requests`, `keys`, `projects`, `dev`, `migrate` and `upgrade` answer

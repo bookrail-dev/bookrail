@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { createDatabase, createPool } from '@bookrail/db';
 import { createLogger } from '@bookrail/shared';
 import { createApp } from './app.js';
+import { createBillingDeps } from './billing/deps.js';
 import { createAvailabilityCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { startWorker, usageDigestOffReason, type Worker } from './jobs/index.js';
@@ -77,6 +78,12 @@ const mailer: Mailer | undefined =
           from: config.mailFrom ?? '',
         });
 
+/**
+ * Stripe Billing, or nothing. One client for the routes and the worker of this process, so the
+ * catalogue is read from Stripe once every ten minutes and not on every checkout.
+ */
+const billing = createBillingDeps(config.billing);
+
 const app = createApp({
   db,
   adminDb,
@@ -88,6 +95,7 @@ const app = createApp({
   siteUrl: config.siteUrl,
   siteOrigin: config.siteOrigin,
   stripe: config.stripe,
+  billing,
   paymentTimeoutMinutes: config.paymentTimeoutMinutes,
   usageCounters,
   ...(rateLimiter === null
@@ -136,6 +144,9 @@ if (config.worker) {
       orphanReconcileHorizonDays: config.orphanReconcileHorizonDays,
       orphanReconcileLimit: config.orphanReconcileLimit,
       orphanReconcileScopes: config.orphanReconcileScopes,
+      ...(billing === null
+        ? {}
+        : { billing: { deps: billing, ...(mailer === undefined ? {} : { mailer }) } }),
       ...(config.usageDigestTo === undefined || mailer === undefined
         ? {
             usageDigestOffReason:
@@ -163,7 +174,10 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
     availability_cache: config.redisUrl === undefined ? 'memory' : 'redis',
     rate_limiter: rateLimiter === null ? 'off' : rateLimiter.kind,
     rate_limit_test: `${String(config.rateLimit.test.rate)}/s burst ${String(config.rateLimit.test.burst)}`,
-    rate_limit_live: `${String(config.rateLimit.live.rate)}/s burst ${String(config.rateLimit.live.burst)}`,
+    rate_limit_live:
+      config.rateLimit.live === null
+        ? 'per plan'
+        : `${String(config.rateLimit.live.rate)}/s burst ${String(config.rateLimit.live.burst)} for every plan`,
     worker: config.worker ? config.holdExpiryIntervalSeconds : 'off',
     webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
     mailer: config.mailer ?? 'off',
@@ -174,6 +188,8 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
         : (['test', 'live'] as const)
             .filter((environment) => config.stripe?.environments[environment] != null)
             .join(',') || 'off',
+    // Which Stripe mode sells the plans, never a key.
+    billing: config.billing === null ? 'off' : config.billing.mode,
     usage_counters: usageCounters.kind,
     usage_digest: config.usageDigestTo === undefined ? 'off' : config.usageDigestCron,
   });

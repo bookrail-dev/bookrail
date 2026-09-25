@@ -1,12 +1,13 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { and, eq, isNull, or, lt, sql } from 'drizzle-orm';
 import { apiKeys, withAuthContext, withProjectContext } from '@bookrail/db';
-import { errors, type Environment } from '@bookrail/shared';
+import { errors, planMonthOf, planOf, type Environment } from '@bookrail/shared';
 import type { AppDeps, AppEnv } from '../context.js';
 import { parseApiKey } from '../keys.js';
+import { PLAN_USAGE_HEADER, planUsageHeader, plansOf } from '../plan.js';
 import { isPublicPath } from '../routes/public.js';
 
-/** Exactly the columns `auth_lookup_api_key` returns (migration 0013). */
+/** Exactly the columns `auth_lookup_api_key` returns (migration 0013, extended by 0025). */
 interface ApiKeyRow {
   [column: string]: unknown;
   id: string;
@@ -16,6 +17,8 @@ interface ApiKeyRow {
   scopes: string[];
   tenant_id: string | null;
   revoked_at: Date | null;
+  account_id: string;
+  plan: string;
 }
 
 /** Do not write last_used_at more than once a minute per key. */
@@ -58,10 +61,12 @@ function extractBearer(c: Context<AppEnv>): string {
  */
 export function authenticate(deps: AppDeps): MiddlewareHandler<AppEnv> {
   return async (c: Context<AppEnv>, next) => {
-    // The two families of `/v1` that carry no key: the sign up endpoints, which are where a key
-    // comes from, and the Stripe OAuth callback, which a browser follows and which is tied to
-    // its project by a single use `state` instead. Both are listed in `routes/public.ts`, and
-    // both are matched exactly: `/v1/signupsx` is a different path and still needs a key.
+    // The four families of `/v1` that carry no API key: the sign up endpoints, which are where a
+    // key comes from; the dashboard, which manages keys and is opened by a session of its own,
+    // checked by its router; the Stripe OAuth callback, which a browser follows and which is tied
+    // to its project by a single use `state` instead; and the two Stripe webhook receivers, which
+    // Stripe signs. All are listed in `routes/public.ts`, and all are matched exactly:
+    // `/v1/signupsx` and `/v1/dashboardx` are different paths and still need a key.
     if (isPublicPath(c.req.path)) return next();
 
     const token = extractBearer(c);
@@ -97,6 +102,7 @@ export function authenticate(deps: AppDeps): MiddlewareHandler<AppEnv> {
       throw errors.authentication('Invalid API key provided.', 'invalid_api_key');
     }
 
+    const plan = planOf(key.plan);
     c.set('auth', {
       apiKeyId: key.id,
       projectId: key.project_id,
@@ -104,13 +110,16 @@ export function authenticate(deps: AppDeps): MiddlewareHandler<AppEnv> {
       kind: key.kind,
       scopes: key.scopes,
       tenantId: key.tenant_id,
+      accountId: key.account_id,
+      plan,
     });
 
-    await withProjectContext(
+    const included = plansOf(deps)[plan].bookingsIncluded;
+    const usageHeader = await withProjectContext(
       deps.db,
       { projectId: key.project_id, environment: key.environment },
-      (tx) =>
-        tx
+      async (tx) => {
+        await tx
           .update(apiKeys)
           .set({ lastUsedAt: new Date() })
           .where(
@@ -121,9 +130,29 @@ export function authenticate(deps: AppDeps): MiddlewareHandler<AppEnv> {
                 lt(apiKeys.lastUsedAt, sql`now() - ${LAST_USED_THROTTLE}`),
               ),
             ),
-          ),
+          );
+        // The `Bookrail-Plan-Usage` header, read in the transaction this request already opens
+        // for `last_used_at`, so that it costs one statement and not one more round of BEGIN
+        // and COMMIT. Live keys only: the test environment is never counted, and a header
+        // there would be a number about somewhere else.
+        // Nor for a key scoped to a tenant, which does not see the numbers of the whole account.
+        if (key.environment !== 'live' || included === null || key.tenant_id !== null) return null;
+        const { rows } = await tx.execute<{ bookings_confirmed: string }>(
+          sql`SELECT bookings_confirmed FROM plan_usage_for_account(${key.account_id}::uuid, ${planMonthOf(Date.now())})`,
+        );
+        return planUsageHeader(Number(rows[0]?.bookings_confirmed ?? 0), included);
+      },
     );
 
-    await next();
+    if (usageHeader === null) return next();
+    // Written on the response that exists after the route, in `finally`, for the reason
+    // `rate-limit.ts` gives for its own headers: the error envelope and a replayed idempotent
+    // answer are built by other middlewares and must carry it too. The value is the count at
+    // the start of this request; a booking this request makes is in the next one.
+    try {
+      await next();
+    } finally {
+      c.res.headers.set(PLAN_USAGE_HEADER, usageHeader);
+    }
   };
 }

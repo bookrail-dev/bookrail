@@ -1,0 +1,58 @@
+---
+/**
+ * «Use Bookrail with …»: the minimum code to ask for availability and book, in the four ways
+ * that exist today. There is no tab for an SDK that does not exist.
+ *
+ * The code is not written here. `scripts/generate.mjs` reads it out of the quickstart (Node SDK,
+ * HTTP, CLI) and out of the page for agents (the MCP install line); the two MCP calls are made of
+ * the required arguments of the two tools as the server lists them, with the quickstart's values.
+ * The second line of the title follows the tab, through the homepage script.
+ */
+import { SAMPLES } from '../../data/home';
+
+const first = SAMPLES[0];
+---
+
+<div class="code-section tabs" data-tabs data-tabs-title="code-tool">
+  <div class="code-intro">
+    <h2>Use Bookrail with<br /><em id="code-tool">{first?.name}</em></h2>
+    <p class="lede">
+      The same calls as the <a href="/docs/quickstart/">quickstart</a>, read from it when this page
+      was built.
+    </p>
+  </div>
+  <div class="code-frame">
+    <div class="tab-list code-tabs" role="tablist" aria-label="Ways to call Bookrail">
+      {
+        SAMPLES.map((sample, index) => (
+          <a
+            class="tab"
+            role="tab"
+            id={`code-tab-${sample.id}`}
+            href={`#code-${sample.id}`}
+            aria-controls={`code-${sample.id}`}
+            aria-selected={index === 0 ? 'true' : 'false'}
+            data-tab-title={sample.name}
+          >
+            {sample.label}
+          </a>
+        ))
+      }
+    </div>
+    {
+      SAMPLES.map((sample) => (
+        <div
+          class="tab-panel code-panel"
+          role="tabpanel"
+          id={`code-${sample.id}`}
+          aria-labelledby={`code-tab-${sample.id}`}
+        >
+          <pre class="code" data-sample={sample.id}>{sample.code}</pre>
+          <a class="code-docs" href={sample.docs}>
+            Read the docs for {sample.name}
+          </a>
+        </div>
+      ))
+    }
+  </div>
+</div>

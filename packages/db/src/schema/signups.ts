@@ -45,8 +45,17 @@ export const signups = pgTable(
      * with the wrong value the day a project has two of them.
      */
     apiKeyId: uuid('api_key_id'),
+    /** The live key the same confirm minted (migration 0026). `null` for an older sign up. */
+    liveApiKeyId: uuid('live_api_key_id'),
     pendingSecret: text('pending_secret'),
     pendingSecretExpiresAt: timestamp('pending_secret_expires_at', { withTimezone: true }),
+    /**
+     * The versions of the terms and of the DPA accepted with this request, and when (migration
+     * 0027). The confirm writes them next to the account it creates. `null` for an older request.
+     */
+    termsVersion: text('terms_version'),
+    dpaVersion: text('dpa_version'),
+    termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
   },
   (t) => [
     index('signups_email_created_at_idx').on(t.email, t.createdAt.desc()),

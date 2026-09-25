@@ -96,6 +96,8 @@ export interface OccupancyInput {
 
 export interface Harness {
   projectId: string;
+  /** The account the project belongs to. */
+  accountId: string;
   environment: Environment;
   /** The pool that goes through the application role: what the booking engine writes with. */
   app: Database;
@@ -168,7 +170,10 @@ function iso(at: number): string {
   return new Date(at).toISOString();
 }
 
-export async function createHarness(name: string): Promise<Harness> {
+export async function createHarness(
+  name: string,
+  options: { environment?: Environment } = {},
+): Promise<Harness> {
   const urls = resolveDatabaseUrls({ databaseName: TEST_DB_NAME });
   const adminPool = createPool({ connectionString: urls.admin, max: 3 });
   const appPool = createPool({ connectionString: urls.app, max: 3 });
@@ -177,7 +182,9 @@ export async function createHarness(name: string): Promise<Harness> {
 
   const accountId = uuidv7();
   const projectId = uuidv7();
-  const environment: Environment = 'test';
+  // The test environment unless a suite is about what only the live one does: the plan counts
+  // live bookings and nothing else.
+  const environment: Environment = options.environment ?? 'test';
   await admin.execute(
     sql`INSERT INTO accounts (id, name, api_version) VALUES (${accountId}, ${name}, '2026-09-01')`,
   );
@@ -189,6 +196,7 @@ export async function createHarness(name: string): Promise<Harness> {
 
   return {
     projectId,
+    accountId,
     environment,
     app,
     admin,

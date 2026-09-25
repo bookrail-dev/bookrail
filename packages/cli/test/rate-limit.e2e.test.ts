@@ -48,7 +48,7 @@ describe('bookrail against a key that has run out of budget', () => {
       'This key may make 2 requests per second, with bursts of 1.',
     );
     expect(envelope.error?.fix).toBe(
-      'Wait for Retry-After, or spread the calls. Live keys have higher limits.',
+      "Wait for Retry-After, or spread the calls. A live key has the limit of its account's plan: https://bookrail.dev/docs/errors/#rate-limits",
     );
     expect(envelope.error?.doc_url).toBe('https://bookrail.dev/docs/errors#rate_limited');
     // Nothing on stdout but the envelope, and nothing about the key itself anywhere.

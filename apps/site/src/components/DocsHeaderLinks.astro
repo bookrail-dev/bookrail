@@ -1,11 +1,22 @@
 ---
+/**
+ * The header links of the documentation: the links of the marketing header, the repository,
+ * «Sign in» and «Get API keys», in the slot Starlight gives its social icons.
+ *
+ * Starlight lays the slot out itself (next to the search in the bar, and inside its own menu
+ * on a phone), so this is as far as the two headers can be the same without forcing Starlight.
+ * The «Sign in» label is not relabelled here: the documentation loads none of the site's scripts.
+ */
+import GitHubMark from './GitHubMark.astro';
 import { withBlog } from '../data/blog';
-import { NAV_LINKS } from '../data/site';
+import { GITHUB_REPO, NAV_BLOG_BEFORE, NAV_LINKS } from '../data/site';
 
-const links = await withBlog(NAV_LINKS);
+const links = await withBlog(NAV_LINKS, NAV_BLOG_BEFORE);
 ---
 
 <nav class="sl-nav-extra" aria-label="Sections">
   {links.map((link) => <a href={link.href}>{link.label}</a>)}
-  <a class="sl-nav-extra-home" href="/">Home</a>
+  <a class="sl-nav-extra-github" href={GITHUB_REPO}><GitHubMark /><span>GitHub</span></a>
+  <a class="sl-nav-extra-btn" href="/dashboard/">Sign in</a>
+  <a class="sl-nav-extra-btn primary" href="/signup/">Get API keys</a>
 </nav>

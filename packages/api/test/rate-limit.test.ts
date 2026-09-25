@@ -24,6 +24,7 @@ import {
 } from '../src/rate-limit.js';
 import { headersOf, retryAfterSeconds } from '../src/middleware/rate-limit.js';
 import { DEFAULT_RATE_LIMITS, MAX_RATE_LIMIT_PRODUCT } from '../src/config.js';
+import { PLAN_IDS, PLANS } from '@bookrail/shared';
 import { testRedisUrl } from './redis-url.js';
 
 const START = 1_700_000_000_000;
@@ -152,6 +153,33 @@ describe('the arithmetic, on a clock the test holds', () => {
       let accepted = 0;
       for (let index = 0; index < burst + 1; index += 1) {
         const decision = await limiter.check('k', rate, burst, START);
+        if (decision.allowed) accepted += 1;
+        expect(decision.remaining).toBeLessThanOrEqual(burst);
+      }
+      expect(accepted).toBe(burst);
+    },
+  );
+
+  /**
+   * The ceilings of the plans, which a live key gets when no `RATE_LIMIT_LIVE_*` override is set.
+   *
+   * They are not read from the environment, so `MAX_RATE_LIMIT_PRODUCT` does not guard them, and
+   * the product of the scale and enterprise plans (500 times 2 501) is above it. What that ceiling
+   * protects is exactness, so exactness is what is asserted, at today's clock and at a clock
+   * further out, where the slack is twice as wide: every plan admits exactly its burst.
+   */
+  it.each(
+    PLAN_IDS.flatMap((plan) => [
+      [plan, PLANS[plan].rateLimit.rate, PLANS[plan].rateLimit.burst, Date.now()] as const,
+      [plan, PLANS[plan].rateLimit.rate, PLANS[plan].rateLimit.burst, START * 1.5] as const,
+    ]),
+  )(
+    'admits exactly the burst of the %s plan (%i/s, burst %i) at clock %i',
+    async (_plan, rate, burst, clock) => {
+      const limiter = new MemoryRateLimiter();
+      let accepted = 0;
+      for (let index = 0; index < burst + 1; index += 1) {
+        const decision = await limiter.check('k', rate, burst, clock);
         if (decision.allowed) accepted += 1;
         expect(decision.remaining).toBeLessThanOrEqual(burst);
       }
@@ -518,6 +546,42 @@ describe('the Lua script, against a real Redis', () => {
     // And the bucket really was past the bare tolerance: without the slack this was a refusal.
     const aheadBefore = decision.resetMs - interval;
     expect(aheadBefore).toBeGreaterThan((burst - 1) * interval);
+  });
+
+  /**
+   * The ceilings of the plans on the path production uses. A live key of the scale and enterprise
+   * plans has 500 a second with a burst of 2 500, a product above what `config.ts` accepts from the
+   * environment, and the question is whether the script still admits the whole burst.
+   *
+   * Counting 2 501 real calls cannot answer it (an interval is two milliseconds, and the bucket
+   * drains while the test talks), so the bucket is placed where exactly `burst - 1` requests of
+   * one instant leave it, built by repeated addition as the script builds it: the next request is
+   * the last one of the burst and must be admitted. Time passing between placing and asking only
+   * drains the bucket, so the answer cannot flip on a slow machine. That the request after the
+   * burst is refused does not depend on the numbers (the cap of half an interval), and is the
+   * placed bucket test above.
+   */
+  it.each(
+    PLAN_IDS.map(
+      (plan) => [plan, PLANS[plan].rateLimit.rate, PLANS[plan].rateLimit.burst] as const,
+    ),
+  )('admits the last request of the %s burst (%i/s, burst %i)', async (plan, rate, burst) => {
+    const interval = 1000 / rate;
+    const empty = `plan-empty-${plan}`;
+    await client.del(rateLimitKey(empty));
+    const first = await limiter.check(empty, rate, burst, Date.now());
+    expect(first.allowed).toBe(true);
+    expect(first.remaining).toBe(burst - 1);
+
+    const id = `plan-last-${plan}`;
+    const clock = await client.time();
+    let tat = Number(clock[0]) * 1000 + Number(clock[1]) / 1000;
+    for (let index = 0; index < burst - 1; index += 1) tat += interval;
+    await client.set(rateLimitKey(id), String(tat), 'PX', 60_000);
+    const last = await limiter.check(id, rate, burst, Date.now());
+    // Only the decision: `remaining` counts what drained while the test talked (a millisecond is
+    // half an interval here), so it is a number about the machine and not about the arithmetic.
+    expect(last.allowed).toBe(true);
   });
 
   it('uses the digest Redis itself computes for the script', async () => {

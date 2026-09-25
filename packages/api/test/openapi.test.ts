@@ -90,6 +90,12 @@ describe('openapi document', () => {
       scheme: 'bearer',
     });
     expect(onDisk.security).toEqual([{ bearerAuth: [] }]);
+    // The second credential: a dashboard session, which opens the dashboard and nothing else.
+    expect(onDisk.components.securitySchemes.dashboardSession).toMatchObject({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'bds_...',
+    });
   });
 
   it('every $ref resolves', () => {
@@ -191,17 +197,43 @@ describe('openapi document', () => {
     '/v1/signups',
     '/v1/signups/confirm',
     '/v1/signups/{id}/claim',
+    // The two that obtain a dashboard session: the address, then the token of the link.
+    '/v1/dashboard/login',
+    '/v1/dashboard/login/confirm',
     // Called by Stripe's own servers, which have no key: what ties the request to a project
     // is a `Stripe-Signature` over the raw body.
     '/v1/stripe/webhook/test',
     '/v1/stripe/webhook/live',
+    // And the receiver of the Billing events of the account itself, for the same reason.
+    '/v1/billing/webhook',
   ];
 
-  it('only the specification, the sign ups and the Stripe webhook opt out of the bearer requirement', () => {
+  /** Opened by a dashboard session, and by nothing else. */
+  const DASHBOARD_PATHS = [
+    '/v1/dashboard/account',
+    '/v1/dashboard/projects/{id}/keys',
+    '/v1/dashboard/keys/{id}',
+    '/v1/dashboard/logout',
+    '/v1/dashboard/billing/checkout',
+    '/v1/dashboard/billing/change',
+    '/v1/dashboard/billing/change/cancel',
+    '/v1/dashboard/billing/portal',
+  ];
+
+  it('only the specification, the sign ups, the dashboard sign in and the Stripe webhook opt out of the bearer requirement', () => {
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const isPublic = Array.isArray(operation.security) && operation.security.length === 0;
         expect(isPublic, `${method.toUpperCase()} ${path}`).toBe(PUBLIC_PATHS.includes(path));
+      }
+    }
+  });
+
+  it('asks a dashboard session, and not an API key, of exactly the dashboard operations', () => {
+    for (const [path, methods] of Object.entries(onDisk.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        const session = JSON.stringify(operation.security) === '[{"dashboardSession":[]}]';
+        expect(session, `${method.toUpperCase()} ${path}`).toBe(DASHBOARD_PATHS.includes(path));
       }
     }
   });
@@ -219,7 +251,10 @@ describe('openapi document', () => {
         const refs = (operation.parameters ?? []).map((parameter) => parameter.$ref);
         const documented = refs.includes('#/components/parameters/IdempotencyKey');
         expect(documented, `${method.toUpperCase()} ${path}`).toBe(
-          method === 'post' && path.startsWith('/v1/') && !PUBLIC_PATHS.includes(path),
+          method === 'post' &&
+            path.startsWith('/v1/') &&
+            !PUBLIC_PATHS.includes(path) &&
+            !DASHBOARD_PATHS.includes(path),
         );
       }
     }
@@ -241,9 +276,14 @@ describe('openapi document', () => {
         '/v1/signups',
         '/v1/signups/confirm',
         '/v1/signups/{id}/claim',
+        // An SDK is built with a key, and a key must not be able to manage keys.
+        '/v1/dashboard/login',
+        '/v1/dashboard/login/confirm',
+        ...DASHBOARD_PATHS,
         // Nobody holding an SDK object can need to call the receiver Stripe calls.
         '/v1/stripe/webhook/test',
         '/v1/stripe/webhook/live',
+        '/v1/billing/webhook',
       ].sort(),
     );
   });
@@ -272,6 +312,7 @@ describe('openapi document', () => {
   it('documents the rate limit headers once and references them from every keyed operation', () => {
     const headers = onDisk.components.headers;
     expect(Object.keys(headers).sort()).toEqual([
+      'BookrailPlanUsage',
       'BookrailRequestId',
       'BookrailVersion',
       'IdempotentReplayed',
@@ -292,12 +333,18 @@ describe('openapi document', () => {
     for (const [path, methods] of Object.entries(onDisk.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         const responses: Record<string, { headers: Record<string, unknown> }> = operation.responses;
-        const takesKey = !publicPaths.has(`${method} ${path}`);
+        const takesSession = DASHBOARD_PATHS.includes(path);
+        const takesKey = !publicPaths.has(`${method} ${path}`) && !takesSession;
         for (const [status, response] of Object.entries(responses)) {
           const names = Object.keys(response.headers);
           const where = `${method} ${path} ${status}`;
           expect(names, where).toContain('Bookrail-Request-Id');
-          if (takesKey) {
+          if (takesSession) {
+            // A session has a bucket of its own, and no plan counter: it is not a live key.
+            expect(names, where).toContain('RateLimit-Limit');
+            expect(names, where).toContain('RateLimit-Policy');
+            expect(names, where).not.toContain('Bookrail-Plan-Usage');
+          } else if (takesKey) {
             expect(names, where).toContain('RateLimit-Limit');
             expect(names, where).toContain('RateLimit-Remaining');
             expect(names, where).toContain('RateLimit-Reset');
@@ -305,26 +352,32 @@ describe('openapi document', () => {
             expect(JSON.stringify(response.headers['RateLimit-Limit']), where).toBe(
               '{"$ref":"#/components/headers/RateLimitLimit"}',
             );
+            // The plan's counter rides with the rate limit: every keyed response may carry it,
+            // and a live key's does.
+            expect(JSON.stringify(response.headers['Bookrail-Plan-Usage']), where).toBe(
+              '{"$ref":"#/components/headers/BookrailPlanUsage"}',
+            );
           } else {
             expect(names, where).not.toContain('RateLimit-Limit');
+            expect(names, where).not.toContain('Bookrail-Plan-Usage');
           }
         }
         if (takesKey) keyed += 1;
       }
     }
-    // Seventy-seven operations, less the specification itself, the three sign up ones and the
-    // two Stripe webhook receivers.
+    // Eighty-eight operations, less the specification itself, the three sign up ones, the ten
+    // of the dashboard, the two Stripe webhook receivers and the Billing one.
     expect(keyed).toBe(71);
   });
 
-  it('covers the 76 operations of /v1, plus itself', () => {
+  it('covers the 87 operations of /v1, plus itself', () => {
     const operations = Object.values(onDisk.paths).reduce(
       (total, path) => total + Object.keys(path).length,
       0,
     );
     const v1 = OPERATIONS.filter((operation) => operation.path.startsWith('/v1/'));
-    expect(v1.length).toBe(76);
-    expect(operations).toBe(77);
+    expect(v1.length).toBe(87);
+    expect(operations).toBe(88);
   });
 });
 
@@ -434,6 +487,32 @@ describe('error codes', () => {
     // Added on 23 September 2026, with the two guards the independent review asked for.
     'payload_too_large',
     'payment_amount_mismatch',
+    // The free plan's threshold, added on 23 September 2026 with the plans.
+    'plan_limit_reached',
+    // Dashboard codes, added on 24 September 2026 with the dashboard.
+    'dashboard_disabled',
+    'dashboard_login_rate_limited',
+    'dashboard_login_not_found',
+    'dashboard_login_used',
+    'dashboard_login_expired',
+    'dashboard_session_invalid',
+    'key_limit_reached',
+    'key_creation_rate_limited',
+    // Terms and Billing codes, added on 24 September 2026 with Stripe Billing.
+    'terms_not_accepted',
+    'billing_not_configured',
+    'billing_provider_error',
+    'billing_unreachable',
+    'subscription_exists',
+    'plan_is_contract',
+    'billing_customer_missing',
+    'billing_connect_event',
+    // Added on 24 September 2026 with the second delivery of Stripe Billing.
+    'billing_mode_mismatch',
+    // Added on 24 September 2026 with the third delivery of Stripe Billing.
+    'billing_subscription_missing',
+    'plan_change_refused',
+    'invoice_unpaid',
   ];
 
   /**
@@ -503,7 +582,18 @@ describe('error codes', () => {
     expect(statusOfCode('stripe_already_connected')).toBe(409);
     expect(statusOfCode('rate_limited')).toBe(429);
     expect(statusOfCode('signup_not_found')).toBe(404);
+    // And the two of the dashboard, for the sign up's reasons.
+    expect(statusOfCode('dashboard_login_expired')).toBe(410);
+    expect(statusOfCode('dashboard_disabled')).toBe(503);
+    expect(statusOfCode('dashboard_session_invalid')).toBe(401);
+    expect(statusOfCode('key_limit_reached')).toBe(409);
     expect(statusOfCode('signup_already_confirmed')).toBe(409);
+    // And the three of Billing, with the reasons of the Stripe connection.
+    expect(statusOfCode('billing_not_configured')).toBe(503);
+    expect(statusOfCode('billing_provider_error')).toBe(502);
+    expect(statusOfCode('billing_unreachable')).toBe(502);
+    expect(statusOfCode('terms_not_accepted')).toBe(400);
+    expect(statusOfCode('subscription_exists')).toBe(409);
     // The override is by name and changes nothing else: a conflict is still a 409.
     expect(statusOfCode('slot_unavailable')).toBe(409);
   });
@@ -534,6 +624,8 @@ describe('error codes', () => {
       '201',
       '400',
       '401',
+      // The free plan at its threshold: `payment_required`, the one code of that family.
+      '402',
       '404',
       '409',
       '422',
@@ -542,6 +634,7 @@ describe('error codes', () => {
       '502',
       '503',
     ]);
+    expect(JSON.stringify(responses['402'])).toContain('plan_limit_reached');
     expect(JSON.stringify(responses['409'])).toContain('stripe_not_connected');
     expect(JSON.stringify(responses['503'])).toContain('stripe_not_configured');
     expect(JSON.stringify(responses['409'])).toContain('slot_unavailable');

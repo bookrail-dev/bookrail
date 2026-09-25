@@ -1,4 +1,6 @@
 dist
+# The build of the test suite: never published, never in `dist`.
+dist-test
 # The second build of `test/blog.test.ts`, which is removed as soon as it has been read.
 .blog-fixture
 .astro

@@ -39,7 +39,7 @@ describe('a tool call that hits the ceiling', () => {
         'This key may make 2 requests per second, with bursts of 1.',
       );
       expect(refused.envelope.error?.fix).toBe(
-        'Wait for Retry-After, or spread the calls. Live keys have higher limits.',
+        "Wait for Retry-After, or spread the calls. A live key has the limit of its account's plan: https://bookrail.dev/docs/errors/#rate-limits",
       );
       expect(refused.envelope.error?.doc_url).toBe('https://bookrail.dev/docs/errors#rate_limited');
       // The key never appears in anything the agent or the log can read.

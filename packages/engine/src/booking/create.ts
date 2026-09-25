@@ -19,9 +19,13 @@
  *    needs the negative;
  * 6. the request is revalidated against the calendar, the booking window and the customer
  *    limit: availability was computed at some earlier instant and is only ever a promise;
+ *    in the live environment of a plan that blocks at its limit, the account is locked and the
+ *    month's usage checked as well (`plan/usage.ts`), always after the resource and customer
+ *    locks;
  * 7. the resources are assigned exactly (`allocate.ts`), following the group's strategy;
  * 8. the capacity is verified in SQL against the peak usage over the footprint;
- * 9. the occupancies, the hold or the booking, the allocations and the event are written;
+ * 9. the occupancies, the hold or the booking, the allocations and the event are written, and
+ *    a booking born `confirmed` in the live environment is counted against the plan;
  * 10. after the commit, the caller drops `avail:occ:{resource}:{day}` for every
  *     {@link CreateBookingResult.touchedDays} entry.
  *
@@ -78,6 +82,13 @@ import {
   type PlannedAllocation,
   type RequirementPlan,
 } from './allocate.js';
+import {
+  assertPlanVolume,
+  chainAlreadyConfirmed,
+  lockPlanForBooking,
+  recordPlanUsage,
+  type PlanUsageWarning,
+} from '../plan/usage.js';
 import { releaseOccupancies, takeOccupancy } from './occupancy.js';
 import { depositRule, paymentAmountFor } from './payment.js';
 import { nextTransitionFor, type AutomaticTransition } from './policy.js';
@@ -339,6 +350,12 @@ export async function take(
 
   assertBookingWindow(service, start, input.now);
   await assertCustomerLimit(tx, data, input.customerId ?? null);
+  // The plan, third and last of the locks (resources, customer, account). A hold is a quote and
+  // takes nothing from the plan; a reschedule is a change to a booking that already exists.
+  const gate =
+    input.kind === 'booking' && input.reschedule == null
+      ? await lockPlanForBooking(tx, planScope(input))
+      : null;
   const policy = await policyOf(tx, data);
 
   const byId = timelinesOf(data, service, start, end);
@@ -418,8 +435,10 @@ export async function take(
     kind === 'hold'
       ? null
       : resolvePayment(input, { id: uuidv7(), price, policy, serviceId: service.id });
+  if (payment !== null) assertPlanVolume(gate, payment.amount);
 
   let scheduled: { action: AutomaticTransition; at: number } | null = null;
+  let planWarnings: PlanUsageWarning[] = [];
   if (kind === 'hold') {
     await tx.execute(sql`
       INSERT INTO holds (id, project_id, environment, service_id, customer_id, starts_at,
@@ -446,6 +465,9 @@ export async function take(
       payment,
     });
     if (payment !== null) await insertPayment(tx, input, id, payment);
+    if (status === 'confirmed') {
+      planWarnings = await countConfirmed(tx, input, input.reschedule?.fromBookingId ?? null);
+    }
   }
 
   const eventId = await insertEvent(
@@ -511,6 +533,7 @@ export async function take(
     allocations,
     eventId,
     touchedDays: touchedDaysOf(allocations, zonesOf(data), start, end),
+    planWarnings,
   };
 }
 
@@ -590,6 +613,10 @@ async function convert(
     throw holdExpired(`Hold ${holdId} no longer holds any resource.`);
   }
 
+  // The hold took no plan and was not counted: the conversion is the booking, so this is where
+  // the free plan's check runs, after the resource locks and before the capacity changes hands.
+  const gate = await lockPlanForBooking(tx, planScope(input));
+
   const bookingId = uuidv7();
   // The same door as a fresh booking, in its conversion mode: the lock and the sweep still
   // apply, only the measurement is skipped, because the hold already owns this capacity and
@@ -649,6 +676,7 @@ async function convert(
     policy,
     serviceId: service.id,
   });
+  if (payment !== null) assertPlanVolume(gate, payment.amount);
 
   const scheduled = await insertBooking(tx, input, {
     id: bookingId,
@@ -666,6 +694,8 @@ async function convert(
     payment,
   });
   if (payment !== null) await insertPayment(tx, input, bookingId, payment);
+  const planWarnings =
+    status === 'confirmed' ? await countConfirmed(tx, input, null) : ([] as PlanUsageWarning[]);
 
   const eventId = await insertEvent(
     tx,
@@ -715,7 +745,48 @@ async function convert(
     allocations,
     eventId,
     touchedDays: touchedDaysOf(allocations, zonesOf(data), hold.startsAt, hold.endsAt),
+    planWarnings,
   };
+}
+
+// --- The plan ---------------------------------------------------------------------------------
+
+function planScope(input: CreateBookingInput): {
+  projectId: string;
+  environment: CreateBookingInput['environment'];
+  now: number;
+  plans?: CreateBookingInput['plans'];
+} {
+  return {
+    projectId: input.projectId,
+    environment: input.environment,
+    now: input.now,
+    ...(input.plans === undefined ? {} : { plans: input.plans }),
+  };
+}
+
+/**
+ * One confirmed booking against the plan, unless its reschedule chain was already counted.
+ *
+ * A booking born `confirmed` from a reschedule of a booking that had been confirmed is the same
+ * booking moved, and moving is not booking again. A reschedule of a booking that was still
+ * `pending` has never been counted, and the first `confirmed` of the chain is the one that
+ * counts, wherever it happens.
+ */
+async function countConfirmed(
+  tx: Transaction,
+  input: CreateBookingInput,
+  rescheduledFrom: string | null,
+): Promise<PlanUsageWarning[]> {
+  if (input.environment !== 'live') return [];
+  if (await chainAlreadyConfirmed(tx, rescheduledFrom)) return [];
+  return recordPlanUsage(tx, {
+    projectId: input.projectId,
+    environment: input.environment,
+    now: input.now,
+    bookings: 1,
+    ...(input.plans === undefined ? {} : { plans: input.plans }),
+  });
 }
 
 /**

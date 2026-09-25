@@ -1,5 +1,10 @@
 /**
- * `bookrail signup`: a test key, from a terminal, without writing to anybody.
+ * `bookrail signup`: a test key and a live key, from a terminal, without writing to anybody.
+ *
+ * Both keys arrive together and are stored together: `keys.test` and `keys.live` of the
+ * credentials file, mode 600. Test stays the default environment, as it is for every command: a
+ * live key on disk is used only when `--live` is typed. The live key books for real, on the free
+ * plan, which refuses new live bookings once the month's included ones are used.
  *
  * It is the only command that runs without a key, because it is the command that produces one.
  * The shape of it is: ask for a link, wait for the person to open it, store what comes back.
@@ -20,6 +25,13 @@
  * asked", and it makes no further call: the sign up on the server simply runs out on its own.
  * The output says what to run to start again.
  */
+import {
+  DPA_URL,
+  TERMS_ACCEPTANCE_TEXT,
+  TERMS_CLAUSES_TEXT,
+  TERMS_CLAUSES_URL,
+  TERMS_URL,
+} from '../terms.js';
 import { ApiClient } from '../api/client.js';
 import type { Context } from '../context.js';
 import { loadCredentials, saveCredentials } from '../credentials.js';
@@ -32,8 +44,17 @@ export interface SignupOptions {
   projectName?: string;
   timezone?: string;
   currency?: string;
-  /** `--no-store`: print the key once and write nothing to disk. */
+  /** `--no-store`: print the keys once and write nothing to disk. */
   store?: boolean;
+  /**
+   * `--accept-terms`: the first tick, the Terms of Service and the DPA accepted on behalf of the
+   * business. `--approve-clauses`: the second, the specific approval of the clauses of Section 17
+   * (Articles 1341 and 1342 of the Italian Civil Code). Two flags for two acts: a tick is never
+   * given by the other one. Without a terminal both are required; in a terminal the command asks
+   * for each one that was not given, separately.
+   */
+  acceptTerms?: boolean;
+  approveClauses?: boolean;
   apiUrl?: string;
 }
 
@@ -90,13 +111,16 @@ interface SignupBody {
   poll_token?: string;
   delivered_to?: 'cli';
   secret_key?: string;
+  live_secret_key?: string;
   account?: { id: string; name: string };
   project?: { id: string; name: string; default_timezone: string; default_currency: string };
   api_key?: { id: string; environment: string; kind: string; prefix: string };
+  api_keys?: { id: string; environment: string; kind: string; prefix: string }[];
 }
 
 export async function signup(ctx: Context, options: SignupOptions): Promise<CommandResult> {
   const email = await resolveEmail(ctx, options);
+  await resolveTerms(ctx, options);
   const apiUrl = options.apiUrl?.trim();
   const baseUrl = apiUrl && apiUrl !== '' ? apiUrl : await ctx.apiUrl();
   // No key: these three endpoints have none in front of them, and this is why.
@@ -111,6 +135,8 @@ export async function signup(ctx: Context, options: SignupOptions): Promise<Comm
     await client.post<SignupBody>('/v1/signups', {
       email,
       client: 'cli',
+      accept_terms: true,
+      approve_clauses: true,
       ...(options.accountName === undefined ? {} : { account_name: options.accountName }),
       ...(options.projectName === undefined ? {} : { project_name: options.projectName }),
       ...(options.timezone === undefined ? {} : { default_timezone: options.timezone }),
@@ -146,9 +172,9 @@ export async function signup(ctx: Context, options: SignupOptions): Promise<Comm
   if (settled.status === 'email_taken') {
     throw new CliError(
       'signup_email_taken',
-      'This address already has a Bookrail account. Run bookrail login with its key, or write to hello@bookrail.dev.',
+      'This address already has a Bookrail account. Its keys are managed in the dashboard: https://bookrail.dev/dashboard/.',
       {
-        fix: 'Run `bookrail login --token sk_test_...` with the key of that account.',
+        fix: 'Sign in at https://bookrail.dev/dashboard/ with this address, create a key, then run `bookrail login --token sk_test_...`.',
         exitCode: EXIT.conflict,
       },
     );
@@ -167,12 +193,22 @@ export async function signup(ctx: Context, options: SignupOptions): Promise<Comm
       exitCode: EXIT.service,
     });
   }
+  // Absent only from an API older than the live key at sign up: the test key is then the whole
+  // answer, and the live one comes from the dashboard.
+  const live = settled.live_secret_key;
+  const testKey = settled.api_keys?.find((key) => key.environment === 'test') ?? settled.api_key;
+  const liveKey = settled.api_keys?.find((key) => key.environment === 'live');
 
   const store = options.store !== false;
   let path: string | null = null;
   if (store) {
     const credentials = await loadCredentials(ctx.io);
-    const file = { ...credentials.file, keys: { ...credentials.file.keys, test: secret } };
+    const keys = {
+      ...credentials.file.keys,
+      test: secret,
+      ...(live === undefined ? {} : { live }),
+    };
+    const file = { ...credentials.file, keys };
     if (apiUrl && apiUrl !== '') file.api_url = apiUrl;
     path = await saveCredentials(ctx.io, file);
   }
@@ -185,22 +221,33 @@ export async function signup(ctx: Context, options: SignupOptions): Promise<Comm
       account: settled.account ?? null,
       project: settled.project ?? null,
       api_key: settled.api_key ?? null,
-      // The key is in the structured output **only** when it was not stored, because then this
-      // is the one place it exists. With `--store` it is on disk and printing it as well would
-      // put it in a log somebody keeps.
-      ...(store ? { stored_in: path } : { secret_key: secret }),
+      api_keys: settled.api_keys ?? (settled.api_key === undefined ? [] : [settled.api_key]),
+      // The keys are in the structured output **only** when they were not stored, because then
+      // this is the one place they exist. With `--store` they are on disk and printing them as
+      // well would put them in a log somebody keeps.
+      ...(store
+        ? { stored_in: path }
+        : { secret_key: secret, ...(live === undefined ? {} : { live_secret_key: live }) }),
     },
     human: [
       `${ctx.presenter.badge()} account ${settled.account?.name ?? ''} (${settled.account?.id ?? ''})`,
       `project  ${settled.project?.name ?? ''} (${settled.project?.id ?? ''})`,
-      `key      sk_test_${settled.api_key?.prefix ?? ''}... (${settled.api_key?.id ?? ''})`,
-      store
-        ? `stored   ${path ?? ''} (mode 600)`
-        : `key      ${secret}\n         Not stored. This is the only time it is shown.`,
+      `test key sk_test_${testKey?.prefix ?? ''}... (${testKey?.id ?? ''})`,
+      ...(liveKey === undefined
+        ? []
+        : [`live key sk_live_${liveKey.prefix}... (${liveKey.id}), free plan`]),
+      ...(store
+        ? [`stored   ${path ?? ''} (mode 600)`]
+        : [
+            `test key ${secret}`,
+            ...(live === undefined ? [] : [`live key ${live}`]),
+            '         Not stored. This is the only time they are shown.',
+          ]),
     ].join('\n'),
     nextSteps: [
       'Run `bookrail whoami` to confirm.',
       'Run `bookrail init --template <vertical>` to create a bookrail.config.ts.',
+      'Everything runs against test until you add `--live`. The live key books for real, on the free plan.',
       'Run `bookrail doctor` to check the whole setup.',
     ],
   };
@@ -262,6 +309,63 @@ async function sleep(ms: number, stopped: () => boolean): Promise<void> {
   }
 }
 
+/**
+ * The two ticks of the terms, before anything is sent.
+ *
+ * Each has its flag (`--accept-terms`, `--approve-clauses`) and its own question: the specific
+ * approval of the clauses of Section 17 is a second act, and is never implied by the first. A
+ * terminal is asked for each tick its flag did not give, one sentence at a time; with no terminal
+ * to ask on (an agent, a pipe, `--non-interactive`) the command refuses and names the flags that
+ * are missing, because an acceptance nobody typed is not an acceptance.
+ */
+async function resolveTerms(ctx: Context, options: SignupOptions): Promise<void> {
+  const ticks = [
+    {
+      given: options.acceptTerms === true,
+      flag: '--accept-terms',
+      question: `${TERMS_ACCEPTANCE_TEXT}. Type yes to accept: `,
+    },
+    {
+      given: options.approveClauses === true,
+      flag: '--approve-clauses',
+      question: `${TERMS_CLAUSES_TEXT}. Type yes to approve: `,
+    },
+  ];
+  const missing = ticks.filter((tick) => !tick.given);
+  if (missing.length === 0) return;
+  if (ctx.options.nonInteractive || ctx.io.prompt === undefined) {
+    const flags = missing.map((tick) => tick.flag).join(' and ');
+    throw new CliError(
+      'terms_not_accepted',
+      'API keys are issued under the Terms of Service and the Data Processing Agreement, and there is no terminal to accept them on.',
+      {
+        param: missing[0]?.flag.slice(2) ?? 'accept-terms',
+        fix: `Read ${TERMS_URL}, ${DPA_URL} and ${TERMS_CLAUSES_URL}, then run \`bookrail signup --accept-terms --approve-clauses\` on behalf of your business (missing: ${flags}).`,
+        exitCode: EXIT.user,
+      },
+    );
+  }
+  // With --json the standard output is the envelope alone: the links go where the questions go.
+  const show = (line: string): void =>
+    ctx.presenter.json ? ctx.presenter.warn(line) : ctx.presenter.print(line);
+  show(`Terms of Service: ${TERMS_URL}`);
+  show(`Data Processing Agreement: ${DPA_URL}`);
+  show(`Section 17 of the Terms: ${TERMS_CLAUSES_URL}`);
+  for (const tick of missing) {
+    const answer = await ctx.io.prompt(tick.question);
+    if (answer.trim().toLowerCase() !== 'yes') {
+      throw new CliError(
+        'terms_not_accepted',
+        'The terms were not accepted, so nothing was sent.',
+        {
+          fix: 'Run `bookrail signup` again and answer yes to both, or pass --accept-terms and --approve-clauses.',
+          exitCode: EXIT.user,
+        },
+      );
+    }
+  }
+}
+
 async function resolveEmail(ctx: Context, options: SignupOptions): Promise<string> {
   const given = options.email?.trim();
   if (given !== undefined && given !== '') return given;
@@ -272,7 +376,7 @@ async function resolveEmail(ctx: Context, options: SignupOptions): Promise<strin
       exitCode: EXIT.user,
     });
   }
-  const typed = (await ctx.io.prompt('Email address for the test key: ')).trim();
+  const typed = (await ctx.io.prompt('Email address for the API keys: ')).trim();
   if (typed === '') {
     throw new CliError('missing_input', 'No email address given.', {
       param: 'email',

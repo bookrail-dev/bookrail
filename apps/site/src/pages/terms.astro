@@ -1,0 +1,15 @@
+---
+/**
+ * `/terms`: the Terms of Service, read at build time from the approved text (see
+ * `src/components/LegalText.astro`). Accepted at sign up, in `bookrail signup`, and in the
+ * dashboard before the first checkout.
+ */
+import LegalText from '../components/LegalText.astro';
+import * as text from '../generated/legal/terms.md';
+---
+
+<LegalText
+  text={text}
+  description="The Terms of Service of Bookrail, the booking infrastructure of MP Informatica Srl, for businesses."
+  other={{ href: '/dpa', label: 'Data Processing Agreement' }}
+/>

@@ -61,6 +61,11 @@ import {
   signupClaimSchema,
   signupConfirmSchema,
   signupCreateSchema,
+  billingChangeSchema,
+  billingCheckoutSchema,
+  dashboardKeyCreateSchema,
+  dashboardLoginConfirmSchema,
+  dashboardLoginSchema as dashboardLoginBodySchema,
   webhookCreateSchema,
   webhookDeliveryListQuerySchema,
   webhookUpdateSchema,
@@ -73,6 +78,13 @@ import {
   bookingCreatedSchema,
   bookingSchema,
   customerSchema,
+  billingChangeResponseSchema,
+  billingRedirectSchema,
+  dashboardAccountSchema,
+  dashboardApiKeyCreatedSchema,
+  dashboardApiKeySchema,
+  dashboardLoginSchema,
+  dashboardSessionSchema,
   deletedSchema,
   eventSchema,
   holdCreatedSchema,
@@ -125,8 +137,20 @@ export interface OperationDefinition {
   readonly idempotent?: boolean;
   /** Values `expand[]` accepts, when the operation accepts it at all. */
   readonly expand?: readonly string[];
-  /** Skips the bearer security requirement. Only `GET /openapi.json`. */
+  /**
+   * Skips the bearer security requirement: `GET /openapi.json`, the sign up operations, the two
+   * dashboard operations that obtain a session, and the Stripe webhook receivers.
+   */
   readonly public?: boolean;
+  /**
+   * Opened by a dashboard session (`Authorization: Bearer bds_...`) instead of an API key.
+   *
+   * Such an operation has the `dashboardSession` security requirement instead of `bearerAuth`,
+   * carries the rate limit headers of its session's bucket but never `Bookrail-Plan-Usage`, and,
+   * like a public one, gets none of the error codes the API key middleware chain produces: it
+   * lists its own.
+   */
+  readonly auth?: 'dashboard';
   /**
    * Keep this operation out of the generated SDK.
    *
@@ -229,6 +253,21 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   signup_disabled: 'internal',
   signup_email_failed: 'internal',
   /**
+   * Dashboard: the six endpoints of `/v1/dashboard`, opened by a session and never by a key.
+   *
+   * Two carry a status their family does not imply, named in `STATUS_BY_CODE`: a link that has
+   * run out is `410`, and a deployment with no mailer is `503`. `key_limit_reached` is a `409`:
+   * the project already has five active secret keys in that environment.
+   */
+  dashboard_disabled: 'internal',
+  dashboard_login_rate_limited: 'rate_limit',
+  dashboard_login_not_found: 'not_found',
+  dashboard_login_used: 'conflict',
+  dashboard_login_expired: 'conflict',
+  dashboard_session_invalid: 'authentication',
+  key_limit_reached: 'conflict',
+  key_creation_rate_limited: 'rate_limit',
+  /**
    * Stripe: the three keyed routes of `/v1/stripe`.
    *
    * Three of the four carry a status their family does not imply, named in `STATUS_BY_CODE` of
@@ -263,6 +302,43 @@ export const ERROR_CODE_TYPES: Readonly<Record<string, ErrorType>> = {
   payment_pending: 'conflict',
   reschedule_not_supported: 'policy_violation',
   stripe_signature_invalid: 'invalid_request',
+  /**
+   * Plans: the free plan's threshold, on the one operation that creates a live booking.
+   *
+   * `payment_required` and therefore `402`: the request is well formed and the booking would be
+   * possible, and what stands in its way is the plan of the account. It always carries a `fix`
+   * that says how to move to a paying plan, and `param: "payment.mode"` when it is the included
+   * paid volume that a payment would go past rather than the included bookings.
+   */
+  plan_limit_reached: 'payment_required',
+  /**
+   * Terms: a sign up, or a checkout from the dashboard, that does not carry both ticks of the
+   * terms in force. `400`: the request is well formed, and what is missing is an agreement.
+   */
+  terms_not_accepted: 'invalid_request',
+  /**
+   * Billing: the checkout and the portal of the dashboard, and the receiver of the Stripe Billing
+   * events. Three carry a status their family does not imply, named in `STATUS_BY_CODE`: a
+   * deployment where Billing is switched off, or whose Stripe catalogue is incomplete, is `503`,
+   * and a refusal or a silence of Stripe is `502`. `billing_connect_event` is the `400` of an event
+   * of a connected account sent to the receiver of the account's own events: a Connect endpoint
+   * registered at the wrong URL, made visible.
+   */
+  billing_not_configured: 'internal',
+  billing_provider_error: 'internal',
+  billing_unreachable: 'internal',
+  subscription_exists: 'conflict',
+  plan_is_contract: 'conflict',
+  billing_customer_missing: 'conflict',
+  billing_connect_event: 'invalid_request',
+  // The changes of plan made from the dashboard (the portal no longer makes them), and the
+  // invoice a closed subscription left unpaid, which stops a new checkout.
+  billing_subscription_missing: 'conflict',
+  plan_change_refused: 'conflict',
+  invoice_unpaid: 'conflict',
+  // An event of the other Stripe mode than the one of the deployment: a configuration mistake,
+  // not a bad signature.
+  billing_mode_mismatch: 'invalid_request',
 };
 
 export function statusOfCode(code: string): number {
@@ -429,6 +505,7 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     body: signupCreateSchema,
     responses: { 202: signupSchema },
     errorCodes: [
+      'terms_not_accepted',
       'signup_rate_limited',
       'signup_disabled',
       'signup_email_failed',
@@ -480,6 +557,264 @@ export const OPERATIONS: readonly OperationDefinition[] = [
       'resource_missing',
       'invalid_body',
       'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
+  },
+
+  // --- Dashboard ------------------------------------------------------------------------------
+  //
+  // The account's own view, for the dashboard page of the website. Two operations obtain a
+  // session and take no credential at all; the other four take the session. None of them takes
+  // an API key, and none is in the SDK: a key must not be able to manage keys.
+  {
+    method: 'post',
+    path: '/v1/dashboard/login',
+    operationId: 'dashboard.login',
+    summary: 'Ask for a dashboard sign in link',
+    description:
+      'Sends a single use link, valid for fifteen minutes, to the owner address of a self service account. The answer is the same `202` whether or not the address has an account. No API key.',
+    tags: ['dashboard'],
+    body: dashboardLoginBodySchema,
+    responses: { 202: dashboardLoginSchema },
+    errorCodes: [
+      'dashboard_login_rate_limited',
+      'dashboard_disabled',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/login/confirm',
+    operationId: 'dashboard.login.confirm',
+    summary: 'Open a dashboard sign in link',
+    description:
+      'Turns the token of the link into a session of twelve hours, absolute, with no renewal. The session token is in this answer and nowhere else. A link works once. No API key.',
+    tags: ['dashboard'],
+    body: dashboardLoginConfirmSchema,
+    responses: { 200: dashboardSessionSchema },
+    errorCodes: [
+      'dashboard_login_not_found',
+      'dashboard_login_used',
+      'dashboard_login_expired',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    public: true,
+    sdk: false,
+  },
+  {
+    method: 'get',
+    path: '/v1/dashboard/account',
+    operationId: 'dashboard.account.get',
+    summary: 'Retrieve the account of a dashboard session',
+    description:
+      "The account, its plan, this month's usage in the shape of `GET /v1/project`, what is accepted and not yet counted, and every project with every key. Never a secret: a key is shown by its prefix.",
+    tags: ['dashboard'],
+    responses: { 200: dashboardAccountSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'rate_limited',
+      'parameter_invalid',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/projects/{id}/keys',
+    operationId: 'dashboard.keys.create',
+    summary: 'Create a secret key for a project of the account',
+    description:
+      'A secret key of the environment asked for, with no scopes and no tenant. The key is in this answer once and cannot be shown again. At most five active secret keys per project and environment.',
+    tags: ['dashboard'],
+    pathParams: ID_PARAM('project', 'project'),
+    body: dashboardKeyCreateSchema,
+    responses: { 201: dashboardApiKeyCreatedSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'resource_missing',
+      'key_limit_reached',
+      'key_creation_rate_limited',
+      'rate_limited',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'delete',
+    path: '/v1/dashboard/keys/{id}',
+    operationId: 'dashboard.keys.revoke',
+    summary: 'Revoke a key of the account',
+    description:
+      'The next request made with the key is refused with `401 revoked_api_key`. Revoking the last active key of an environment is allowed. A key already revoked is returned as it is.',
+    tags: ['dashboard'],
+    pathParams: ID_PARAM('api_key', 'API key'),
+    responses: { 200: dashboardApiKeySchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'resource_missing',
+      'rate_limited',
+      'parameter_invalid',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/logout',
+    operationId: 'dashboard.logout',
+    summary: 'End a dashboard session',
+    description: 'The session stops working at once. There is nothing to send in the body.',
+    tags: ['dashboard'],
+    responses: { 204: z.null() },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'rate_limited',
+      'parameter_invalid',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+
+  {
+    method: 'post',
+    path: '/v1/dashboard/billing/checkout',
+    operationId: 'dashboard.billing.checkout',
+    summary: 'Open a Stripe Checkout for a paid plan',
+    description:
+      'Returns the URL of a Stripe Checkout Session for Pro or Scale, billed monthly on the first of the month with the first month pro rata, VAT excluded, for businesses (a VAT number or tax id is required where Stripe supports one). An account that has not accepted the terms in force sends `accept_terms` and `approve_clauses`, which are recorded first. The plan changes when Stripe confirms, not here. An account with a subscription already is sent to the portal.',
+    tags: ['dashboard'],
+    body: billingCheckoutSchema,
+    responses: { 200: billingRedirectSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'terms_not_accepted',
+      'subscription_exists',
+      'invoice_unpaid',
+      'plan_is_contract',
+      'billing_not_configured',
+      'billing_provider_error',
+      'billing_unreachable',
+      'rate_limited',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/billing/change',
+    operationId: 'dashboard.billing.change',
+    summary: 'Change between Pro and Scale',
+    description:
+      'Moves the subscription of the account to the other paid plan. To Scale from Pro at once, the difference paid pro rata on an invoice now. To Pro from Scale on the first of the next month, with a subscription schedule: until then the account stays on Scale, and the move can be cancelled with `POST /v1/dashboard/billing/change/cancel`. The subscription must be active, and a subscription set to end at the end of the period is not moved to Pro.',
+    tags: ['dashboard'],
+    body: billingChangeSchema,
+    responses: { 200: billingChangeResponseSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'billing_subscription_missing',
+      'plan_change_refused',
+      'plan_is_contract',
+      'billing_not_configured',
+      'billing_provider_error',
+      'billing_unreachable',
+      'rate_limited',
+      'invalid_body',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/billing/change/cancel',
+    operationId: 'dashboard.billing.change.cancel',
+    summary: 'Cancel a scheduled move to Pro',
+    description:
+      'Cancels the move down scheduled for the first of the next month: the subscription stays on Scale (its schedule is released).',
+    tags: ['dashboard'],
+    responses: { 200: billingChangeResponseSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'billing_subscription_missing',
+      'plan_change_refused',
+      'billing_not_configured',
+      'billing_provider_error',
+      'billing_unreachable',
+      'rate_limited',
+      'parameter_invalid',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+  {
+    method: 'post',
+    path: '/v1/dashboard/billing/portal',
+    operationId: 'dashboard.billing.portal',
+    summary: 'Open the Stripe customer portal',
+    description:
+      'Returns the URL of a session of the Stripe customer portal: update the card, the name and the email, read the invoices, and cancel at the end of the period. The plan is changed from the dashboard (`POST /v1/dashboard/billing/change`), and the address and the VAT number by writing to Bookrail. Only for an account that has started a checkout.',
+    tags: ['dashboard'],
+    responses: { 200: billingRedirectSchema },
+    errorCodes: [
+      'dashboard_session_invalid',
+      'billing_customer_missing',
+      'billing_not_configured',
+      'billing_provider_error',
+      'billing_unreachable',
+      'rate_limited',
+      'parameter_invalid',
+      'unsupported_api_version',
+      'internal_error',
+    ],
+    auth: 'dashboard',
+    sdk: false,
+  },
+
+  // --- Billing --------------------------------------------------------------------------------
+  //
+  // The receiver of the events of Bookrail's own Stripe account, where the plans are sold. Called
+  // by Stripe, not by an integration, and never by a key.
+  {
+    method: 'post',
+    path: '/v1/billing/webhook',
+    operationId: 'billing.webhook',
+    summary: 'Receive a Stripe Billing event',
+    description:
+      'Called by Stripe, not by an integration. Verifies `Stripe-Signature` over the raw body with the secret of the endpoint of the account (not a Connect one), records the event once, and applies it: a checkout completed, a subscription created, updated or deleted, a renewal to add the overage to, an invoice paid or failed, the fiscal data of a customer changed. An event of a connected account is refused with `400 billing_connect_event`, an event of the other Stripe mode than the one of the deployment with `400 billing_mode_mismatch`. A redelivery of an event already processed answers `duplicate: true` and does nothing. No API key.',
+    tags: ['billing'],
+    responses: { 200: stripeWebhookReceiptSchema },
+    errorCodes: [
+      'stripe_signature_invalid',
+      'billing_connect_event',
+      'billing_mode_mismatch',
+      'billing_not_configured',
+      'invalid_body',
+      'payload_too_large',
+      // A `500` when a handler fails (Stripe did not answer, a write failed): the claim stays
+      // unsettled, and the retry is Stripe's.
       'internal_error',
     ],
     public: true,
@@ -1110,7 +1445,7 @@ export const OPERATIONS: readonly OperationDefinition[] = [
     operationId: 'bookings.create',
     summary: 'Create a booking',
     description:
-      'With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`.',
+      'With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`. In the live environment of an account on the free plan, a booking past the confirmed live bookings the plan includes this month, or a payment that would take the month past the included paid volume (`param: "payment.mode"`), answers `402 plan_limit_reached` and takes nothing; the test environment is never counted.',
     tags: ['bookings'],
     body: bookingCreateSchema,
     responses: { 201: bookingCreatedSchema },
@@ -1127,6 +1462,7 @@ export const OPERATIONS: readonly OperationDefinition[] = [
       'price_missing',
       'deposit_not_configured',
       'payment_amount_invalid',
+      'plan_limit_reached',
     ],
     idempotent: true,
   },

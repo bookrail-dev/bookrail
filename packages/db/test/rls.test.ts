@@ -1,15 +1,33 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Client } from 'pg';
 import { uuidv7 } from '@bookrail/shared';
-import { PROJECT_TABLES } from '../src/schema/index.js';
+import { LIVE_ONLY_TABLES, PROJECT_TABLES } from '../src/schema/index.js';
 import { adminClient, appClient, asProject, expectPgError } from './helpers.js';
 import { createProject, seedProjectData, type SeededRows } from './fixtures.js';
+
+/**
+ * The ids a scope should see in a table: the one seeded row, or none at all for a live-only
+ * table in the test environment, where a row cannot exist.
+ */
+function expectedRows(rows: SeededRows, table: string): string[] {
+  const id = rows[table];
+  if (id === undefined) {
+    expect((LIVE_ONLY_TABLES as readonly string[]).includes(table), `${table} was not seeded`).toBe(
+      true,
+    );
+    return [];
+  }
+  return [id];
+}
 
 /**
  * The point of these tests is that they run as `bookrail_app`, a role without BYPASSRLS.
  * If the role were a superuser every assertion below would pass while proving nothing, so the
  * first test asserts the role's attributes before anything else.
  */
+/** Definer functions that only their owner may execute (migration 0027). */
+const OWNER_ONLY_DEFINERS = new Set(['billing_write_plan_changed']);
+
 describe('row level security', () => {
   let admin: Client;
   let app: Client;
@@ -64,7 +82,7 @@ describe('row level security', () => {
         expect(
           rows.map((r) => r.id),
           `${table} visibility`,
-        ).toEqual([rowsATest[table]]);
+        ).toEqual(expectedRows(rowsATest, table));
       }
     });
   });
@@ -76,14 +94,16 @@ describe('row level security', () => {
         expect(
           rows.map((r) => r.id),
           `${table} environment isolation`,
-        ).toEqual([rowsALive[table]]);
+        ).toEqual(expectedRows(rowsALive, table));
       }
     });
   });
 
   it('cannot update or delete rows of another project', async () => {
     // events is append-only: UPDATE and DELETE are revoked outright, covered by events.test.ts.
-    const mutable = PROJECT_TABLES.filter((t) => t !== 'events');
+    // The live-only tables have no row in project B's test environment to aim at; that a
+    // project cannot reach another project's plan counter is `plan-usage.test.ts`.
+    const mutable = PROJECT_TABLES.filter((t) => t !== 'events' && rowsBTest[t] !== undefined);
     await asProject(app, { projectId: projectA, environment: 'test' }, async () => {
       for (const table of mutable) {
         const foreignId = rowsBTest[table];
@@ -113,7 +133,7 @@ describe('row level security', () => {
     });
 
     // The foreign rows are all still there.
-    for (const table of PROJECT_TABLES) {
+    for (const table of PROJECT_TABLES.filter((t) => rowsBTest[t] !== undefined)) {
       const { rows } = await admin.query(`SELECT id FROM ${table} WHERE id = $1`, [
         rowsBTest[table],
       ]);
@@ -301,13 +321,13 @@ describe('row level security', () => {
       expect(row.acl, `${row.name} is executable by PUBLIC`).not.toMatch(/(^|,)=X/);
       expect(row.owner, `${row.name} is not owned by the migration role`).not.toBe(appRole);
 
-      if (row.kind === 'trigger') {
+      if (row.kind === 'trigger' || OWNER_ONLY_DEFINERS.has(row.name.split('(')[0] ?? '')) {
         // A trigger function is called by its trigger and by nothing else (Postgres refuses a
         // direct call outright), so granting it would say something untrue about who may run
-        // it.
-        expect(row.acl, `${row.name} is a trigger function granted to ${appRole}`).not.toContain(
-          `${appRole}=X`,
-        );
+        // it. The writer of the `plan.changed` events (migration 0027) is called by the other
+        // definer functions and by the owner connection of `bookrail-plan`, never by the
+        // application role: it writes into the log of every project of an account.
+        expect(row.acl, `${row.name} is granted to ${appRole}`).not.toContain(`${appRole}=X`);
       } else {
         expect(row.acl, `${row.name} is not executable by ${appRole}`).toContain(`${appRole}=X`);
       }

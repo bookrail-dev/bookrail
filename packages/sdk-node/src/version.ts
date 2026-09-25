@@ -7,7 +7,7 @@
  * with the `version` field of `package.json` and `API_VERSION` with `info.version` of the
  * specification, so neither can drift without a red test.
  */
-export const SDK_VERSION = '0.3.1';
+export const SDK_VERSION = '0.4.0';
 
 /**
  * The dated API version this package speaks, sent as `Bookrail-Version` on every request and

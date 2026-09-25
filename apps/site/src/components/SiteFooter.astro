@@ -1,16 +1,46 @@
 ---
+/**
+ * The footer of every page that is not documentation: the mark and the line of what Bookrail is,
+ * then four columns. The legal links are in the last column on every page, and the blog joins
+ * the community column once it has an article.
+ */
+import Logo from './Logo.astro';
 import { withBlog } from '../data/blog';
-import { BRAND, FOOTER_LINKS, TAGLINE } from '../data/site';
+import { BRAND, FOOTER_COLUMNS, TAGLINE } from '../data/site';
+
 const year = 2026;
-// Among the things there are to read, before the machine readable files and the legal pages.
-const links = await withBlog(FOOTER_LINKS, '/llms.txt');
+const columns = await Promise.all(
+  FOOTER_COLUMNS.map(async (column) => ({
+    ...column,
+    links:
+      column.blogBefore === undefined ? column.links : await withBlog(column.links, column.blogBefore),
+  })),
+);
 ---
 
 <footer class="site-footer">
-  <div class="wrap">
-    <div>&copy; {year} {BRAND} &middot; {TAGLINE}</div>
-    <nav aria-label="Footer">
-      {links.map((link) => <a href={link.href}>{link.label}</a>)}
-    </nav>
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a class="logo" href="/" aria-label={`${BRAND}, home`}>
+        <Logo size={24} />
+        {BRAND}
+      </a>
+      <p>{TAGLINE}</p>
+      <p class="footer-copy">&copy; {year} MP Informatica Srl</p>
+    </div>
+    {
+      columns.map((column) => (
+        <nav class="footer-col" aria-label={column.title}>
+          <h2>{column.title}</h2>
+          <ul>
+            {column.links.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
   </div>
 </footer>

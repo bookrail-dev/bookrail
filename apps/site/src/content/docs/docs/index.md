@@ -31,9 +31,11 @@ events they emit, behind one HTTP API. It is the layer under a booking product, 
 The engine, the API, the CLI, the MCP server and the TypeScript SDK are written and tested
 against real Postgres. What does not exist yet, and is not documented as if it did:
 
-- **No dashboard and no login.** A **test** key is self service (`npx bookrail signup`, or
-  [/signup](/signup)), but there is no page that lists your projects, rotates a key or shows a
-  bill, and a **live** key is still issued by hand: write to hello@bookrail.dev for that one.
+- **A small dashboard, and no password.** Keys are self service (`npx bookrail signup`, or
+  [/signup](/signup)): a test key and a live key on the [Free plan](/pricing/). The
+  [dashboard](/dashboard/), signed in with a link to your address, shows the plan, this month's
+  usage, the projects and the keys, and makes and revokes keys. It does not create projects,
+  invite a team or show a bill yet.
 - **No payments.** `payment.mode` other than `none` is refused with `not_yet_supported`, and
   `amount_due` is always `0`.
 - **No scope enforcement**: API key scopes are stored but not checked, and there are no per

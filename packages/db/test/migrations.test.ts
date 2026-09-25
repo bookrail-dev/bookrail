@@ -46,7 +46,7 @@ describe('migrations', () => {
     for (const table of ALL_TABLES) {
       expect(present.has(table), `missing table ${table}`).toBe(true);
     }
-    expect(ALL_TABLES.length).toBe(32);
+    expect(ALL_TABLES.length).toBe(43);
   });
 
   it('creates an application role that is neither superuser nor BYPASSRLS', async () => {

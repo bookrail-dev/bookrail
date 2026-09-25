@@ -1,0 +1,655 @@
+---
+/**
+ * The pricing page: four cards, and the comparison table under them.
+ *
+ * Every number on it comes from two places and nowhere else: what a plan enforces from `PLANS`
+ * of `@bookrail/shared`, the table the API reads, and what a plan costs from
+ * `src/data/pricing.ts`. `test/pricing.test.ts` compares the built page with both, and with the
+ * internal pricing document.
+ *
+ * The buttons of Pro and Scale go to the dashboard with the plan in the query
+ * (`/dashboard/?upgrade=pro`), which opens the Stripe checkout of that plan after sign in; they
+ * carry `data-upgrade-plan`, and nobody is sent to a mailbox to upgrade. Enterprise is a contract,
+ * so it is a `mailto:`. The prices are VAT excluded, and the page says so.
+ *
+ * The one script on the page copies the markdown twin to the clipboard. Without JavaScript the
+ * twin is a link.
+ */
+import Base from '../layouts/Base.astro';
+import {
+  MATRIX,
+  PRICED_PLANS,
+  cardFeatures,
+  cardLead,
+  cardPrice,
+  euro,
+  freeLimitSentence,
+  freeVolumeEur,
+  pricingLede,
+  thousands,
+  upgradeHref,
+} from '../data/pricing';
+import { PLANS } from '@bookrail/shared';
+
+const free = PLANS.free.bookingsIncluded ?? 0;
+const lede = pricingLede();
+
+/** The small square icon of a section of the table: drawn here, in the ink of the text. */
+const ICONS: Record<string, string> = {
+  Bookings:
+    '<rect x="1.5" y="1.5" width="11" height="11"/><path d="M1.5 7h11M7 1.5v11"/><rect x="7" y="1.5" width="5.5" height="5.5" class="fill"/>',
+  Payments: '<rect x="1.5" y="3" width="11" height="8"/><path d="M1.5 6h11"/>',
+  API: '<rect x="1.5" y="1.5" width="11" height="11"/><path d="M5.5 5 3.5 7l2 2M8.5 5l2 2-2 2"/>',
+  Support: '<rect x="1.5" y="1.5" width="11" height="8"/><path d="M4 9.5v3l3-3"/>',
+};
+---
+
+<Base
+  title="Pricing, Bookrail"
+  description={`${lede} The test environment is free and never counted.`}
+>
+  <div class="wrap pricing">
+    <div class="md-row">
+      <button type="button" class="md-copy" data-copy-markdown="/pricing.md" hidden>
+        Copy as Markdown
+      </button>
+      <a class="md-link" href="/pricing.md">pricing.md</a>
+    </div>
+
+    <h1>Pricing<br /><em>Free until it counts.</em></h1>
+    <p class="pricing-lede" data-lede>
+      {lede} You pay for bookings that happen, not for seats, resources or locations.
+    </p>
+
+    <div class="plans">
+      {
+        PRICED_PLANS.map((plan) => {
+          const price = cardPrice(plan);
+          return (
+            <article
+              class:list={['plan-card', { recommended: plan.recommended }]}
+              data-plan-card={plan.id}
+              aria-labelledby={`plan-${plan.id}`}
+            >
+              <header class="plan-head">
+                <h2 id={`plan-${plan.id}`} class="plan-name">
+                  {plan.name.toUpperCase()}
+                </h2>
+                {plan.recommended && <span class="badge">Recommended</span>}
+              </header>
+              <p class="plan-description">{plan.description}</p>
+              {plan.action.kind === 'upgrade' ? (
+                <a
+                  class:list={['btn', 'wide', { primary: plan.recommended }]}
+                  href={upgradeHref(plan.action.plan)}
+                  data-upgrade-plan={plan.action.plan}
+                >
+                  {plan.action.label}
+                </a>
+              ) : (
+                <a class="btn wide" href={plan.action.href}>
+                  {plan.action.label}
+                </a>
+              )}
+              <p class="plan-price">
+                <span class="amount">{price.amount}</span>
+                {price.per !== undefined && <span class="per">{price.per}</span>}
+              </p>
+              {price.note !== undefined && <p class="plan-price-note">{price.note}</p>}
+              <p class="plan-lead">{cardLead(plan)}</p>
+              <ul class="plan-features">
+                {cardFeatures(plan).map((feature) => (
+                  <li>
+                    <svg class="tick" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+                      <path d="M2.5 7.5 5.5 10.5 11.5 3.5" />
+                    </svg>
+                    <span>
+                      {feature.text}
+                      {feature.note !== undefined && <span class="note">{feature.note}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {plan.id === 'free' && <p class="plan-limit">{freeLimitSentence()}</p>}
+            </article>
+          );
+        })
+      }
+    </div>
+
+    <p class="compare-jump">
+      <a class="btn" href="#compare">Compare plans <span aria-hidden="true">↓</span></a>
+    </p>
+
+    <section class="compare" id="compare" aria-labelledby="compare-title">
+      <h2 id="compare-title">Compare plans</h2>
+      <fieldset class="plan-picker">
+        <legend>Show plan</legend>
+        {
+          PRICED_PLANS.map((plan) => (
+            <label>
+              <input
+                type="radio"
+                name="plan-view"
+                value={plan.id}
+                id={`view-${plan.id}`}
+                checked={plan.recommended}
+              />
+              {plan.name}
+            </label>
+          ))
+        }
+      </fieldset>
+      <table class="matrix">
+        <caption class="visually-hidden">
+          What each plan includes, costs and enforces today
+        </caption>
+        <thead>
+          <tr>
+            <td class="corner"></td>
+            {
+              PRICED_PLANS.map((plan) => {
+                const price = cardPrice(plan);
+                return (
+                  <th scope="col" data-plan={plan.id}>
+                    <span class="col-name">{plan.name}</span>
+                    <span class="col-price">
+                      {price.amount}
+                      {price.per !== undefined && <span class="per"> {price.per}</span>}
+                    </span>
+                    {plan.action.kind === 'upgrade' ? (
+                      <a
+                        class:list={['btn', 'sm', { primary: plan.recommended }]}
+                        href={upgradeHref(plan.action.plan)}
+                        data-upgrade-plan={plan.action.plan}
+                      >
+                        {plan.action.label}
+                      </a>
+                    ) : (
+                      <a class="btn sm" href={plan.action.href}>
+                        {plan.action.label}
+                      </a>
+                    )}
+                  </th>
+                );
+              })
+            }
+          </tr>
+        </thead>
+        {
+          MATRIX.map((section) => (
+            <tbody>
+              <tr class="section-row">
+                <th scope="colgroup" colspan="5">
+                  <span class="section-title">
+                    <svg
+                      class="section-icon"
+                      viewBox="0 0 14 14"
+                      width="14"
+                      height="14"
+                      aria-hidden="true"
+                      set:html={ICONS[section.title] ?? ''}
+                    />
+                    {section.title}
+                  </span>
+                </th>
+              </tr>
+              {section.rows.map((row) => (
+                <tr>
+                  <th scope="row">
+                    <span class="row-label">
+                      {row.label}
+                      <button
+                        type="button"
+                        class="info"
+                        aria-label={`What ${row.label.toLowerCase()} means`}
+                        aria-describedby={`def-${row.key}`}
+                      >
+                        i
+                      </button>
+                      <span class="tip" role="tooltip" id={`def-${row.key}`}>
+                        {row.definition}
+                      </span>
+                    </span>
+                  </th>
+                  {PRICED_PLANS.map((plan) => {
+                    const cell = row.cells[plan.id];
+                    return (
+                      <td data-plan={plan.id} data-cell={`${row.key}:${plan.id}`}>
+                        <span class="value">{cell.value}</span>
+                        {cell.note !== undefined && <span class="note">{cell.note}</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          ))
+        }
+      </table>
+    </section>
+
+    <section class="definitions prose" aria-labelledby="definitions-title">
+      <h2 id="definitions-title">Definitions</h2>
+      <h3>What counts as a booking</h3>
+      <p>
+        A live booking that reaches <code>confirmed</code> in a calendar month, in UTC, counted once.
+        Cancellations, holds, no-shows and reschedules do not count again: a reschedule changes a
+        booking, it does not make a new one. Bookings in the test environment never count.
+      </p>
+      <h3>What happens at the limit of Free</h3>
+      <p>
+        Once the confirmed live bookings of the month, together with the live bookings still
+        <code>pending</code>, reach {thousands(free)}, a new live booking is refused with
+        <code>402 plan_limit_reached</code> until the first day of the next month in UTC, or until
+        the account moves to a paying plan. Payments that would take the month past {
+          euro(freeVolumeEur())
+        } are refused the same way. Bookings already made are not touched, and the test environment
+        is never stopped. On Pro and Scale nothing is refused: bookings past the quota are priced as
+        the table says.
+      </p>
+      <h3>Orchestrated payments</h3>
+      <p>
+        The price of the service, not a fee on the money. Deposits and payments are charged on your
+        own Stripe account, connected with <code>bookrail stripe connect</code>, and the money goes
+        there; Stripe's own fees are between you and Stripe. What is measured is the live payments
+        that succeeded in the month, net of the refunds made in it.
+      </p>
+      <h3>Warnings</h3>
+      <p>
+        At 80% and at 100% of the included bookings, the owner address of the account gets an
+        email, once per month and threshold, and a <code>plan.usage_warning</code> event is written
+        to the event log.
+      </p>
+      <h3>How the paid plans are billed</h3>
+      <p data-billing-terms>
+        Prices are in euro, VAT excluded, and the paid plans are for businesses: the checkout asks
+        for a billing address and, where Stripe supports one, a VAT number or tax id. Italian
+        companies pay Italian VAT; companies elsewhere in the EU are invoiced under the reverse
+        charge; outside the EU no VAT is added. Every plan renews on the first day of the month, in
+        UTC, and the first month is charged pro rata from the day you subscribe. Bookings past the
+        quota and orchestrated payments are added to the invoice of the first of the next month.
+        Moving up applies at once, pro rata; moving down or cancelling applies from the first of the
+        next month, with no partial refund. If a payment fails, the plan stays for fourteen days
+        while Stripe retries, then the account goes back to Free, with nothing deleted. The
+        <a href="/terms">Terms of Service</a> and the <a href="/dpa">Data Processing Agreement</a>
+        apply.
+      </p>
+      <h3>Where to see your usage</h3>
+      <p>
+        In the <a href="/dashboard/">dashboard</a>, in <code>GET /v1/project</code>
+        (<code>plan</code> and <code>usage</code>), with <code>bookrail whoami</code>, and in the
+        <code>Bookrail-Plan-Usage</code> header of every response to a live key.
+      </p>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import '../scripts/copy-markdown';
+</script>
+
+<style>
+  .pricing {
+    padding: var(--space-8) var(--gutter) var(--space-9);
+  }
+  .md-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-4);
+    align-items: center;
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .md-copy {
+    font: inherit;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .md-copy:hover,
+  .md-link:hover {
+    color: var(--ink);
+  }
+  .md-link {
+    font-family: var(--mono);
+    color: var(--ink-2);
+  }
+  .pricing h1 {
+    margin-top: var(--space-6);
+  }
+  .pricing-lede {
+    max-width: 44rem;
+    color: var(--ink-2);
+    font-size: var(--step-1);
+    margin: 0 0 var(--space-8);
+  }
+
+  /* Cards */
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .plan-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-6) var(--space-5);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-data);
+  }
+  .plan-card.recommended {
+    border-color: var(--accent);
+    margin-top: calc(-1 * var(--space-4));
+    padding-top: calc(var(--space-6) + var(--space-4));
+  }
+  .plan-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .plan-name {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-control);
+    padding: 1px var(--space-2);
+  }
+  .plan-description {
+    margin: 0;
+    color: var(--ink-2);
+    min-height: 4.5em;
+  }
+  .btn.wide {
+    width: 100%;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .plan-price {
+    margin: var(--space-2) 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+  .plan-price .amount {
+    font-size: var(--step-2);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .plan-price .per,
+  .plan-price-note {
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .plan-price-note {
+    margin: calc(-1 * var(--space-3)) 0 0;
+  }
+  .plan-lead {
+    margin: 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+  .plan-features {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+    font-size: 14px;
+  }
+  .plan-features li {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: var(--space-2);
+    align-items: start;
+  }
+  .tick {
+    margin-top: 3px;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+  }
+  .plan-features .note,
+  .matrix .note {
+    display: block;
+    color: var(--ink-3);
+    font-size: var(--step--1);
+  }
+  .plan-limit {
+    margin: 0;
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .compare-jump {
+    margin: var(--space-7) 0 0;
+    text-align: center;
+  }
+
+  /* The comparison table */
+  .compare {
+    margin-top: var(--space-9);
+  }
+  .compare h2,
+  .definitions h2 {
+    font-size: var(--step-2);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    margin: 0 0 var(--space-6);
+  }
+  .plan-picker {
+    display: none;
+    border: 0;
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .plan-picker legend {
+    font-size: var(--step--1);
+    color: var(--ink-3);
+    margin-bottom: var(--space-2);
+  }
+  .plan-picker label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 34px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+    background: var(--card);
+    font-size: var(--step--1);
+    cursor: pointer;
+  }
+  .plan-picker label:has(input:checked) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .plan-picker input {
+    accent-color: var(--accent);
+    margin: 0;
+  }
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed;
+  }
+  .matrix thead th,
+  .matrix thead td {
+    position: sticky;
+    top: 64px;
+    z-index: 2;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line-2);
+    padding: var(--space-4) var(--space-3);
+    text-align: left;
+    vertical-align: top;
+    font-weight: 500;
+  }
+  .matrix .corner {
+    width: 28%;
+  }
+  .col-name {
+    display: block;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .col-price {
+    display: block;
+    margin: var(--space-1) 0 var(--space-3);
+    font-size: var(--step-1);
+  }
+  .col-price .per {
+    font-size: var(--step--1);
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  .matrix thead .btn {
+    cursor: pointer;
+  }
+  .section-row th {
+    text-align: left;
+    padding: var(--space-7) var(--space-3) var(--space-3);
+    border-bottom: 1px solid var(--line);
+    font-weight: 500;
+  }
+  .section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .section-icon {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.2;
+  }
+  .section-icon :global(.fill) {
+    fill: var(--ink);
+  }
+  .matrix tbody th[scope='row'],
+  .matrix td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+    font-weight: 400;
+  }
+  .matrix tbody th[scope='row'] {
+    color: var(--ink-2);
+  }
+  .row-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .info {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--line-2);
+    border-radius: 50%;
+    background: var(--card);
+    color: var(--ink-2);
+    font: 500 11px/1 var(--mono);
+    cursor: help;
+    flex-shrink: 0;
+  }
+  .tip {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: calc(100% + var(--space-2));
+    z-index: 3;
+    width: min(20rem, 70vw);
+    padding: var(--space-3);
+    background: var(--card);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    font-size: var(--step--1);
+    line-height: 1.45;
+  }
+  .info:hover + .tip,
+  .info:focus-visible + .tip,
+  .info:focus + .tip {
+    display: block;
+  }
+
+  .definitions {
+    margin-top: var(--space-9);
+    max-width: 68ch;
+    padding: 0;
+  }
+  .definitions h3 {
+    font-size: var(--step-1);
+    font-weight: 500;
+    margin: var(--space-6) 0 var(--space-2);
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1100px) {
+    .plans {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .plan-card.recommended {
+      margin-top: 0;
+      padding-top: var(--space-6);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .plans {
+      grid-template-columns: 1fr;
+    }
+    .plan-description {
+      min-height: 0;
+    }
+    .plan-picker {
+      display: flex;
+    }
+    .matrix {
+      table-layout: auto;
+    }
+    .matrix .corner {
+      width: 45%;
+    }
+    .compare:has(#view-free:checked) [data-plan]:not([data-plan='free']),
+    .compare:has(#view-pro:checked) [data-plan]:not([data-plan='pro']),
+    .compare:has(#view-scale:checked) [data-plan]:not([data-plan='scale']),
+    .compare:has(#view-enterprise:checked) [data-plan]:not([data-plan='enterprise']) {
+      display: none;
+    }
+    .section-row th {
+      padding-top: var(--space-6);
+    }
+  }
+</style>

@@ -90,8 +90,10 @@ describe('events are append-only for the application role', () => {
 
   it('assigns a monotonic sequence number per project', async () => {
     await asProject(app, { projectId, environment: 'test' }, async () => {
+      // `events.seq` and not `seq`: the output column is the text cast, and ordering by it sorted
+      // "10" before "9" the first time a project's numbers crossed a power of ten.
       const { rows } = await app.query<{ seq: string }>(
-        `SELECT seq::text FROM events ORDER BY seq`,
+        `SELECT seq::text AS seq FROM events ORDER BY events.seq`,
       );
       const values = rows.map((r) => Number(r.seq));
       expect(values.length).toBeGreaterThanOrEqual(2);

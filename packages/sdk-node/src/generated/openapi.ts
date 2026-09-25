@@ -83,6 +83,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/billing/webhook': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Receive a Stripe Billing event
+     * @description Called by Stripe, not by an integration. Verifies `Stripe-Signature` over the raw body with the secret of the endpoint of the account (not a Connect one), records the event once, and applies it: a checkout completed, a subscription created, updated or deleted, a renewal to add the overage to, an invoice paid or failed, the fiscal data of a customer changed. An event of a connected account is refused with `400 billing_connect_event`, an event of the other Stripe mode than the one of the deployment with `400 billing_mode_mismatch`. A redelivery of an event already processed answers `duplicate: true` and does nothing. No API key.
+     */
+    post: operations['billing.webhook'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/bookings': {
     parameters: {
       query?: never;
@@ -98,7 +118,7 @@ export interface paths {
     put?: never;
     /**
      * Create a booking
-     * @description With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`.
+     * @description With `hold_id` it converts the hold instead of taking new capacity. `payment.mode` of `deposit` or `full` creates a Stripe PaymentIntent on the connected account and answers with `payment_intent`, whose `client_secret` is returned **once** and is never stored: an idempotent replay answers with the same booking and `client_secret: null`. `payment.mode: "entitlement"`, and any `recurrence`, answer `400 not_yet_supported`. In the live environment of an account on the free plan, a booking past the confirmed live bookings the plan includes this month, or a payment that would take the month past the included paid volume (`param: "payment.mode"`), answers `402 plan_limit_reached` and takes nothing; the test environment is never counted.
      */
     post: operations['bookings.create'];
     delete?: never;
@@ -279,6 +299,206 @@ export interface paths {
     head?: never;
     /** Update a customer */
     patch: operations['customers.update'];
+    trace?: never;
+  };
+  '/v1/dashboard/account': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Retrieve the account of a dashboard session
+     * @description The account, its plan, this month's usage in the shape of `GET /v1/project`, what is accepted and not yet counted, and every project with every key. Never a secret: a key is shown by its prefix.
+     */
+    get: operations['dashboard.account.get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/billing/change': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change between Pro and Scale
+     * @description Moves the subscription of the account to the other paid plan. To Scale from Pro at once, the difference paid pro rata on an invoice now. To Pro from Scale on the first of the next month, with a subscription schedule: until then the account stays on Scale, and the move can be cancelled with `POST /v1/dashboard/billing/change/cancel`. The subscription must be active, and a subscription set to end at the end of the period is not moved to Pro.
+     */
+    post: operations['dashboard.billing.change'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/billing/change/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a scheduled move to Pro
+     * @description Cancels the move down scheduled for the first of the next month: the subscription stays on Scale (its schedule is released).
+     */
+    post: operations['dashboard.billing.change.cancel'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/billing/checkout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Open a Stripe Checkout for a paid plan
+     * @description Returns the URL of a Stripe Checkout Session for Pro or Scale, billed monthly on the first of the month with the first month pro rata, VAT excluded, for businesses (a VAT number or tax id is required where Stripe supports one). An account that has not accepted the terms in force sends `accept_terms` and `approve_clauses`, which are recorded first. The plan changes when Stripe confirms, not here. An account with a subscription already is sent to the portal.
+     */
+    post: operations['dashboard.billing.checkout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/billing/portal': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Open the Stripe customer portal
+     * @description Returns the URL of a session of the Stripe customer portal: update the card, the name and the email, read the invoices, and cancel at the end of the period. The plan is changed from the dashboard (`POST /v1/dashboard/billing/change`), and the address and the VAT number by writing to Bookrail. Only for an account that has started a checkout.
+     */
+    post: operations['dashboard.billing.portal'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/keys/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Revoke a key of the account
+     * @description The next request made with the key is refused with `401 revoked_api_key`. Revoking the last active key of an environment is allowed. A key already revoked is returned as it is.
+     */
+    delete: operations['dashboard.keys.revoke'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Ask for a dashboard sign in link
+     * @description Sends a single use link, valid for fifteen minutes, to the owner address of a self service account. The answer is the same `202` whether or not the address has an account. No API key.
+     */
+    post: operations['dashboard.login'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/login/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Open a dashboard sign in link
+     * @description Turns the token of the link into a session of twelve hours, absolute, with no renewal. The session token is in this answer and nowhere else. A link works once. No API key.
+     */
+    post: operations['dashboard.login.confirm'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * End a dashboard session
+     * @description The session stops working at once. There is nothing to send in the body.
+     */
+    post: operations['dashboard.logout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/dashboard/projects/{id}/keys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create a secret key for a project of the account
+     * @description A secret key of the environment asked for, with no scopes and no tenant. The key is in this answer once and cannot be shown again. At most five active secret keys per project and environment.
+     */
+    post: operations['dashboard.keys.create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/v1/events': {
@@ -1154,6 +1374,34 @@ export interface components {
       /** @description `ranges` only: longest bookable length; may exceed `end - start`. */
       max_duration_minutes?: number;
     };
+    BillingChange: {
+      /** @enum {string} */
+      object: 'billing_change';
+      /**
+       * @description The plan the subscription is on, or will be on, after the change.
+       * @enum {string}
+       */
+      plan: 'pro' | 'scale';
+      /**
+       * @description `now` for a move up (paid pro rata on an invoice now) or a scheduled move cancelled; `period_end` for a move down; `pending_payment` for a move up whose invoice was not paid: it applies once that invoice is paid (`payment_url`), and is discarded by Stripe after about a day.
+       * @enum {string}
+       */
+      effective: 'now' | 'period_end' | 'pending_payment';
+      /**
+       * Format: date-time
+       * @description When the change applies; `null` while it waits for its payment.
+       * @example 2026-09-08T07:00:00Z
+       */
+      effective_at: string | null;
+      /** @description The Stripe page of the invoice to pay, for `pending_payment`; `null` otherwise. */
+      payment_url: string | null;
+    };
+    BillingRedirect: {
+      /** @enum {string} */
+      object: 'billing_checkout' | 'billing_portal';
+      /** @description The Stripe page to send the browser to: a Checkout Session, or the customer portal. */
+      url: string;
+    };
     Booking: {
       /**
        * @description Identifier of a booking, prefixed with `bk_`.
@@ -1399,6 +1647,196 @@ export interface components {
       object: 'list';
       data: components['schemas']['Customer'][];
       has_more: boolean;
+    };
+    DashboardAccount: {
+      /** @enum {string} */
+      object: 'dashboard_account';
+      account: {
+        /**
+         * @description Identifier of a account, prefixed with `acct_`.
+         * @example acct_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'account';
+        name: string;
+        /** @enum {string} */
+        plan: 'free' | 'pro' | 'scale' | 'enterprise';
+        owner_email: string;
+      };
+      usage: components['schemas']['PlanUsage'];
+      /** @description What the account has accepted and not yet counted. */
+      reserved: {
+        /** @description Live bookings in `pending` right now, every month. On the free plan they count against the threshold already, together with `usage.bookings_confirmed`. */
+        bookings_pending: number;
+        /** @description Open live payments of pending bookings, in the minor unit. On the free plan they count against the included volume, together with `usage.payment_volume`. */
+        payment_volume_pending: number;
+      };
+      projects: {
+        /**
+         * @description Identifier of a project, prefixed with `proj_`.
+         * @example proj_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'project';
+        name: string;
+        default_timezone: string;
+        default_currency: string;
+        /**
+         * Format: date-time
+         * @description ISO 8601 instant in UTC.
+         * @example 2026-09-08T07:00:00Z
+         */
+        created_at: string;
+        api_keys: components['schemas']['DashboardApiKey'][];
+      }[];
+      /** @description The session this answer was read with. */
+      session: {
+        /**
+         * Format: date-time
+         * @description ISO 8601 instant in UTC.
+         * @example 2026-09-08T07:00:00Z
+         */
+        expires_at: string;
+      };
+      billing: components['schemas']['DashboardBilling'];
+      /** @description The versions of the terms in force, and whether the account has accepted them. */
+      terms: {
+        terms_version: string;
+        dpa_version: string;
+        /**
+         * Format: date-time
+         * @description When the account accepted these versions of the terms and of the DPA, or `null`: then the checkout asks for both ticks first.
+         * @example 2026-09-08T07:00:00Z
+         */
+        accepted_at: string | null;
+      };
+    };
+    DashboardApiKey: {
+      /**
+       * @description Identifier of a api_key, prefixed with `key_`.
+       * @example key_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+       */
+      id: string;
+      /** @enum {string} */
+      object: 'api_key';
+      /**
+       * @description The environment of the API key that created the object.
+       * @enum {string}
+       */
+      environment: 'test' | 'live';
+      /** @enum {string} */
+      kind: 'secret' | 'publishable';
+      name: string | null;
+      /** @description The first eight characters after `sk_test_` or `sk_live_`: enough to recognise a key, never enough to use it. */
+      prefix: string;
+      /** @description Optional tenant this object belongs to, for multi-tenant customers. */
+      tenant_id: string | null;
+      /** @enum {string} */
+      status: 'active' | 'revoked';
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      created_at: string;
+      /**
+       * Format: date-time
+       * @description The last request made with the key, to the minute. `null`: never used.
+       * @example 2026-09-08T07:00:00Z
+       */
+      last_used_at: string | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 instant in UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      revoked_at: string | null;
+    };
+    DashboardApiKeyCreated: components['schemas']['DashboardApiKey'] & {
+      /**
+       * @description The key, in clear text. Shown **once**, in this response: it is stored as a SHA-256 hash and cannot be shown again.
+       * @example sk_live_...
+       */
+      secret_key: string;
+    };
+    /** @description The Stripe subscription of the account, or `null` when it has never had one. The plan of the account follows it. */
+    DashboardBilling: {
+      /** @enum {string} */
+      status:
+        | 'incomplete'
+        | 'incomplete_expired'
+        | 'trialing'
+        | 'active'
+        | 'past_due'
+        | 'canceled'
+        | 'unpaid'
+        | 'paused';
+      /** @description Whether the account still has this subscription: `incomplete`, `trialing`, `active` or `past_due`. While it is live a second checkout is refused; `unpaid` and `paused` are not live. */
+      live: boolean;
+      /** @enum {string} */
+      plan: 'pro' | 'scale';
+      /**
+       * Format: date-time
+       * @description The end of the current period: the first of the next month, at midnight UTC.
+       * @example 2026-09-08T07:00:00Z
+       */
+      current_period_end: string | null;
+      cancel_at_period_end: boolean;
+      /**
+       * @description The plan the subscription moves to at the end of the period, when a move down is scheduled.
+       * @enum {string|null}
+       */
+      scheduled_plan: 'pro' | 'scale' | null;
+      /**
+       * Format: date-time
+       * @description The first failed payment of the period, or `null` when payments are up to date.
+       * @example 2026-09-08T07:00:00Z
+       */
+      past_due_since: string | null;
+      /**
+       * Format: date-time
+       * @description Fourteen days after `past_due_since`: if no payment has succeeded by then, the subscription is closed and the account returns to Free.
+       * @example 2026-09-08T07:00:00Z
+       */
+      grace_ends_at: string | null;
+      /** @description An invoice left open when the subscription was closed for non payment, or `null`. A new checkout is refused until it is paid. */
+      unpaid_invoice: {
+        id: string;
+        number: string | null;
+        amount_due: number;
+        currency: string;
+        /** @description The Stripe page where the invoice is paid (`hosted_invoice_url`). */
+        url: string | null;
+      } | null;
+    } | null;
+    DashboardLogin: {
+      /** @enum {string} */
+      object: 'dashboard_login';
+      /** @description The address, as it was understood. */
+      email: string;
+      /**
+       * Format: date-time
+       * @description When a link sent for this request would stop working. The answer is the same whether or not the address has an account, and so whether or not a message is on its way.
+       * @example 2026-09-08T07:00:00Z
+       */
+      expires_at: string;
+    };
+    DashboardSession: {
+      /** @enum {string} */
+      object: 'dashboard_session';
+      /**
+       * @description The session, `bds_...`, in clear text and only here. Send it as `Authorization: Bearer bds_...` to the other dashboard operations. Stored as a SHA-256 hash.
+       * @example bds_...
+       */
+      session_token: string;
+      /**
+       * Format: date-time
+       * @description Twelve hours after the link was opened. Nothing renews it.
+       * @example 2026-09-08T07:00:00Z
+       */
+      expires_at: string;
     };
     Deleted: {
       id: string;
@@ -1828,6 +2266,26 @@ export interface components {
       data: components['schemas']['Payment'][];
       has_more: boolean;
     };
+    /** @description This month's usage of the plan, summed over the account's projects: the same object `GET /v1/project` returns. */
+    PlanUsage: {
+      /**
+       * @description The calendar month the numbers are about, in UTC: `YYYY-MM`.
+       * @example 2026-09
+       */
+      month: string;
+      /** @description Live bookings of every project of the account that reached `confirmed` this month, each counted once. Cancellations, holds, no-shows and reschedules do not count again; the test environment never counts. */
+      bookings_confirmed: number;
+      /** @description Confirmed live bookings the plan includes each month. `null`: negotiated. */
+      bookings_included: number | null;
+      /** @description Live payments that succeeded this month, net of the refunds made this month, in the minor unit. Can be negative after a refund of an earlier month. */
+      payment_volume: number;
+      /** @description Paid volume the plan includes each month, in the minor unit. `null`: not capped (a paying plan is billed on the volume instead). */
+      payment_volume_included: number | null;
+      /** @description The currency of `payment_volume`: the one currency this month's payments were in, `mixed` when there were several (no conversion is made), `null` when no money moved. */
+      currency: string | null;
+      /** @description Whether reaching an included quantity refuses the next live booking with `402 plan_limit_reached`. True on the free plan only. */
+      blocks_at_limit: boolean;
+    };
     Policy: {
       /**
        * @description Identifier of a policy, prefixed with `pol_`.
@@ -1909,6 +2367,12 @@ export interface components {
       default_timezone: string;
       default_currency: string;
       api_key: components['schemas']['ApiKey'];
+      /**
+       * @description The plan of the account this project belongs to.
+       * @enum {string}
+       */
+      plan: 'free' | 'pro' | 'scale' | 'enterprise';
+      usage: components['schemas']['PlanUsage'] & (Record<string, unknown> | null);
       /**
        * Format: date-time
        * @description ISO 8601 instant in UTC.
@@ -2327,6 +2791,7 @@ export interface components {
         default_timezone: string;
         default_currency: string;
       };
+      /** @description The test key alone. The same object as the `test` entry of `api_keys`. */
       api_key?: {
         /**
          * @description Identifier of a api_key, prefixed with `key_`.
@@ -2341,11 +2806,31 @@ export interface components {
         kind: 'secret';
         prefix: string;
       };
+      /** @description The keys the sign up created: one `test` and one `live`, both secret, with no scopes and no tenant. A sign up confirmed before 24 September 2026 has the test one only. */
+      api_keys?: {
+        /**
+         * @description Identifier of a api_key, prefixed with `key_`.
+         * @example key_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c
+         */
+        id: string;
+        /** @enum {string} */
+        object: 'api_key';
+        /** @enum {string} */
+        environment: 'test' | 'live';
+        /** @enum {string} */
+        kind: 'secret';
+        prefix: string;
+      }[];
       /**
        * @description The test key, in clear text. Shown **once**: in the confirm of a browser, or in the first successful claim of a terminal. It is stored as a SHA-256 hash and cannot be shown again.
        * @example sk_test_...
        */
       secret_key?: string;
+      /**
+       * @description The live key, in clear text, shown once and at the same moment as `secret_key`. It books for real and counts against the free plan of the account, which refuses new live bookings at its monthly threshold with `402 plan_limit_reached`.
+       * @example sk_live_...
+       */
+      live_secret_key?: string;
     };
     StripeConnectLink: {
       /** @enum {string} */
@@ -2563,6 +3048,8 @@ export interface components {
   };
   requestBodies: never;
   headers: {
+    /** @description `<confirmed>/<included>`: the confirmed live bookings of the account this month, over the ones its plan includes, as they stood when this request started. On responses to live keys only, and absent for a plan whose included bookings are negotiated and for a key scoped to a tenant. */
+    BookrailPlanUsage: string;
     /** @description Identifier of this request. Quote it to support. */
     BookrailRequestId: string;
     /** @description The API version this response was produced with. */
@@ -2666,6 +3153,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2681,6 +3169,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2696,6 +3185,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2711,6 +3201,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2726,6 +3217,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2741,6 +3233,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -2757,6 +3250,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2807,6 +3301,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2822,6 +3317,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2837,6 +3333,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2852,6 +3349,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2867,6 +3365,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2882,6 +3381,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -2898,6 +3398,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2932,6 +3433,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2947,6 +3449,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2962,6 +3465,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2977,6 +3481,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -2992,6 +3497,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3008,6 +3514,73 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'billing.webhook': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StripeWebhookReceipt'];
+        };
+      };
+      /** @description Error codes: `billing_connect_event`, `billing_mode_mismatch`, `invalid_body`, `stripe_signature_invalid`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `payload_too_large`. */
+      413: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
           [name: string]: unknown;
         };
         content: {
@@ -3055,6 +3628,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3070,6 +3644,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3085,6 +3660,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3100,6 +3676,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3116,6 +3693,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3209,6 +3787,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3224,6 +3803,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3239,6 +3819,23 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `plan_limit_reached`. */
+      402: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3254,6 +3851,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3269,6 +3867,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3284,6 +3883,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3299,6 +3899,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3315,6 +3916,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3330,6 +3932,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3345,6 +3948,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3378,6 +3982,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3393,6 +3998,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3408,6 +4014,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3423,6 +4030,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3438,6 +4046,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3454,6 +4063,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3496,6 +4106,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3511,6 +4122,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3526,6 +4138,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3541,6 +4154,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3556,6 +4170,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3571,6 +4186,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3586,6 +4202,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3602,6 +4219,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3639,6 +4257,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3654,6 +4273,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3669,6 +4289,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3684,6 +4305,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3699,6 +4321,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3714,6 +4337,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3729,6 +4353,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3745,6 +4370,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3782,6 +4408,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3797,6 +4424,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3812,6 +4440,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3827,6 +4456,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3842,6 +4472,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3857,6 +4488,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3872,6 +4504,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -3888,6 +4521,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3925,6 +4559,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3940,6 +4575,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3955,6 +4591,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3970,6 +4607,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -3985,6 +4623,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4000,6 +4639,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4015,6 +4655,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4031,6 +4672,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4068,6 +4710,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4083,6 +4726,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4098,6 +4742,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4113,6 +4758,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4128,6 +4774,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4143,6 +4790,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4158,6 +4806,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4174,6 +4823,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4219,6 +4869,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4234,6 +4885,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4249,6 +4901,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4264,6 +4917,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4279,6 +4933,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4294,6 +4949,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4309,6 +4965,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4325,6 +4982,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4358,6 +5016,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4373,6 +5032,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4388,6 +5048,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4403,6 +5064,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4419,6 +5081,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4471,6 +5134,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4487,6 +5151,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4502,6 +5167,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4517,6 +5183,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4532,6 +5199,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4547,6 +5215,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4563,6 +5232,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4594,6 +5264,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4609,6 +5280,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4624,6 +5296,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4639,6 +5312,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4654,6 +5328,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4670,6 +5345,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4701,6 +5377,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4716,6 +5393,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4731,6 +5409,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4746,6 +5425,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4761,6 +5441,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -4777,6 +5458,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4829,10 +5511,215 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
           'application/json': components['schemas']['Customer'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `resource_missing`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.account.get': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardAccount'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.billing.change': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /**
+           * @description The plan to move to: `scale` from Pro applies at once, pro rata; `pro` from Scale on the first of the next month.
+           * @enum {string}
+           */
+          plan: 'pro' | 'scale';
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillingChange'];
         };
       };
       /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
@@ -4850,7 +5737,548 @@ export interface operations {
           'application/json': components['schemas']['Error'];
         };
       };
-      /** @description Error codes: `invalid_api_key`, `invalid_authorization_header`, `missing_api_key`, `revoked_api_key`. */
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_subscription_missing`, `plan_change_refused`, `plan_is_contract`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_provider_error`, `billing_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.billing.change.cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillingChange'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_subscription_missing`, `plan_change_refused`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_provider_error`, `billing_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.billing.checkout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          plan: 'pro' | 'scale';
+          /** @description Required, and `true`, when the account has not accepted the terms in force yet. */
+          accept_terms?: boolean;
+          /** @description Required, and `true`, together with `accept_terms`. */
+          approve_clauses?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillingRedirect'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `terms_not_accepted`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `invoice_unpaid`, `plan_is_contract`, `subscription_exists`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_provider_error`, `billing_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.billing.portal': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BillingRedirect'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_customer_missing`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_provider_error`, `billing_unreachable`. */
+      502: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `billing_not_configured`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.keys.revoke': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardApiKey'];
+        };
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
       401: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -4881,6 +6309,384 @@ export interface operations {
         };
       };
       /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /**
+           * Format: email
+           * @example you@example.com
+           */
+          email: string;
+          /**
+           * @description The plan the person was about to buy. The link carries it, and the dashboard opens the checkout of that plan after sign in.
+           * @enum {string}
+           */
+          upgrade?: 'pro' | 'scale';
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      202: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardLogin'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_login_rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_disabled`. */
+      503: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.login.confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @description The token from the dashboard link, taken out of its `#token=` fragment. */
+          token: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Success. */
+      200: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardSession'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_login_not_found`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_login_used`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_login_expired`. */
+      410: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No content. */
+      204: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Error codes: `parameter_invalid`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `rate_limited`. */
+      429: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Retry-After': components['headers']['RetryAfter'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `internal_error`. */
+      500: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  'dashboard.keys.create': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          environment: 'test' | 'live';
+          /** @description A label for people. Defaults to `test secret key` or `live secret key`. */
+          name?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardApiKeyCreated'];
+        };
+      };
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      400: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `dashboard_session_invalid`. */
+      401: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `resource_missing`. */
+      404: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `key_limit_reached`. */
+      409: {
+        headers: {
+          'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
+          'Bookrail-Version': components['headers']['BookrailVersion'];
+          'RateLimit-Limit': components['headers']['RateLimitLimit'];
+          'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
+          'RateLimit-Reset': components['headers']['RateLimitReset'];
+          'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Error codes: `key_creation_rate_limited`, `rate_limited`. */
       429: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -4941,6 +6747,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4956,6 +6763,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4971,6 +6779,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -4986,6 +6795,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5002,6 +6812,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5033,6 +6844,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5048,6 +6860,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5063,6 +6876,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5078,6 +6892,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5093,6 +6908,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5109,6 +6925,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5194,6 +7011,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5209,6 +7027,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5224,6 +7043,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5239,6 +7059,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5254,6 +7075,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5269,6 +7091,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5284,6 +7107,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5300,6 +7124,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5331,6 +7156,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5346,6 +7172,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5361,6 +7188,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5376,6 +7204,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5391,6 +7220,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5407,6 +7237,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5438,6 +7269,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5453,6 +7285,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5468,6 +7301,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5483,6 +7317,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5498,6 +7333,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5513,6 +7349,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5529,6 +7366,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5561,6 +7399,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5576,6 +7415,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5591,6 +7431,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5606,6 +7447,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5622,6 +7464,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5672,6 +7515,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5687,6 +7531,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5702,6 +7547,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5717,6 +7563,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5732,6 +7579,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5748,6 +7596,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5779,6 +7628,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5794,6 +7644,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5809,6 +7660,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5824,6 +7676,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5839,6 +7692,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5855,6 +7709,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5886,6 +7741,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5901,6 +7757,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5916,6 +7773,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5931,6 +7789,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -5946,6 +7805,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -5962,6 +7822,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6012,6 +7873,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6027,6 +7889,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6042,6 +7905,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6057,6 +7921,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6072,6 +7937,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6088,6 +7954,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6123,6 +7990,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6138,6 +8006,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6153,6 +8022,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6168,6 +8038,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6184,6 +8055,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6215,6 +8087,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6230,6 +8103,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6245,6 +8119,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6260,6 +8135,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6275,6 +8151,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6291,6 +8168,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6306,6 +8184,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6338,6 +8217,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6353,6 +8233,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6368,6 +8249,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6383,6 +8265,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6399,6 +8282,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6481,6 +8365,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6496,6 +8381,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6511,6 +8397,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6526,6 +8413,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6541,6 +8429,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6557,6 +8446,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6588,6 +8478,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6603,6 +8494,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6618,6 +8510,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6633,6 +8526,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6648,6 +8542,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6664,6 +8559,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6695,6 +8591,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6710,6 +8607,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6725,6 +8623,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6740,6 +8639,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6755,6 +8655,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6771,6 +8672,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6853,6 +8755,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6868,6 +8771,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6883,6 +8787,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6898,6 +8803,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6913,6 +8819,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -6929,6 +8836,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6958,6 +8866,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6973,6 +8882,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -6988,6 +8898,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7003,6 +8914,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7019,6 +8931,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7052,6 +8965,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7067,6 +8981,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7082,6 +8997,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7097,6 +9013,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7113,6 +9030,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7162,6 +9080,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7177,6 +9096,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7192,6 +9112,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7207,6 +9128,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7222,6 +9144,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7238,6 +9161,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7271,6 +9195,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7286,6 +9211,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7301,6 +9227,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7316,6 +9243,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7331,6 +9259,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7347,6 +9276,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7378,6 +9308,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7393,6 +9324,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7408,6 +9340,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7423,6 +9356,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7438,6 +9372,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7454,6 +9389,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7503,6 +9439,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7518,6 +9455,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7533,6 +9471,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7548,6 +9487,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7563,6 +9503,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7579,6 +9520,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7612,6 +9554,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7627,6 +9570,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7642,6 +9586,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7657,6 +9602,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7673,6 +9619,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7732,6 +9679,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7747,6 +9695,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7762,6 +9711,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7777,6 +9727,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7792,6 +9743,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7808,6 +9760,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7841,6 +9794,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7856,6 +9810,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7871,6 +9826,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7886,6 +9842,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7901,6 +9858,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -7917,6 +9875,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7948,6 +9907,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7963,6 +9923,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7978,6 +9939,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -7993,6 +9955,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8008,6 +9971,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8024,6 +9988,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8083,6 +10048,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8098,6 +10064,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8113,6 +10080,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8128,6 +10096,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8143,6 +10112,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8158,6 +10128,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8174,6 +10145,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8229,6 +10201,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8244,6 +10217,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8259,6 +10233,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8274,6 +10249,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8289,6 +10265,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8304,6 +10281,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8320,6 +10298,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8356,6 +10335,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8371,6 +10351,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8386,6 +10367,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8401,6 +10383,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8416,6 +10399,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8432,6 +10416,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8475,6 +10460,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8490,6 +10476,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8505,6 +10492,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8520,6 +10508,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8535,6 +10524,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8550,6 +10540,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8566,6 +10557,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8598,6 +10590,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8613,6 +10606,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8628,6 +10622,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8643,6 +10638,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8659,6 +10655,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8730,6 +10727,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8745,6 +10743,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8760,6 +10759,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8775,6 +10775,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8790,6 +10791,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8806,6 +10808,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8837,6 +10840,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8852,6 +10856,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8867,6 +10872,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8882,6 +10888,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8897,6 +10904,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -8913,6 +10921,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8944,6 +10953,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8959,6 +10969,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8974,6 +10985,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -8989,6 +11001,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9004,6 +11017,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9020,6 +11034,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9091,6 +11106,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9106,6 +11122,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9121,6 +11138,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9136,6 +11154,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9151,6 +11170,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9167,6 +11187,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9224,6 +11245,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9239,6 +11261,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9254,6 +11277,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9269,6 +11293,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9284,6 +11309,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9299,6 +11325,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9315,6 +11342,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9347,6 +11375,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9362,6 +11391,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9377,6 +11407,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9392,6 +11423,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9407,6 +11439,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9423,6 +11456,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9456,6 +11490,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9471,6 +11506,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9486,6 +11522,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9501,6 +11538,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9517,6 +11555,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9626,6 +11665,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9641,6 +11681,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9656,6 +11697,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9671,6 +11713,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9686,6 +11729,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9702,6 +11746,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9735,6 +11780,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9750,6 +11796,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9765,6 +11812,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9780,6 +11828,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9795,6 +11844,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9811,6 +11861,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9842,6 +11893,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9857,6 +11909,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9872,6 +11925,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9887,6 +11941,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -9902,6 +11957,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -9918,6 +11974,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10027,6 +12084,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10042,6 +12100,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10057,6 +12116,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10072,6 +12132,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10087,6 +12148,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -10103,6 +12165,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10143,6 +12206,10 @@ export interface operations {
            * @example EUR
            */
           default_currency?: string;
+          /** @description I accept the Terms of Service and the Data Processing Agreement on behalf of my business. Required, and `true`: a sign up without it is refused with `400 terms_not_accepted`. */
+          accept_terms?: boolean;
+          /** @description I specifically approve the clauses listed in Section 17 of the Terms (Articles 1341 and 1342 of the Italian Civil Code). Required, and `true`. */
+          approve_clauses?: boolean;
         };
       };
     };
@@ -10158,7 +12225,7 @@ export interface operations {
           'application/json': components['schemas']['Signup'];
         };
       };
-      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `unsupported_api_version`. */
+      /** @description Error codes: `invalid_body`, `parameter_invalid`, `parameter_missing`, `terms_not_accepted`, `unsupported_api_version`. */
       400: {
         headers: {
           'Bookrail-Request-Id': components['headers']['BookrailRequestId'];
@@ -10417,6 +12484,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10432,6 +12500,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10447,6 +12516,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10462,6 +12532,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -10478,6 +12549,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10493,6 +12565,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10522,6 +12595,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10537,6 +12611,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10552,6 +12627,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10567,6 +12643,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10582,6 +12659,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -10598,6 +12676,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10613,6 +12692,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10628,6 +12708,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10659,6 +12740,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10674,6 +12756,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10689,6 +12772,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10704,6 +12788,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10719,6 +12804,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -10735,6 +12821,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10750,6 +12837,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10914,6 +13002,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10929,6 +13018,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10944,6 +13034,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -10959,6 +13050,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -10975,6 +13067,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11018,6 +13111,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11033,6 +13127,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11048,6 +13143,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11063,6 +13159,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11078,6 +13175,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11094,6 +13192,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11125,6 +13224,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11140,6 +13240,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11155,6 +13256,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11170,6 +13272,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11185,6 +13288,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11201,6 +13305,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11232,6 +13337,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11247,6 +13353,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11262,6 +13369,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11277,6 +13385,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11292,6 +13401,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11308,6 +13418,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11353,6 +13464,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11368,6 +13480,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11383,6 +13496,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11398,6 +13512,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11413,6 +13528,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11429,6 +13545,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11465,6 +13582,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11480,6 +13598,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11495,6 +13614,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11510,6 +13630,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11525,6 +13646,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11541,6 +13663,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11579,6 +13702,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11594,6 +13718,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11609,6 +13734,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11624,6 +13750,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11639,6 +13766,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11654,6 +13782,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11670,6 +13799,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11707,6 +13837,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11722,6 +13853,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11737,6 +13869,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11752,6 +13885,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11767,6 +13901,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {
@@ -11782,6 +13917,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           'Retry-After': components['headers']['RetryAfter'];
           [name: string]: unknown;
         };
@@ -11798,6 +13934,7 @@ export interface operations {
           'RateLimit-Remaining': components['headers']['RateLimitRemaining'];
           'RateLimit-Reset': components['headers']['RateLimitReset'];
           'RateLimit-Policy': components['headers']['RateLimitPolicy'];
+          'Bookrail-Plan-Usage': components['headers']['BookrailPlanUsage'];
           [name: string]: unknown;
         };
         content: {

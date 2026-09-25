@@ -16,6 +16,7 @@
 import { hostname } from 'node:os';
 import { createDatabase, createPool } from '@bookrail/db';
 import { createLogger } from '@bookrail/shared';
+import { createBillingDeps } from './billing/deps.js';
 import { createAvailabilityCache } from './cache.js';
 import { loadConfig } from './config.js';
 import { startWorker, usageDigestOffReason } from './jobs/index.js';
@@ -53,6 +54,9 @@ const usageRedis =
     ? undefined
     : createUsageRedis(config.redisUrl);
 
+/** Stripe Billing: the cancellation of overdue subscriptions and the monthly list of invoices. */
+const billing = createBillingDeps(config.billing);
+
 const worker = await startWorker(
   {
     db: createDatabase(appPool),
@@ -75,6 +79,9 @@ const worker = await startWorker(
     orphanReconcileHorizonDays: config.orphanReconcileHorizonDays,
     orphanReconcileLimit: config.orphanReconcileLimit,
     orphanReconcileScopes: config.orphanReconcileScopes,
+    ...(billing === null
+      ? {}
+      : { billing: { deps: billing, ...(mailer === undefined ? {} : { mailer }) } }),
     ...(config.usageDigestTo === undefined || mailer === undefined
       ? {
           usageDigestOffReason:
@@ -98,6 +105,7 @@ logger.info('worker_started', {
   availability_cache: config.redisUrl === undefined ? 'memory' : 'redis',
   webhook_secret_key: config.webhookSecretKey === undefined ? 'missing' : 'configured',
   mailer: config.mailer ?? 'off',
+  billing: config.billing === null ? 'off' : config.billing.mode,
   usage_digest: config.usageDigestTo === undefined ? 'off' : config.usageDigestCron,
 });
 

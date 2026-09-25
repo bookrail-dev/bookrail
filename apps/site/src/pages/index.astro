@@ -1,241 +1,210 @@
 ---
 /**
- * The homepage, section by section: the hero with the resource grid, the strip of what the
- * product is built on, one request with its response, the guarantees, the quickstart, and the
- * section for coding agents.
+ * The homepage, from the top: the hero with the resource grid, what the product does (the
+ * feature cards), the product demo in three tabs, the code in four, the templates, the section
+ * for coding agents, the prices in short, the community, the repository, and the close.
  *
- * Every claim on this page was checked against what the product actually does before it was
- * written. Where an earlier draft promised something that does not exist yet, the sentence was
- * removed, not softened.
+ * Every claim on this page was checked against what the product does today, and every number,
+ * field and line of output on it is generated at build time by the code that owns it
+ * (`src/data/home.ts` says where each one comes from). The data of the grid and of the `explain`
+ * table is synthetic, and the page says so where it is shown.
  */
-import RequestResponse from '../components/RequestResponse.astro';
+import CodeSamples from '../components/home/CodeSamples.astro';
+import FeatureGrid from '../components/home/FeatureGrid.astro';
+import ProductDemo from '../components/home/ProductDemo.astro';
+import Templates from '../components/home/Templates.astro';
 import ResourceGrid from '../components/ResourceGrid.astro';
 import Base from '../layouts/Base.astro';
-import { DESCRIPTION } from '../data/site';
+import { GRID_ROWS } from '../data/grid';
+import { MCP_TOOL_COUNT, TERMINAL, TEST_ENVIRONMENT_NOTE, priceStrip, OPEN_SOURCE } from '../data/home';
+import {
+  DESCRIPTION,
+  GITHUB_CONTRIBUTING,
+  GITHUB_DISCUSSIONS,
+  GITHUB_LICENSE,
+  GITHUB_REPO,
+  HEADLINE,
+} from '../data/site';
+import '../styles/figures.css';
 
-const guarantees = [
-  {
-    title: 'Capacity in the database',
-    body: 'An exclusion constraint for capacity 1, a trigger for capacity N. Both are checked under real concurrency by a suite of separate processes against real Postgres.',
-  },
-  {
-    title: 'Idempotency on every POST',
-    body: 'The same <code>Idempotency-Key</code> within 24 hours replays the same response and takes the slot once. The key is taken with a unique constraint, not checked with a read.',
-  },
-  {
-    title: 'Time zones done properly',
-    body: 'Schedules live on a local clock, instants leave as UTC. DST is disambiguated explicitly, day by day, from the IANA database.',
-  },
-  {
-    title: 'Frozen policies',
-    body: 'Cancellation, reschedule and no-show rules are snapshotted into the booking. Changing a policy never changes the past.',
-  },
-  {
-    title: 'Signed webhooks',
-    body: 'Every event is delivered with an HMAC signature and retried on a fixed ladder, eight attempts across 24 hours. Any delivery can be sent again by hand.',
-  },
-  {
-    title: 'Explainable availability',
-    body: '<code>explain: true</code> answers with the reason each instant was rejected, and which booking, block or rule did it.',
-  },
-];
+const prices = priceStrip();
+const terminalLines = TERMINAL.flatMap((step) => [
+  { command: true, text: step.command },
+  ...step.output.map((text) => ({ command: false, text })),
+]);
 ---
 
-<Base title="Bookrail, booking infrastructure for developers" description={DESCRIPTION}>
+<Base
+  title="Bookrail, booking infrastructure for developers"
+  description={DESCRIPTION}
+  navScript={false}
+>
+  <div class="home">
   <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <h1>Booking<br />infrastructure<br /><em>for developers.</em></h1>
-        <div class="cta">
-          <a class="btn primary" href="/docs/quickstart/">Start building</a>
-          <a class="btn" href="/docs/">Read the docs</a>
+    <div class="wrap">
+      <div class="hero-top">
+        <div>
+          <h1>{HEADLINE[0]}<br /><em>{HEADLINE[1]}</em></h1>
+          <div class="cta">
+            <a class="btn primary" href="/signup/">Get API keys</a>
+            <a class="btn" href="/docs/">Read the docs</a>
+          </div>
         </div>
+        <p class="hero-lede">
+          Availability across resources, schedules and time zones. Bookings that cannot double book,
+          policies frozen at the sale, payments on your own Stripe, signed webhooks, a CLI and an MCP
+          server. One API, and open source.
+        </p>
       </div>
-
       <ResourceGrid />
-
-      <div class="lines">
-        <ul>
-          <li><b>Availability</b> computed across resources, schedules and time zones.</li>
-          <li><b>Zero double bookings</b>, guaranteed by the database, not by luck.</li>
-          <li><b>One API</b> for holds, bookings, policies and webhooks.</li>
-        </ul>
-      </div>
     </div>
   </section>
 
-  <div class="runs">
+  <section class="block" id="product" aria-labelledby="product-title">
     <div class="wrap">
-      <span class="label">Built on</span>
-      <span>PostgreSQL 16+</span>
-      <span>TypeScript</span>
-      <span>Node 20</span>
-      <span>Redis</span>
-      <span>Model Context Protocol</span>
-      <span class="last">OpenAPI 3.1</span>
-    </div>
-  </div>
-
-  <section class="block" id="request" style="padding-bottom:0">
-    <div class="wrap">
-      <div data-reveal>
-        <div class="kicker">// one request</div>
-        <h2>What you send, and what comes back.</h2>
-        <p class="lede">
-          Prefixed identifiers, ISO 8601 instants with any offset in and UTC out, the policy
-          frozen into the booking. The values are synthetic; the shape is generated from the same
-          OpenAPI document the API serves.
-        </p>
+      <div class="section-head" data-reveal>
+        <h2 id="product-title">The layer under your booking app.<br /><em>What it does today.</em></h2>
       </div>
-      <div data-reveal>
-        <RequestResponse />
-      </div>
+      <FeatureGrid />
     </div>
   </section>
 
-  <section class="block" id="guarantees">
+  <section class="block" id="demo" aria-labelledby="demo-title">
     <div class="wrap">
-      <div class="two">
-        <div data-reveal>
-          <div class="kicker">// guarantees</div>
-          <h2>The layer under your booking app.</h2>
-          <p class="lede">
-            We don't build apps for end users. We build the part every booking product gets wrong
-            the first time: availability that is right across DST, capacity that cannot be
-            exceeded, holds that expire, policies that are frozen when the booking is made.
-          </p>
-        </div>
-        <div data-reveal>
-          <div class="code-tabs">
-            <span class="on">POST /v1/bookings</span><span>two callers, one slot</span>
-          </div>
-          <pre class="code"><span class="c">// two requests, same slot, same millisecond</span>
-<span class="k">await</span> bookrail.bookings.create(&#123;
-  service_id: <span class="s">"svc_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c"</span>,
-  start: <span class="s">"2026-09-08T09:00:00+02:00"</span>,
-  customer: &#123; email: <span class="s">"anna@example.com"</span> &#125;,
-&#125;, &#123; idempotencyKey: order.id &#125;);
-
-<span class="c">// first:  201 &#123; "object": "booking", "status": "confirmed" &#125;</span>
-<span class="c">// second: 409 &#123; "code": "slot_unavailable", "message":</span>
-<span class="c">//   "The requested slot is no longer available." &#125;</span></pre>
-        </div>
+      <div class="section-head" data-reveal>
+        <h2 id="demo-title">See why a slot is not available<br /><em>before your users ask.</em></h2>
       </div>
-      <div class="three" data-reveal>
-        {
-          guarantees.map((item) => (
-            <div>
-              <h3>{item.title}</h3>
-              <p set:html={item.body} />
-            </div>
-          ))
-        }
-      </div>
+      <ProductDemo />
     </div>
   </section>
 
-  <section class="block" id="quickstart" style="border-top:1px solid var(--line)">
+  <section class="block" id="code" aria-label="Code">
     <div class="wrap">
-      <div data-reveal>
-        <div class="kicker">// quickstart</div>
-        <h2>From an API key to a booking in three steps.</h2>
-        <p class="lede">
-          Model what is bookable as code, push it, ask for availability, book. The same file
-          applies to test and to live.
-        </p>
-      </div>
-      <div class="steps">
-        <div class="step" data-reveal>
-          <div class="n">01</div>
-          <div>
-            <h3>Describe what is bookable</h3>
-            <p>
-              Locations, schedules, resources, groups, policies and services in
-              <code>bookrail.config.ts</code>, versioned with your app.
-            </p>
-          </div>
-          <pre>export default defineConfig(&#123;
-  schedules: &#123; club: &#123; timezone: "Europe/Rome",
-    rules: [&#123; days: ["mon", "tue"], from: "08:00", to: "23:00" &#125;] &#125; &#125;,
-  resources: [&#123; id: "court_1", name: "Court 1", schedule: "club" &#125;],
-  services:  [&#123; id: "padel_60", durationOptions: [60], alignTo: "hour",
-    requirements: [&#123; resource: "court_1", quantity: 1 &#125;] &#125;],
-&#125;);</pre>
-        </div>
-        <div class="step" data-reveal>
-          <div class="n">02</div>
-          <div>
-            <h3>Push it</h3>
-            <p>
-              A plan first, then the changes. A push matches on <code>metadata.config_id</code> and
-              never touches an object it did not create.
-            </p>
-          </div>
-          <pre>$ bookrail push --dry-run
-[test] plan (dry run, nothing applied): 3 to create
-
-action  kind      id        name      changes
-------  --------  --------  --------  -------
-create  schedule  club      club
-create  resource  court_1   Court 1
-create  service   padel_60  padel_60</pre>
-        </div>
-        <div class="step" data-reveal>
-          <div class="n">03</div>
-          <div>
-            <h3>Ask, then book</h3>
-            <p>
-              Availability answers with slots, their price and the resources behind them. Booking
-              takes the capacity, transactionally.
-            </p>
-          </div>
-          <pre>const &#123; slots &#125; = await bookrail.availability.list(&#123;
-  service_id, from, to, timezone: "Europe/Rome",
-&#125;);
-await bookrail.bookings.create(&#123;
-  service_id, start: slots[0].start, customer,
-&#125;);</pre>
-        </div>
-      </div>
+      <CodeSamples />
     </div>
   </section>
 
-  <section class="block agents">
+  <section class="block" id="templates" aria-labelledby="templates-title">
+    <div class="wrap">
+      <div class="section-head split-head" data-reveal>
+        <h2 id="templates-title">Start from your vertical<br /><em>with a ready configuration.</em></h2>
+        <a class="more" href="/docs/cli/#bookrail-init">See all templates</a>
+      </div>
+      <Templates />
+    </div>
+  </section>
+
+  <section class="block" id="agents" aria-labelledby="agents-title">
     <div class="wrap two">
       <div data-reveal>
-        <div class="kicker">// for coding agents</div>
-        <h2>Designed to be driven by an agent.</h2>
+        <h2 id="agents-title">Designed to be driven<br /><em>by a coding agent.</em></h2>
         <p class="lede">
-          A CLI with <code>--json</code> everywhere, an MCP server with 40 tools, every
-          documentation page as plain markdown at the same URL with <code>.md</code> on the end,
-          and an OpenAPI document generated from the very schemas that validate each request.
+          A CLI with <code>--json</code> everywhere, an MCP server with
+          <span data-mcp-count>{MCP_TOOL_COUNT} tools</span>, every documentation page as plain markdown at
+          the same URL with <code>.md</code> on the end, and an OpenAPI document generated from the very
+          schemas that validate each request.
         </p>
-        <div class="cta" style="margin-top:28px">
+        <div class="cta">
           <a class="btn" href="/docs/for-ai-agents/">Read the agent page</a>
         </div>
       </div>
-      <pre class="term" data-reveal><span class="p">$</span> npx bookrail mcp install --client claude-code
-<span class="d">wrote ./.mcp.json</span>
-<span class="p">$</span> npx bookrail availability --service svc_0198f0c2a1b4 \
-    --from 2026-09-08T08:00:00+02:00 \
-    --to 2026-09-08T12:00:00+02:00 --explain
-<span class="d">[test] 1 slot(s) for svc_0198f0c2a1b4, in Europe/Rome
-
-3 instant(s) rejected: occupied 1, min_notice 1, blocked 1
-
-local instant     code        resource      why
-----------------  ----------  ------------  --------------------
-2026-09-08 09:00  occupied    res_0198f0c2  Taken by bk_0198f0c2
-2026-09-08 09:30  min_notice                Inside the 60 min...
-2026-09-08 10:00  blocked     res_0198f0d4  Blocked by blk_0198f</span>
-<span class="p">$</span> npx bookrail bookings create --service svc_0198f0c2a1b4 \
-    --start 2026-09-08T11:00:00+02:00 \
-    --customer-email anna@example.com
-<span class="d">[test] booked bk_0198f0c2a1b47e2e9a1c0f4d5e6a7b8c &middot; confirmed</span></pre>
+      <div class="term-frame" data-reveal>
+        <pre class="term" data-terminal>{terminalLines.map((line) => line.command ? (
+          <span class="line"><span class="p">$</span> {line.text}</span>
+        ) : (
+          <span class="line d">{line.text === '' ? ' ' : line.text}</span>
+        ))}</pre>
+        <p class="term-foot">
+          Printed by the compiled CLI when this page was built. The second command was answered by the
+          availability engine through the API's own serializer, about the synthetic day of the grid.
+        </p>
+      </div>
     </div>
   </section>
+
+  <section class="price-band" aria-labelledby="price-title">
+    <div class="wrap">
+      <div class="price-head">
+        <h2 id="price-title">Free until it counts.<br /><em>Pay as you grow.</em></h2>
+        <a class="btn" href="/pricing/">See pricing</a>
+      </div>
+      <dl class="price-figures" data-price-strip>
+        {
+          prices.map((price) => (
+            <div>
+              <dt>{price.figure}</dt>
+              <dd>{price.label}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="price-note">
+        The test environment: {TEST_ENVIRONMENT_NOTE.toLowerCase()}. Prices exclude VAT.
+      </p>
+    </div>
+  </section>
+
+  <section class="block community" aria-labelledby="community-title">
+    <div class="wrap">
+      <h2 id="community-title">Join the discussion</h2>
+      <p class="lede">
+        Ask how to model your case, propose a change, or name a booking case the documentation does
+        not cover yet. The conversation is public, on GitHub.
+      </p>
+      <div class="cta">
+        <a class="btn" href={GITHUB_DISCUSSIONS}>GitHub Discussions</a>
+        <a class="btn" href={GITHUB_REPO}>Star on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="oss" aria-labelledby="oss-title">
+    <div class="wrap oss-strip" aria-hidden="true">
+      {
+        GRID_ROWS.map((row) => (
+          <div class="oss-lane">
+            {row.slots.map((slot) => (
+              <i style={`left:${slot.left}%;width:${slot.width}%`} />
+            ))}
+          </div>
+        ))
+      }
+    </div>
+    <div class="wrap oss-row">
+      <h2 id="oss-title">Open source. <em>Read it before you trust it.</em></h2>
+      <p>
+        {OPEN_SOURCE.license}: the engine, the API, the SDK, the CLI and the MCP server, in one public
+        repository.
+      </p>
+      <nav class="oss-links" aria-label="Repository">
+        <a href={GITHUB_REPO}>Repository</a>
+        <a href={GITHUB_LICENSE}>Licence</a>
+        <a href={GITHUB_CONTRIBUTING}>Contributing</a>
+      </nav>
+    </div>
+  </section>
+
+  <section class="block closing" aria-labelledby="closing-title">
+    <div class="wrap">
+      <h2 id="closing-title">Book your first slot<br /><em>in about ten minutes.</em></h2>
+      <div class="cta">
+        <a class="btn primary" href="/signup/">Get API keys</a>
+        <a class="btn" href="/docs/">Read the docs</a>
+      </div>
+    </div>
+  </section>
+  </div>
 </Base>
 
 <script>
+  // One file for the whole page: the header, the motion and the tabs.
+  //
+  // The header's script is imported with a query, `?home`, and that is deliberate. Every other
+  // page loads `nav.ts` through the header's own script, and a module two entry points share
+  // is split by the bundler into a file of its own, which would make this page load two files.
+  // With the query the bundler sees a module of its own, and copies its few lines into this one.
+  import '../scripts/nav.ts?home';
   import '../scripts/motion';
+  import { initTabs } from '../scripts/tabs';
+  initTabs();
 </script>

@@ -48,6 +48,18 @@ const TEXT_PAIRS: [string, string, string][] = [
   ['code-keyword', 'code-bg', 'a keyword'],
   ['code-number', 'code-bg', 'a number'],
   ['code-string', 'code-bg', 'a string'],
+  ['accent', 'card', 'the Recommended badge of the Pro card, on white'],
+  ['accent', 'bg', 'the plan picker of the comparison table on a phone, when a plan is chosen'],
+  ['ink-3', 'card', 'the labels of the dashboard and the grey second line of a card'],
+  ['ink-3', 'bg', 'the grey second line of a cell of the comparison table'],
+  ['ink-2', 'bg', 'the key label of a framed key row, on the paper inside the frame'],
+  // The homepage of 25 September 2026.
+  ['accent', 'bg', 'the second line of the homepage h1'],
+  ['ink-3', 'bg', 'the grey second line of a two line section title, an unselected tab'],
+  ['ink-3', 'card', 'the grey sentences of a feature card, of a template card, and a window foot'],
+  ['accent', 'accent-soft', 'an occupied code chip of the explain table, and the 201 status'],
+  ['code-comment', 'code-bg', 'an unselected code tab'],
+  ['code-ink', 'code-bg', 'the selected code tab, and the link to the docs under the code'],
 ];
 
 describe('token contrast', () => {

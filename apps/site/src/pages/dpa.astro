@@ -1,0 +1,14 @@
+---
+/**
+ * `/dpa`: the Data Processing Agreement (article 28 GDPR), part of the Terms of Service, read at
+ * build time from the approved text (see `src/components/LegalText.astro`).
+ */
+import LegalText from '../components/LegalText.astro';
+import * as text from '../generated/legal/dpa.md';
+---
+
+<LegalText
+  text={text}
+  description="The Data Processing Agreement of Bookrail under article 28 GDPR, part of the Terms of Service."
+  other={{ href: '/terms', label: 'Terms of Service' }}
+/>

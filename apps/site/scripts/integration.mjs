@@ -165,12 +165,21 @@ export function siteAssets() {
                 ),
                 '',
               ];
+        // The pricing page has a twin of its own, written by the page itself
+        // (`src/pages/pricing.md.ts`) from the data the page is built from.
+        const pricing = await readFile(join(out, 'pricing.md'), 'utf8');
         const llms = [
           '# Bookrail',
           '',
           `> ${SUMMARY}`,
           '',
           ...NOTES.map((note) => `- ${note}`),
+          '',
+          '## Pages',
+          '',
+          `- [Home](${ORIGIN}/index.md): what Bookrail does today, the explain table of the homepage, the code of the four ways to call it, the templates and the prices in short.`,
+          `- [Pricing](${ORIGIN}/pricing.md): the four plans, what each includes and enforces, and what counts as a booking.`,
+          `- [Dashboard](${ORIGIN}/dashboard/): plan, usage of the month, projects and API keys. Signed in with a link sent to the owner address; a person, not an agent.`,
           '',
           '## Documentation',
           '',
@@ -193,6 +202,12 @@ export function siteAssets() {
           '# Bookrail documentation',
           '',
           `> ${SUMMARY}`,
+          '',
+          '---',
+          '',
+          `Source: ${ORIGIN}/pricing`,
+          '',
+          pricing.trimEnd(),
           '',
           ...[...pages, ...posts].flatMap((page) => [
             '---',

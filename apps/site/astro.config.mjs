@@ -34,6 +34,17 @@ export default defineConfig({
   // that needs a native build step.
   image: { service: passthroughImageService() },
   devToolbar: { enabled: false },
+  // Every script is a file of this site, never inlined into the page, however small. The pages of
+  // the sign up and of the dashboard are served with a `Content-Security-Policy` that refuses
+  // inline scripts (they show a live key and hold a session), and a script that Vite decided to
+  // inline because it was under four kilobytes would work in every test and do nothing in
+  // production. A function rather than 0: stylesheets keep the default threshold, so the CSS of a
+  // page is inlined exactly as before. `test/dist.test.ts` checks the result.
+  vite: {
+    build: {
+      assetsInlineLimit: (filePath) => (/\.[cm]?js$/.test(filePath) ? false : undefined),
+    },
+  },
   integrations: [
     starlight({
       title: 'Bookrail',

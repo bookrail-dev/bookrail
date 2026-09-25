@@ -81,7 +81,7 @@ describe('a client that is not allowed to retry', () => {
       `This key may make ${String(RATE)} requests per second, with bursts of ${String(BURST)}.`,
     );
     expect(caught?.fix).toBe(
-      'Wait for Retry-After, or spread the calls. Live keys have higher limits.',
+      "Wait for Retry-After, or spread the calls. A live key has the limit of its account's plan: https://bookrail.dev/docs/errors/#rate-limits",
     );
     expect(caught?.docUrl).toBe('https://bookrail.dev/docs/errors#rate_limited');
     expect(caught?.requestId).toMatch(/^req_/);

@@ -159,15 +159,20 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
 
   program
     .command('signup')
-    .description('Get a test key by email, without asking anybody.')
+    .description('Get a test key and a live key by email, without asking anybody.')
     .addHelpText(
       'after',
       [
         '',
         'Needs: an email address, from --email or from the terminal. No API key.',
-        'It sends a confirmation link, waits for you to open it, and stores the key.',
-        'Returns: the account, the project, the key prefix and where it was stored.',
-        'A live key still comes from a person: write to hello@bookrail.dev.',
+        'It sends a confirmation link, waits for you to open it, and stores both keys.',
+        'Returns: the account, the project, the two key prefixes and where they were stored.',
+        'The live key books for real, on the free plan. Test stays the default: live needs --live.',
+        'The keys are issued under the Terms of Service (https://bookrail.dev/terms) and the',
+        'Data Processing Agreement (https://bookrail.dev/dpa). In a terminal you are asked, one at',
+        'a time, to accept them and to approve the clauses of their Section 17; without one,',
+        '--accept-terms and --approve-clauses are required.',
+        'More keys, and revoking them: the dashboard at https://bookrail.dev/dashboard/.',
         'Next: `bookrail whoami`, then `bookrail init`.',
       ].join('\n'),
     )
@@ -176,7 +181,15 @@ export function buildProgram(io: Io, outcome: Outcome): Command {
     .option('--project-name <name>', 'Name of the first project. Defaults to Default.')
     .option('--timezone <zone>', 'Default time zone of the project. Defaults to UTC.')
     .option('--currency <code>', 'Default currency of the project. Defaults to EUR.')
-    .option('--no-store', 'Print the key once instead of writing it to the credentials file.')
+    .option('--no-store', 'Print the keys once instead of writing them to the credentials file.')
+    .option(
+      '--accept-terms',
+      'Accept the Terms of Service and the DPA on behalf of your business. Required without a terminal.',
+    )
+    .option(
+      '--approve-clauses',
+      'Specifically approve the clauses listed in Section 17 of the Terms (Articles 1341 and 1342 of the Italian Civil Code). Required without a terminal.',
+    )
     .option('--api-url <url>', 'Base URL of the API to sign up against.')
     .action(action(io, outcome, (ctx, options) => signup(ctx, options)));
 

@@ -5,6 +5,7 @@ import { environmentOfKey, loadCredentials, maskKey } from '../credentials.js';
 import { CliError, EXIT } from '../errors.js';
 import { renderTable, type CommandResult } from '../output.js';
 import { API_VERSION, CLI_VERSION } from '../version.js';
+import { PLAN_UPGRADE_FIX, PLAN_WARNING_THRESHOLDS, describeUsage } from '../plans.js';
 import type { ProjectBody } from './auth.js';
 import type { StripeConnectionBody } from './stripe.js';
 
@@ -32,7 +33,8 @@ const MIN_NODE = [20, 10] as const;
  * One check is still absent, and the output says so: webhook reachability. The closest thing
  * to a probe is `bookrail webhooks test <id>`, which does not probe but actually delivers.
  * The payment provider used to be in that sentence too; `GET /v1/stripe` answers it now, so
- * `stripe_connection` is a check.
+ * `stripe_connection` is a check. `plan_usage` says how far the account is from the threshold of
+ * its plan, from the `usage` of the same `GET /v1/project` that answers `project`.
  */
 export async function doctor(ctx: Context, options: { config?: string }): Promise<CommandResult> {
   const checks: Check[] = [];
@@ -147,6 +149,7 @@ export async function doctor(ctx: Context, options: { config?: string }): Promis
     });
   }
 
+  if (project !== null) checks.push(planUsageCheck(project));
   if (project !== null) checks.push(await stripeCheck(probe));
 
   checks.push(await configCheck(ctx, options.config));
@@ -200,6 +203,62 @@ export async function doctor(ctx: Context, options: { config?: string }): Promis
         ? failed.map((check) => check.fix ?? `Fix "${check.name}".`)
         : ['Run `bookrail push --dry-run` to see what a push would do.'],
   };
+}
+
+/**
+ * How much of the plan the account has used this month.
+ *
+ * `ok` below 80 % of the included bookings. `warn` from 80 %, which is when the API mails the
+ * owner as well, and on a paying plan past 100 %, where nothing is refused. `fail` at 100 % of a
+ * plan that stops there (the free plan), because from that moment every new live booking is a
+ * `402 plan_limit_reached`, and the `fix` is the same sentence the `402` carries. The numbers are
+ * the account's live ones whichever key asks, so a test key sees the threshold coming too.
+ */
+function planUsageCheck(project: ProjectBody): Check {
+  if (project.plan === undefined || project.usage === undefined) {
+    return {
+      name: 'plan_usage',
+      status: 'ok',
+      message: 'This deployment does not report plans.',
+    };
+  }
+  if (project.usage === null) {
+    return {
+      name: 'plan_usage',
+      status: 'ok',
+      message: `${project.plan} plan. This key is scoped to a tenant and does not see the usage of the whole account.`,
+    };
+  }
+  const usage = project.usage;
+  const included = usage.bookings_included;
+  const line = `${project.plan} plan: ${describeUsage(usage)}.`;
+  if (included === null) return { name: 'plan_usage', status: 'ok', message: line };
+
+  const [warnAt, stopAt] = PLAN_WARNING_THRESHOLDS;
+  const reached = (percent: number): boolean =>
+    usage.bookings_confirmed * 100 >= included * percent;
+  const volumeFull =
+    usage.payment_volume_included !== null && usage.payment_volume >= usage.payment_volume_included;
+
+  if (usage.blocks_at_limit && (reached(stopAt) || volumeFull)) {
+    return {
+      name: 'plan_usage',
+      status: 'fail',
+      message: `${line} New live bookings${reached(stopAt) ? '' : ' that take a payment'} are refused with 402 plan_limit_reached until the month ends.`,
+      fix: PLAN_UPGRADE_FIX,
+    };
+  }
+  if (reached(warnAt)) {
+    return {
+      name: 'plan_usage',
+      status: 'warn',
+      message: usage.blocks_at_limit
+        ? `${line} At ${String(stopAt)}% new live bookings are refused.`
+        : `${line} Past the included quantity nothing is refused.`,
+      ...(usage.blocks_at_limit ? { fix: PLAN_UPGRADE_FIX } : {}),
+    };
+  }
+  return { name: 'plan_usage', status: 'ok', message: line };
 }
 
 /**

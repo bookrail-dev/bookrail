@@ -1,0 +1,664 @@
+---
+/**
+ * The dashboard: the account's plan, this month's usage, its projects and its API keys.
+ *
+ * A static page with one script, served from this site and never inline (the server sends a
+ * `Content-Security-Policy` that refuses inline scripts on `/dashboard/`). The script holds the
+ * session in `sessionStorage`, which dies with the tab: no cookie, no `localStorage`. Everything
+ * the page shows comes from `GET /v1/dashboard/account`, and everything it writes goes through
+ * the two key operations of `/v1/dashboard`; a session opens those and nothing else of the API.
+ *
+ * The markup of a project and of a key row lives in `<template>` elements here, and the script
+ * fills them with `textContent`: no value from the API is ever parsed as HTML.
+ *
+ * The paid plans are bought from here: «Upgrade to Pro» and «Upgrade to Scale» open a panel
+ * with the price, the two boxes of the terms when the account has not accepted the versions in
+ * force, and «Continue to checkout», which sends the browser to Stripe Checkout. With a
+ * subscription, «Manage billing» opens the Stripe customer portal. `/dashboard/?upgrade=pro`
+ * (the pricing page) opens the panel of that plan, after sign in if there is no session.
+ */
+import { PLANS } from '@bookrail/shared';
+import Base from '../../layouts/Base.astro';
+import { PRICED_PLANS, euro, thousands } from '../../data/pricing';
+
+const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
+
+/** What the panel of each paid plan says it costs, from the same data as the pricing page. */
+function offer(id: 'pro' | 'scale'): string {
+  const plan = PRICED_PLANS.find((candidate) => candidate.id === id);
+  const monthly = plan?.price.kind === 'monthly' ? euro(plan.price.eur) : '';
+  const extra = plan?.extraBooking.kind === 'eur' ? euro(plan.extraBooking.eur) : '';
+  const payments = plan?.payments.kind === 'percent' ? `${String(plan.payments.percent)}%` : '';
+  return `${monthly} a month, VAT excluded, for ${thousands(PLANS[id].bookingsIncluded ?? 0)} confirmed live bookings; then ${extra} a booking, and ${payments} of the payments you orchestrate.`;
+}
+---
+
+<Base
+  title="Dashboard, Bookrail"
+  description="Your Bookrail account: the plan, this month's usage, the projects and the API keys. Signed in with a link sent to your address."
+>
+  <div class="wrap dash" id="dashboard" data-api-url={API_URL}>
+    <h1 class="visually-hidden">Dashboard</h1>
+    <section id="dash-signin" class="dash-signin" aria-labelledby="signin-title">
+      <h2 id="signin-title" class="dash-display">Sign in<br /><em>to the dashboard.</em></h2>
+      <p class="muted-lede">
+        We send a link to the address you signed up with. It works once, for 15 minutes, and opens
+        a session of 12 hours in this tab.
+      </p>
+      <form id="dash-login" class="dash-form" novalidate>
+        <label class="field">
+          <span>Email address</span>
+          <input
+            id="dash-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            placeholder="you@example.com"
+          />
+        </label>
+        <button id="dash-login-submit" class="btn primary wide" type="submit">
+          Send me a link
+        </button>
+      </form>
+      <p id="dash-login-status" class="status" role="status" aria-live="polite"></p>
+      <p class="aside">No account yet? <a href="/signup/">Get API keys</a>.</p>
+      <noscript>
+        <p class="aside">
+          The dashboard needs JavaScript. From a terminal, <code>bookrail whoami</code> shows the
+          plan and this month's usage.
+        </p>
+      </noscript>
+    </section>
+
+    <section id="dash-app" class="dash-app" hidden aria-labelledby="dash-title">
+      <div id="dash-past-due" class="alert" role="alert" hidden>
+        <p class="alert-title">The last payment of your plan failed.</p>
+        <p id="dash-past-due-text"></p>
+        <button type="button" class="btn sm primary" data-manage-billing>Update the card</button>
+      </div>
+
+      <div id="dash-unpaid" class="alert" role="alert" hidden>
+        <p class="alert-title">An invoice of your last plan is unpaid.</p>
+        <p id="dash-unpaid-text"></p>
+        <a id="dash-unpaid-link" class="btn sm primary" href="/dashboard/" rel="noopener"
+          >Pay the invoice</a
+        >
+      </div>
+
+      <header class="dash-head">
+        <div>
+          <p class="label">Account</p>
+          <h2 id="dash-title" class="dash-display"><span id="dash-account-name"></span></h2>
+          <p class="meta mono" id="dash-owner"></p>
+        </div>
+        <button id="dash-signout" class="btn sm" type="button">Sign out</button>
+      </header>
+
+      <section class="panel" aria-labelledby="usage-title">
+        <div class="panel-head">
+          <h2 id="usage-title" class="label">
+            Plan and usage, <span id="usage-month"></span> (UTC)
+          </h2>
+          <div class="panel-actions">
+            <button
+              id="dash-upgrade-pro"
+              class="btn sm primary"
+              type="button"
+              data-upgrade-plan="pro"
+              hidden
+            >
+              Upgrade to Pro
+            </button>
+            <button
+              id="dash-upgrade-scale"
+              class="btn sm"
+              type="button"
+              data-upgrade-plan="scale"
+              hidden
+            >
+              Upgrade to Scale
+            </button>
+            <button id="dash-switch" class="btn sm" type="button" data-change-plan="" hidden>
+              Switch plan
+            </button>
+            <button id="dash-keep" class="btn sm" type="button" hidden>Keep the plan</button>
+            <button id="dash-manage" class="btn sm primary" type="button" data-manage-billing hidden>
+              Manage billing
+            </button>
+          </div>
+        </div>
+        <p id="billing-status" class="meta billing-status" hidden></p>
+        <div class="usage">
+          <div class="usage-cell">
+            <p class="label">Plan</p>
+            <p class="plan-name mono" id="usage-plan"></p>
+          </div>
+          <div class="usage-cell wide">
+            <p class="label">Confirmed live bookings</p>
+            <p class="figure mono" id="usage-bookings"></p>
+            <div class="meter" id="usage-meter" aria-hidden="true">
+              <span class="meter-fill" id="usage-meter-fill"></span>
+              <span class="meter-pending" id="usage-meter-pending"></span>
+            </div>
+            <p class="meta" id="usage-pending"></p>
+          </div>
+          <div class="usage-cell">
+            <p class="label">Paid volume</p>
+            <p class="figure mono" id="usage-volume"></p>
+            <p class="meta" id="usage-volume-open"></p>
+          </div>
+        </div>
+        <p class="meta limit" id="usage-limit" hidden></p>
+      </section>
+
+      <section
+        id="dash-upgrade-panel"
+        class="panel upgrade-panel"
+        aria-labelledby="upgrade-title"
+        data-offer-pro={offer('pro')}
+        data-offer-scale={offer('scale')}
+        hidden
+      >
+        <h2 id="upgrade-title" class="upgrade-title"></h2>
+        <p id="upgrade-offer" class="meta"></p>
+        <p class="meta">
+          For businesses. The checkout asks for a billing address and a VAT number or tax id. The plan
+          renews on the first of every month, the first month is charged pro rata, and moving down
+          or cancelling applies from the first of the next month.
+        </p>
+        <form id="dash-upgrade-form" class="upgrade-form" novalidate>
+          <fieldset id="upgrade-terms" class="terms" hidden>
+            <legend class="label">Before the first payment</legend>
+            <label class="check">
+              <input id="upgrade-accept-terms" type="checkbox" />
+              <span
+                >I accept the <a href="/terms">Terms of Service</a> and the
+                <a href="/dpa">Data Processing Agreement</a> on behalf of my business</span
+              >
+            </label>
+            <label class="check">
+              <input id="upgrade-approve-clauses" type="checkbox" />
+              <span
+                >I specifically approve the clauses listed in <a href="/terms#17-specific-approval"
+                  >Section 17 of the Terms</a
+                > (Articles 1341 and 1342 of the Italian Civil Code)</span
+              >
+            </label>
+          </fieldset>
+          <div class="upgrade-actions">
+            <button id="upgrade-submit" class="btn primary" type="submit">Continue to checkout</button>
+            <button id="upgrade-cancel" class="btn" type="button">Not now</button>
+          </div>
+        </form>
+        <p id="upgrade-status" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="projects" aria-labelledby="projects-title">
+        <h2 id="projects-title" class="section-heading">Projects and keys</h2>
+        <div id="dash-projects"></div>
+      </section>
+
+      <p class="meta stripe-note">
+        Payments on a booking need your own Stripe account connected to the project, in test and in
+        live: run <code>bookrail stripe connect</code>, and <code>bookrail stripe connect --live</code
+        > with the live key.
+      </p>
+    </section>
+
+    <p id="dash-status" class="status" role="status" aria-live="polite"></p>
+  </div>
+
+  <template id="tpl-project">
+    <article class="panel project">
+      <header class="project-head">
+        <div>
+          <h3 class="project-name" data-field="name"></h3>
+          <p class="meta mono" data-field="meta"></p>
+        </div>
+        <div class="project-actions">
+          <button type="button" class="btn sm primary" data-create="live">Create live key</button>
+          <button type="button" class="btn sm" data-create="test">Create test key</button>
+        </div>
+      </header>
+      <div class="secret" data-field="secret" hidden>
+        <p class="label" data-field="secret-label"></p>
+        <div class="frame">
+          <code class="frame-value" data-field="secret-value"></code>
+          <button type="button" class="icon-btn" data-copy-secret>
+            <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+              <rect x="4.5" y="4.5" width="8" height="8"></rect>
+              <path d="M9.5 4.5v-3h-8v8h3"></path>
+            </svg>
+            <span class="copy-label">Copy</span>
+          </button>
+        </div>
+        <p class="meta">Copy it now. It is stored as a hash and will not be shown again.</p>
+      </div>
+      <p class="meta" data-field="project-status" role="status" aria-live="polite"></p>
+      <div class="table-scroll">
+        <table class="keys">
+          <thead>
+            <tr>
+              <th scope="col">Environment</th>
+              <th scope="col">Name</th>
+              <th scope="col">Key</th>
+              <th scope="col">Created</th>
+              <th scope="col">Last used</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody data-field="keys"></tbody>
+        </table>
+      </div>
+    </article>
+  </template>
+
+  <template id="tpl-key">
+    <tr>
+      <td data-field="environment"></td>
+      <td data-field="name"></td>
+      <td>
+        <span class="frame small"><code class="frame-value" data-field="prefix"></code></span>
+      </td>
+      <td class="mono" data-field="created"></td>
+      <td class="mono" data-field="last-used"></td>
+      <td data-field="status"></td>
+      <td class="actions">
+        <button type="button" class="icon-btn" data-copy-id>
+          <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+            <rect x="4.5" y="4.5" width="8" height="8"></rect>
+            <path d="M9.5 4.5v-3h-8v8h3"></path>
+          </svg>
+          <span class="visually-hidden" data-field="copy-id-label">Copy the key id</span>
+        </button>
+        <button type="button" class="icon-btn" data-revoke>
+          <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+            <circle cx="7" cy="7" r="5.5"></circle>
+            <path d="M3.2 10.8l7.6-7.6"></path>
+          </svg>
+          <span class="visually-hidden" data-field="revoke-label">Revoke</span>
+        </button>
+      </td>
+    </tr>
+  </template>
+</Base>
+
+<script>
+  import '../../scripts/dashboard';
+</script>
+
+<style is:global>
+  .wrap.dash {
+    padding: var(--space-8) var(--gutter) var(--space-9);
+  }
+  .dash .label {
+    margin: 0 0 var(--space-1);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--ink-3);
+  }
+  .dash .meta {
+    margin: 0;
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
+  .dash .mono {
+    font-family: var(--mono);
+  }
+  .dash-signin {
+    max-width: 26rem;
+    margin: var(--space-7) auto 0;
+  }
+  .dash .dash-display {
+    font-size: var(--step-2);
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin: 0 0 var(--space-4);
+  }
+  .dash .dash-display em {
+    font-style: normal;
+    color: var(--ink-3);
+  }
+  .dash .muted-lede,
+  .dash .aside {
+    color: var(--ink-2);
+  }
+  .dash .aside a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .dash-form {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 var(--space-4);
+  }
+  .dash .field {
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+  .dash .field input {
+    height: 40px;
+    padding: 0 var(--space-3);
+    font: inherit;
+    font-size: var(--step-0);
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+  }
+  .dash .field input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .dash .btn {
+    cursor: pointer;
+  }
+  .dash .btn.wide {
+    width: 100%;
+    justify-content: center;
+  }
+  .dash .btn[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .dash .status:empty {
+    display: none;
+  }
+  .dash .status {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--card);
+    font-size: 14px;
+  }
+  /* A class that sets `display` beats the `hidden` attribute unless something says otherwise,
+     and the script hides buttons, the meter and whole sections. */
+  .dash [hidden] {
+    display: none !important;
+  }
+  .dash-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-7);
+  }
+  .dash-head .dash-display {
+    margin-bottom: var(--space-1);
+  }
+  .dash .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-data);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+  }
+  .dash .panel-head,
+  .dash .project-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .dash .panel-head h2 {
+    flex: 1;
+  }
+  .dash .panel-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .dash .billing-status {
+    margin: 0 0 var(--space-4);
+  }
+  /* A failed payment is the one thing on this page that is urgent: a hairline in the ink, not a
+     colour of alarm, and the one filled button of the section. */
+  .dash .alert {
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-data);
+    background: var(--card);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-6);
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+  }
+  .dash .alert p {
+    margin: 0;
+  }
+  .dash .alert-title {
+    font-weight: 500;
+  }
+  .dash .upgrade-title {
+    font-size: var(--step-1);
+    font-weight: 500;
+    margin: 0 0 var(--space-2);
+  }
+  .dash .upgrade-panel .meta + .meta {
+    margin-top: var(--space-2);
+  }
+  .dash .upgrade-form {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+  .dash .terms {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .dash .check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+    align-items: start;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+  .dash .check input {
+    width: 16px;
+    height: 16px;
+    margin: 3px 0 0;
+    accent-color: var(--accent);
+  }
+  .dash .check input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .dash .check a,
+  .dash .status a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .dash .upgrade-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .dash .upgrade-panel .status {
+    margin-top: var(--space-4);
+  }
+  .dash .panel-head {
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: var(--space-4);
+  }
+  .dash .usage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  .dash .usage-cell p + p {
+    margin-top: var(--space-1);
+  }
+  .dash .plan-name {
+    margin: 0;
+    font-size: var(--step-1);
+    letter-spacing: 0.04em;
+  }
+  .dash .figure {
+    margin: 0;
+    font-size: var(--step-1);
+  }
+  .dash .meter {
+    position: relative;
+    display: flex;
+    height: 6px;
+    margin: var(--space-3) 0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+  }
+  .dash .meter-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  /* The pending bookings: drawn like a hold in the grid, accent tint inside a dashed accent
+     line, because that is what they are, a place taken and not yet counted. */
+  .dash .meter-pending {
+    display: block;
+    height: calc(100% + 2px);
+    margin-top: -1px;
+    background: var(--accent-soft);
+    border: 1px dashed var(--accent);
+    border-left: 0;
+  }
+  .dash .meter-pending[data-empty] {
+    display: none;
+  }
+  .dash .limit {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .dash .section-heading {
+    font-size: var(--step-1);
+    font-weight: 500;
+    margin: var(--space-7) 0 var(--space-4);
+  }
+  .dash .project-name {
+    font-size: var(--step-1);
+    font-weight: 500;
+    margin: 0 0 var(--space-1);
+  }
+  .dash .project-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .dash .secret {
+    margin: var(--space-4) 0;
+    padding: var(--space-4);
+    border: 1px solid var(--accent);
+    background: var(--card);
+  }
+  .dash .frame {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+    background: var(--bg);
+    margin: var(--space-2) 0;
+  }
+  .dash .frame.small {
+    display: inline-flex;
+    margin: 0;
+    padding: 2px var(--space-2);
+  }
+  .dash .frame-value {
+    flex: 1;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: var(--step--1);
+  }
+  .dash .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 28px;
+    min-width: 28px;
+    padding: 0 var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--step--1);
+    cursor: pointer;
+  }
+  .dash .icon-btn:hover {
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
+  .dash .icon-btn svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+  }
+  /* `position: relative` makes the scrolling box the containing block of the visually hidden
+     labels in the last column, which are absolutely positioned: without it they sit at their
+     place in the unscrolled table and widen the whole page on a phone. */
+  .dash .table-scroll {
+    position: relative;
+    overflow-x: auto;
+    margin-top: var(--space-4);
+  }
+  .dash .keys {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .dash .keys th {
+    text-align: left;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--ink-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .dash .keys td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .dash .keys td.mono {
+    font-size: var(--step--1);
+  }
+  .dash .keys tr[data-status='revoked'] td {
+    color: var(--ink-3);
+  }
+  .dash .keys .actions {
+    text-align: right;
+  }
+  .dash .stripe-note {
+    max-width: 68ch;
+  }
+  .dash .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  @media (max-width: 767px) {
+    .dash .usage {
+      grid-template-columns: 1fr;
+    }
+    .dash-head {
+      flex-direction: column;
+    }
+  }
+</style>

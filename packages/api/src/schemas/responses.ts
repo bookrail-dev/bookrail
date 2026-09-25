@@ -27,7 +27,7 @@
  * server does not enforce on the way out. `pricing_rules` left that list: the write path
  * validates it strictly, so the document can state its shape and mean it.
  */
-import { pricingRulesSchema } from '@bookrail/shared';
+import { PLAN_IDS, pricingRulesSchema } from '@bookrail/shared';
 import { API_ACTORS } from '../context.js';
 import { z } from '../zod.js';
 import { instantOutSchema, metadataSchema, objectId } from './common.js';
@@ -904,6 +904,41 @@ export const apiKeySchema = z
 
 export type ApiKey = z.infer<typeof apiKeySchema>;
 
+export const planUsageSchema = z
+  .object({
+    month: z.string().openapi({
+      description: 'The calendar month the numbers are about, in UTC: `YYYY-MM`.',
+      example: '2026-09',
+    }),
+    bookings_confirmed: z.number().int().openapi({
+      description:
+        'Live bookings of every project of the account that reached `confirmed` this month, each counted once. Cancellations, holds, no-shows and reschedules do not count again; the test environment never counts.',
+    }),
+    bookings_included: z.number().int().nullable().openapi({
+      description: 'Confirmed live bookings the plan includes each month. `null`: negotiated.',
+    }),
+    payment_volume: z.number().int().openapi({
+      description:
+        'Live payments that succeeded this month, net of the refunds made this month, in the minor unit. Can be negative after a refund of an earlier month.',
+    }),
+    payment_volume_included: z.number().int().nullable().openapi({
+      description:
+        'Paid volume the plan includes each month, in the minor unit. `null`: not capped (a paying plan is billed on the volume instead).',
+    }),
+    currency: z.string().nullable().openapi({
+      description:
+        "The currency of `payment_volume`: the one currency this month's payments were in, `mixed` when there were several (no conversion is made), `null` when no money moved.",
+    }),
+    blocks_at_limit: z.boolean().openapi({
+      description:
+        'Whether reaching an included quantity refuses the next live booking with `402 plan_limit_reached`. True on the free plan only.',
+    }),
+  })
+  .strict()
+  .openapi('PlanUsage');
+
+export type PlanUsage = z.infer<typeof planUsageSchema>;
+
 export const projectSchema = z
   .object({
     id: objectId('project'),
@@ -914,6 +949,13 @@ export const projectSchema = z
     default_timezone: z.string(),
     default_currency: z.string(),
     api_key: apiKeySchema,
+    plan: z.enum(PLAN_IDS).openapi({
+      description: 'The plan of the account this project belongs to.',
+    }),
+    usage: planUsageSchema.nullable().openapi({
+      description:
+        "This month's usage of the account's plan, summed over its projects. Always the live numbers, whichever environment the key is of: the threshold belongs to the account. `null` for a key scoped to a tenant, which does not see the numbers of the whole account.",
+    }),
     created_at: instantOutSchema,
   })
   .strict()
@@ -972,9 +1014,21 @@ export type Deleted = z.infer<typeof deletedSchema>;
  *   * `email_taken`  the address already has a self service account. Nothing was created.
  *   * `expired`      the hour ran out before anybody opened the link.
  *
- * `secret_key` appears in exactly two responses in the life of a sign up, and never twice for
- * the same one: the confirm of a browser, or the first successful claim of a terminal.
+ * `secret_key` and `live_secret_key` appear in exactly two responses in the life of a sign up,
+ * and never twice for the same one: the confirm of a browser, or the first successful claim of a
+ * terminal. Since 24 September 2026 a confirmed sign up has two keys, a test one and a live one, listed
+ * in `api_keys`; `api_key` is the test one alone, kept for the clients written before.
  */
+const signupApiKeySchema = z
+  .object({
+    id: objectId('api_key'),
+    object: z.literal('api_key'),
+    environment: z.enum(['test', 'live']),
+    kind: z.literal('secret'),
+    prefix: z.string(),
+  })
+  .strict();
+
 export const signupSchema = z
   .object({
     id: objectId('signup'),
@@ -1017,17 +1071,269 @@ export const signupSchema = z
         prefix: z.string(),
       })
       .strict()
-      .optional(),
+      .optional()
+      .openapi({
+        description: 'The test key alone. The same object as the `test` entry of `api_keys`.',
+      }),
+    api_keys: z.array(signupApiKeySchema).optional().openapi({
+      description:
+        'The keys the sign up created: one `test` and one `live`, both secret, with no scopes and no tenant. A sign up confirmed before 24 September 2026 has the test one only.',
+    }),
     secret_key: z.string().optional().openapi({
       description:
         'The test key, in clear text. Shown **once**: in the confirm of a browser, or in the first successful claim of a terminal. It is stored as a SHA-256 hash and cannot be shown again.',
       example: 'sk_test_...',
+    }),
+    live_secret_key: z.string().optional().openapi({
+      description:
+        'The live key, in clear text, shown once and at the same moment as `secret_key`. It books for real and counts against the free plan of the account, which refuses new live bookings at its monthly threshold with `402 plan_limit_reached`.',
+      example: 'sk_live_...',
     }),
   })
   .strict()
   .openapi('Signup');
 
 export type Signup = z.infer<typeof signupSchema>;
+
+// --- Dashboard -----------------------------------------------------------------------------
+
+/**
+ * What the dashboard of `bookrail.dev` reads and writes, under `/v1/dashboard`.
+ *
+ * These are objects of the **account**, reached with a dashboard session and never with an API
+ * key, and they are kept out of the SDK (`x-bookrail-sdk: false`): an SDK is built with a key,
+ * and a key must not be able to manage keys.
+ */
+export const dashboardLoginSchema = z
+  .object({
+    object: z.literal('dashboard_login'),
+    email: z.string().openapi({ description: 'The address, as it was understood.' }),
+    expires_at: instantOutSchema.openapi({
+      description:
+        'When a link sent for this request would stop working. The answer is the same whether or not the address has an account, and so whether or not a message is on its way.',
+    }),
+  })
+  .strict()
+  .openapi('DashboardLogin');
+
+export type DashboardLogin = z.infer<typeof dashboardLoginSchema>;
+
+export const dashboardSessionSchema = z
+  .object({
+    object: z.literal('dashboard_session'),
+    session_token: z.string().openapi({
+      description:
+        'The session, `bds_...`, in clear text and only here. Send it as `Authorization: Bearer bds_...` to the other dashboard operations. Stored as a SHA-256 hash.',
+      example: 'bds_...',
+    }),
+    expires_at: instantOutSchema.openapi({
+      description: 'Twelve hours after the link was opened. Nothing renews it.',
+    }),
+  })
+  .strict()
+  .openapi('DashboardSession');
+
+export type DashboardSession = z.infer<typeof dashboardSessionSchema>;
+
+export const dashboardApiKeySchema = z
+  .object({
+    id: objectId('api_key'),
+    object: z.literal('api_key'),
+    environment: environmentSchema,
+    kind: z.enum(['secret', 'publishable']),
+    name: z.string().nullable(),
+    prefix: z.string().openapi({
+      description:
+        'The first eight characters after `sk_test_` or `sk_live_`: enough to recognise a key, never enough to use it.',
+    }),
+    tenant_id: tenantIdSchema,
+    status: z.enum(['active', 'revoked']),
+    created_at: instantOutSchema,
+    last_used_at: instantOutSchema.nullable().openapi({
+      description: 'The last request made with the key, to the minute. `null`: never used.',
+    }),
+    revoked_at: instantOutSchema.nullable(),
+  })
+  .strict()
+  .openapi('DashboardApiKey');
+
+export type DashboardApiKey = z.infer<typeof dashboardApiKeySchema>;
+
+export const dashboardApiKeyCreatedSchema = dashboardApiKeySchema
+  .extend({
+    secret_key: z.string().openapi({
+      description:
+        'The key, in clear text. Shown **once**, in this response: it is stored as a SHA-256 hash and cannot be shown again.',
+      example: 'sk_live_...',
+    }),
+  })
+  .strict()
+  .openapi('DashboardApiKeyCreated');
+
+export type DashboardApiKeyCreated = z.infer<typeof dashboardApiKeyCreatedSchema>;
+
+/** The subscription of an account, as the dashboard shows it. */
+export const dashboardBillingSchema = z
+  .object({
+    status: z.enum([
+      'incomplete',
+      'incomplete_expired',
+      'trialing',
+      'active',
+      'past_due',
+      'canceled',
+      'unpaid',
+      'paused',
+    ]),
+    live: z.boolean().openapi({
+      description:
+        'Whether the account still has this subscription: `incomplete`, `trialing`, `active` or `past_due`. While it is live a second checkout is refused; `unpaid` and `paused` are not live.',
+    }),
+    plan: z.enum(['pro', 'scale']),
+    current_period_end: instantOutSchema.nullable().openapi({
+      description: 'The end of the current period: the first of the next month, at midnight UTC.',
+    }),
+    cancel_at_period_end: z.boolean(),
+    scheduled_plan: z.enum(['pro', 'scale']).nullable().openapi({
+      description:
+        'The plan the subscription moves to at the end of the period, when a move down is scheduled.',
+    }),
+    past_due_since: instantOutSchema.nullable().openapi({
+      description:
+        'The first failed payment of the period, or `null` when payments are up to date.',
+    }),
+    grace_ends_at: instantOutSchema.nullable().openapi({
+      description:
+        'Fourteen days after `past_due_since`: if no payment has succeeded by then, the subscription is closed and the account returns to Free.',
+    }),
+    unpaid_invoice: z
+      .object({
+        id: z.string(),
+        number: z.string().nullable(),
+        amount_due: z.number().int(),
+        currency: z.string(),
+        url: z.string().nullable().openapi({
+          description: 'The Stripe page where the invoice is paid (`hosted_invoice_url`).',
+        }),
+      })
+      .strict()
+      .nullable()
+      .openapi({
+        description:
+          'An invoice left open when the subscription was closed for non payment, or `null`. A new checkout is refused until it is paid.',
+      }),
+  })
+  .strict()
+  .openapi('DashboardBilling');
+
+export const dashboardAccountSchema = z
+  .object({
+    object: z.literal('dashboard_account'),
+    account: z
+      .object({
+        id: objectId('account'),
+        object: z.literal('account'),
+        name: z.string(),
+        plan: z.enum(PLAN_IDS),
+        owner_email: z.string(),
+      })
+      .strict(),
+    usage: planUsageSchema.openapi({
+      description:
+        "This month's usage of the plan, summed over the account's projects: the same object `GET /v1/project` returns.",
+    }),
+    reserved: z
+      .object({
+        bookings_pending: z.number().int().openapi({
+          description:
+            'Live bookings in `pending` right now, every month. On the free plan they count against the threshold already, together with `usage.bookings_confirmed`.',
+        }),
+        payment_volume_pending: z.number().int().openapi({
+          description:
+            'Open live payments of pending bookings, in the minor unit. On the free plan they count against the included volume, together with `usage.payment_volume`.',
+        }),
+      })
+      .strict()
+      .openapi({
+        description: 'What the account has accepted and not yet counted.',
+      }),
+    projects: z.array(
+      z
+        .object({
+          id: objectId('project'),
+          object: z.literal('project'),
+          name: z.string(),
+          default_timezone: z.string(),
+          default_currency: z.string(),
+          created_at: instantOutSchema,
+          api_keys: z.array(dashboardApiKeySchema),
+        })
+        .strict(),
+    ),
+    session: z
+      .object({ expires_at: instantOutSchema })
+      .strict()
+      .openapi({ description: 'The session this answer was read with.' }),
+    billing: dashboardBillingSchema.nullable().openapi({
+      description:
+        'The Stripe subscription of the account, or `null` when it has never had one. The plan of the account follows it.',
+    }),
+    terms: z
+      .object({
+        terms_version: z.string(),
+        dpa_version: z.string(),
+        accepted_at: instantOutSchema.nullable().openapi({
+          description:
+            'When the account accepted these versions of the terms and of the DPA, or `null`: then the checkout asks for both ticks first.',
+        }),
+      })
+      .strict()
+      .openapi({
+        description:
+          'The versions of the terms in force, and whether the account has accepted them.',
+      }),
+  })
+  .strict()
+  .openapi('DashboardAccount');
+
+/** `POST /v1/dashboard/billing/checkout` and `POST /v1/dashboard/billing/portal`. */
+export const billingChangeResponseSchema = z
+  .object({
+    object: z.literal('billing_change'),
+    plan: z.enum(['pro', 'scale']).openapi({
+      description: 'The plan the subscription is on, or will be on, after the change.',
+    }),
+    effective: z.enum(['now', 'period_end', 'pending_payment']).openapi({
+      description:
+        '`now` for a move up (paid pro rata on an invoice now) or a scheduled move cancelled; `period_end` for a move down; `pending_payment` for a move up whose invoice was not paid: it applies once that invoice is paid (`payment_url`), and is discarded by Stripe after about a day.',
+    }),
+    effective_at: instantOutSchema.nullable().openapi({
+      description: 'When the change applies; `null` while it waits for its payment.',
+    }),
+    payment_url: z.string().nullable().openapi({
+      description:
+        'The Stripe page of the invoice to pay, for `pending_payment`; `null` otherwise.',
+    }),
+  })
+  .strict()
+  .openapi('BillingChange');
+
+export type BillingChangeResponse = z.infer<typeof billingChangeResponseSchema>;
+
+export const billingRedirectSchema = z
+  .object({
+    object: z.enum(['billing_checkout', 'billing_portal']),
+    url: z.string().openapi({
+      description:
+        'The Stripe page to send the browser to: a Checkout Session, or the customer portal.',
+    }),
+  })
+  .strict()
+  .openapi('BillingRedirect');
+
+export type BillingRedirect = z.infer<typeof billingRedirectSchema>;
+
+export type DashboardAccount = z.infer<typeof dashboardAccountSchema>;
 
 export const errorSchema = z
   .object({

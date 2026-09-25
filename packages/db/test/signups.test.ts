@@ -137,6 +137,106 @@ describe('the sign up table', () => {
   });
 });
 
+/**
+ * The ceilings of `signup_start`, under concurrency. Twenty requests for one address at the same
+ * instant, from twenty callers: the count and the insert run under two advisory locks (migration
+ * 0026), so exactly three get in, which is the ceiling for an address. Without the locks every
+ * request reads the same count.
+ */
+describe('the ceilings of a sign up, under concurrency', () => {
+  let admin: Client;
+
+  beforeAll(async () => {
+    admin = await adminClient();
+  });
+
+  afterAll(async () => {
+    await admin.end();
+  });
+
+  it('lets exactly three of twenty simultaneous requests for one address through', async () => {
+    const email = `race-${uuidv7()}@example.com`;
+    const clients = await Promise.all(Array.from({ length: 20 }, () => appClient()));
+    try {
+      const outcomes = await Promise.allSettled(
+        clients.map((client, index) =>
+          client.query(
+            `SELECT * FROM signup_start($1, $2, $3, NULL, 'web', $4, 'Race', 'Default',
+                                         'UTC', 'EUR')`,
+            [uuidv7(), email, hash(`${uuidv7()}${String(index)}`), hash(uuidv7())],
+          ),
+        ),
+      );
+      const accepted = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+      const refused = outcomes.filter(
+        (outcome) =>
+          outcome.status === 'rejected' && (outcome.reason as { code?: string }).code === 'P0429',
+      );
+      expect(accepted).toHaveLength(3);
+      expect(refused).toHaveLength(17);
+    } finally {
+      await Promise.all(clients.map((client) => client.end()));
+    }
+    const { rows } = await admin.query<{ n: string }>(
+      'SELECT count(*)::text AS n FROM signups WHERE email = $1',
+      [email],
+    );
+    expect(rows[0]?.n).toBe('3');
+  });
+
+  /**
+   * The same property with the interleaving forced rather than hoped for: the third request is
+   * inserted and left uncommitted, and a fourth starts meanwhile. With the locks the fourth waits
+   * for the third (the test sees it waiting on an advisory lock), then counts three and is refused.
+   * Without them it counts two, because the third is not committed, and gets in: four rows.
+   */
+  it('makes a request wait for one in flight for the same address, then refuses it', async () => {
+    const email = `race-held-${uuidv7()}@example.com`;
+    const start = (client: Client): Promise<unknown> =>
+      client.query(
+        `SELECT * FROM signup_start($1, $2, $3, NULL, 'web', $4, 'Race', 'Default', 'UTC', 'EUR')`,
+        [uuidv7(), email, hash(uuidv7()), hash(uuidv7())],
+      );
+    const [first, second, third, fourth] = await Promise.all(
+      Array.from({ length: 4 }, () => appClient()),
+    );
+    try {
+      await start(first!);
+      await start(second!);
+      await third!.query('BEGIN');
+      await start(third!);
+      const pid = (await fourth!.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!
+        .pid;
+      let settled = false;
+      const outcome = start(fourth!).then(
+        () => 'accepted',
+        (error: { code?: string }) => error.code ?? 'error',
+      );
+      void outcome.then(() => {
+        settled = true;
+      });
+      // Either the fourth is seen waiting on a lock, or it has already finished without waiting.
+      for (;;) {
+        const { rows } = await admin.query<{ n: string }>(
+          `SELECT count(*)::text AS n FROM pg_locks WHERE pid = $1 AND NOT granted`,
+          [pid],
+        );
+        if (rows[0]?.n !== '0' || settled) break;
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await third!.query('COMMIT');
+      expect(await outcome).toBe('P0429');
+    } finally {
+      await Promise.all([first, second, third, fourth].map((client) => client!.end()));
+    }
+    const { rows } = await admin.query<{ n: string }>(
+      'SELECT count(*)::text AS n FROM signups WHERE email = $1',
+      [email],
+    );
+    expect(rows[0]?.n).toBe('3');
+  });
+});
+
 describe('the four functions that are the only way in', () => {
   let admin: Client;
 
@@ -161,7 +261,13 @@ describe('the four functions that are the only way in', () => {
         ORDER BY p.proname`,
       [[...SIGNUP_FUNCTIONS]],
     );
-    expect(rows.map((row) => row.name).sort()).toEqual([...SIGNUP_FUNCTIONS].sort());
+    // `signup_confirm` twice: the two-key one of migration 0026, and the one-key one of 0021 that
+    // 0026 keeps for the previous release until a later migration removes it. `signup_start`
+    // twice as well: the one that carries the acceptance of the terms (migration 0027), and the
+    // one of 0026 kept for the same reason.
+    expect(rows.map((row) => row.name).sort()).toEqual(
+      [...SIGNUP_FUNCTIONS, 'signup_confirm', 'signup_start'].sort(),
+    );
 
     const { rows: who } = await admin.query<{ role: string }>('SELECT current_user AS role');
     for (const row of rows) {
@@ -183,7 +289,7 @@ describe('the four functions that are the only way in', () => {
         WHERE n.nspname = 'public' AND p.proname = ANY($1)`,
       [[...SIGNUP_FUNCTIONS]],
     );
-    expect(rows).toHaveLength(SIGNUP_FUNCTIONS.length);
+    expect(rows).toHaveLength(SIGNUP_FUNCTIONS.length + 2);
     for (const row of rows) {
       const acl = (row.acl ?? []).join(',');
       expect(acl, `${row.signature} is executable by PUBLIC`).not.toMatch(/(^|,)=X/);

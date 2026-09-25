@@ -27,6 +27,8 @@ const SHOTS = join(siteRoot, 'test', '__screenshots__');
 const VIEWPORTS = [
   { name: 'iphone-13', device: devices['iPhone 13'] },
   { name: 'pixel-7', device: devices['Pixel 7'] },
+  // The width of a tablet held upright, under the 900px of the header's menu.
+  { name: 'tablet-768', device: { viewport: { width: 768, height: 1024 } } },
   { name: 'desktop-1024', device: { viewport: { width: 1024, height: 800 } } },
   { name: 'desktop-1440', device: { viewport: { width: 1440, height: 900 } } },
 ] as const;
@@ -55,6 +57,11 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'concepts', path: '/docs/concepts/' },
   // The legal pages are a definition list that changes shape at 640px.
   { name: 'legal', path: '/legal' },
+  // The pricing page: four cards and a comparison table that becomes one plan at a time.
+  { name: 'pricing', path: '/pricing/' },
+  // The dashboard as a visitor without a session sees it, and the page a sign up link opens.
+  { name: 'dashboard', path: '/dashboard/' },
+  { name: 'signup-confirm', path: '/signup/confirm/' },
   ...blogPages(),
 ];
 
@@ -80,7 +87,7 @@ describe.each(VIEWPORTS)('$name', ({ name, device }) => {
     const context = await browser.newContext({ ...device, reducedMotion: 'no-preference' });
     const tab = await context.newPage();
     await tab.goto(`${origin}${page.path}`, { waitUntil: 'networkidle' });
-    // Long enough for the grid to finish filling and the request pane to finish typing.
+    // Long enough for the grid to finish filling.
     await tab.waitForTimeout(4000);
     await tab.screenshot({ path: join(SHOTS, `${page.name}-${name}.png`), fullPage: false });
 
@@ -145,6 +152,31 @@ describe.each(VIEWPORTS)('$name', ({ name, device }) => {
   });
 });
 
+/**
+ * The whole homepage, top to bottom, at the three widths a person reviews it at: 390
+ * (a phone), 768 (a tablet) and 1440 (a desktop). Reduced motion, so that every section is in its
+ * finished state in the picture; the overflow check is the same as above.
+ */
+describe('the whole homepage, for a person to look at', () => {
+  it.each([
+    { width: 390, device: devices['iPhone 13'] },
+    { width: 768, device: { viewport: { width: 768, height: 1024 } } },
+    { width: 1440, device: { viewport: { width: 1440, height: 900 } } },
+  ])('at $width px', async ({ width, device }) => {
+    const context = await browser.newContext({ ...device, reducedMotion: 'reduce' });
+    const tab = await context.newPage();
+    await tab.goto(`${origin}/`, { waitUntil: 'networkidle' });
+    await tab.waitForTimeout(500);
+    await tab.screenshot({ path: join(SHOTS, `home-full-${String(width)}.png`), fullPage: true });
+    const widths = await tab.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client + 2);
+    await context.close();
+  });
+});
+
 describe('the chrome on a phone', () => {
   it('keeps the logo and the primary action visible and untruncated', async () => {
     const context = await browser.newContext(devices['iPhone 13']);
@@ -152,14 +184,14 @@ describe('the chrome on a phone', () => {
     await tab.goto(`${origin}/`, { waitUntil: 'networkidle' });
 
     const nav = await tab.locator('.nav .wrap').boundingBox();
-    const logo = await tab.locator('.logo').boundingBox();
+    const logo = await tab.locator('.nav .logo').boundingBox();
     const cta = await tab.locator('.nav-right .btn.primary').boundingBox();
     expect(nav).not.toBeNull();
     expect(logo?.x ?? -1).toBeGreaterThanOrEqual(0);
     expect((cta?.x ?? 0) + (cta?.width ?? 0)).toBeLessThanOrEqual(
       (nav?.x ?? 0) + (nav?.width ?? 0) + 1,
     );
-    expect(await tab.locator('.logo').textContent()).toContain('Bookrail');
+    expect(await tab.locator('.nav .logo').textContent()).toContain('Bookrail');
     await context.close();
   });
 
@@ -179,6 +211,91 @@ describe('the chrome on a phone', () => {
   });
 });
 
+/**
+ * The signed in dashboard on a phone, with the API answered by the test: the account view is
+ * built by the script from the answer, so this is the only way to measure it. The keys table is
+ * the wide thing on it, and it must scroll inside its own box rather than push the page.
+ */
+describe('the dashboard of an account on a phone', () => {
+  const account = {
+    object: 'dashboard_account',
+    account: {
+      id: 'acct_1',
+      object: 'account',
+      name: 'Padel Roma',
+      plan: 'free',
+      owner_email: 'ada@example.com',
+    },
+    usage: {
+      month: '2026-09',
+      bookings_confirmed: 412,
+      bookings_included: 1000,
+      payment_volume: 45000,
+      payment_volume_included: 100000,
+      currency: 'EUR',
+      blocks_at_limit: true,
+    },
+    reserved: { bookings_pending: 60, payment_volume_pending: 2500 },
+    projects: [
+      {
+        id: 'proj_1',
+        object: 'project',
+        name: 'Default',
+        default_timezone: 'Europe/Rome',
+        default_currency: 'EUR',
+        created_at: '2026-09-24T09:00:00.000Z',
+        api_keys: ['test', 'live'].map((environment, index) => ({
+          id: `key_${String(index)}`,
+          object: 'api_key',
+          environment,
+          kind: 'secret',
+          name: `${environment} secret key`,
+          prefix: 'Ab3dE5gH',
+          tenant_id: null,
+          status: 'active',
+          created_at: '2026-09-24T09:00:00.000Z',
+          last_used_at: null,
+          revoked_at: null,
+        })),
+      },
+    ],
+    session: { expires_at: '2026-09-24T21:00:00.000Z' },
+  };
+
+  it('has no horizontal overflow, and lets the keys table scroll in its own box', async () => {
+    const context = await browser.newContext(devices['iPhone 13']);
+    const tab = await context.newPage();
+    await tab.route('https://api.bookrail.dev/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(account),
+      }),
+    );
+    await tab.goto(`${origin}/dashboard/`, { waitUntil: 'networkidle' });
+    await tab.evaluate(() => {
+      sessionStorage.setItem(
+        'bookrail.dashboard.session',
+        JSON.stringify({ token: `bds_${'a'.repeat(43)}`, expires_at: '2999-01-01T00:00:00.000Z' }),
+      );
+    });
+    await tab.reload({ waitUntil: 'networkidle' });
+    await tab.locator('#dash-app').waitFor({ state: 'visible' });
+    await tab.screenshot({ path: join(SHOTS, 'dashboard-account-iphone-13.png'), fullPage: false });
+
+    const measured = await tab.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+      overflowX: getComputedStyle(document.querySelector('.table-scroll') as Element).overflowX,
+      rows: document.querySelectorAll('.keys tbody tr').length,
+    }));
+    expect(measured.rows).toBe(2);
+    expect(measured.overflowX).toBe('auto');
+    expect(measured.scrollWidth).toBeLessThanOrEqual(measured.clientWidth + 2);
+    await context.close();
+  });
+});
+
 describe('reduced motion', () => {
   it('never builds Lenis, and shows the finished state at once', async () => {
     const context = await browser.newContext({
@@ -193,21 +310,19 @@ describe('reduced motion', () => {
       lenis: document.documentElement.classList.contains('lenis'),
       slotsIn: document.querySelectorAll('.slot.in').length,
       slots: document.querySelectorAll('.slot').length,
-      revealed: document.querySelectorAll('[data-reveal].in').length,
-      reveals: document.querySelectorAll('[data-reveal]').length,
-      responseIn: document.querySelectorAll('.resp-line.in').length,
-      response: document.querySelectorAll('.resp-line').length,
-      request: (document.querySelector('[data-request]')?.textContent ?? '').length,
+      armed: document.querySelectorAll('[data-reveal].armed').length,
+      hidden: [...document.querySelectorAll('[data-reveal]')].filter(
+        (element) => getComputedStyle(element).opacity !== '1',
+      ).length,
     }));
     expect(state.lenis).toBe(false);
     expect(state.slotsIn).toBe(state.slots);
-    expect(state.revealed).toBe(state.reveals);
-    expect(state.responseIn).toBe(state.response);
-    expect(state.request).toBeGreaterThan(200);
+    expect(state.armed).toBe(0);
+    expect(state.hidden).toBe(0);
     await context.close();
   });
 
-  it('runs Lenis when motion is welcome', async () => {
+  it('runs Lenis when motion is welcome, and hides only what is below the fold', async () => {
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       reducedMotion: 'no-preference',
@@ -218,21 +333,106 @@ describe('reduced motion', () => {
     expect(await tab.evaluate(() => document.documentElement.classList.contains('lenis'))).toBe(
       true,
     );
+    const aboveTheFold = await tab.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('[data-reveal].armed')].filter(
+        (element) => element.getBoundingClientRect().top < 0,
+      ),
+    );
+    expect(aboveTheFold).toEqual([]);
     await context.close();
   });
 });
 
 describe('without JavaScript', () => {
-  it('still shows the grid, the request and the response', async () => {
+  it('still shows the grid, every section and all three panes of the demo', async () => {
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       javaScriptEnabled: false,
     });
     const tab = await context.newPage();
     await tab.goto(`${origin}/`, { waitUntil: 'load' });
-    expect(await tab.locator('[data-request]').textContent()).toContain('bookrail.bookings.create');
-    expect(await tab.locator('[data-response]').textContent()).toContain('"status": "confirmed"');
     expect(await tab.locator('.slot').count()).toBeGreaterThan(10);
+    expect(await tab.locator('[data-response]').textContent()).toContain('"status": "confirmed"');
+    for (const id of ['demo-explain', 'demo-booking', 'demo-webhook', 'code-node', 'code-mcp']) {
+      expect(await tab.locator(`#${id}`).isVisible(), id).toBe(true);
+    }
+    // A tab is a link to its panel.
+    expect(await tab.locator('#demo-tab-webhook').getAttribute('href')).toBe('#demo-webhook');
+    const hidden = await tab.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-reveal]')].filter(
+          (element) => getComputedStyle(element).opacity !== '1',
+        ).length,
+    );
+    expect(hidden).toBe(0);
+    await context.close();
+  });
+});
+
+describe('the tabs, with JavaScript', () => {
+  it('show one panel, and move with the arrows, Home and End', async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const tab = await context.newPage();
+    await tab.goto(`${origin}/`, { waitUntil: 'networkidle' });
+    const visible = (): Promise<string[]> =>
+      tab.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('#demo [role="tabpanel"]')]
+          .filter((panel) => !panel.hidden)
+          .map((panel) => panel.id),
+      );
+    expect(await visible()).toEqual(['demo-explain']);
+    await tab.focus('#demo-tab-explain');
+    await tab.keyboard.press('ArrowRight');
+    expect(await visible()).toEqual(['demo-booking']);
+    expect(await tab.evaluate(() => document.activeElement?.id)).toBe('demo-tab-booking');
+    expect(await tab.getAttribute('#demo-tab-booking', 'aria-selected')).toBe('true');
+    expect(await tab.getAttribute('#demo-tab-explain', 'tabindex')).toBe('-1');
+    await tab.keyboard.press('End');
+    expect(await visible()).toEqual(['demo-webhook']);
+    await tab.keyboard.press('ArrowRight');
+    expect(await visible()).toEqual(['demo-explain']);
+    await tab.keyboard.press('ArrowLeft');
+    expect(await visible()).toEqual(['demo-webhook']);
+    await tab.keyboard.press('Home');
+    expect(await visible()).toEqual(['demo-explain']);
+
+    // The code tabs carry the second line of their title with them.
+    await tab.click('#code-tab-cli');
+    expect(await tab.textContent('#code-tool')).toBe('the CLI');
+    expect(await tab.locator('#code-cli').isVisible()).toBe(true);
+    expect(await tab.locator('#code-node').isVisible()).toBe(false);
+    await context.close();
+  });
+});
+
+describe('the menu under 900px', () => {
+  it('opens a panel with the links, closes on Escape and gives the focus back', async () => {
+    const context = await browser.newContext(devices['iPhone 13']);
+    const tab = await context.newPage();
+    await tab.goto(`${origin}/pricing/`, { waitUntil: 'networkidle' });
+    const button = tab.locator('[data-menu-button]');
+    expect(await button.isVisible()).toBe(true);
+    expect(await tab.locator('.nav-links').isVisible()).toBe(false);
+    await button.focus();
+    await tab.keyboard.press('Enter');
+    expect(await button.getAttribute('aria-expanded')).toBe('true');
+    expect(await tab.locator('.nav-links a[href="/pricing/"]').isVisible()).toBe(true);
+    expect(await tab.locator('#nav-panel a[data-session-link]').isVisible()).toBe(true);
+    await tab.keyboard.press('Escape');
+    expect(await button.getAttribute('aria-expanded')).toBe('false');
+    expect(await tab.locator('.nav-links').isVisible()).toBe(false);
+    expect(await tab.evaluate(() => document.activeElement?.hasAttribute('data-menu-button'))).toBe(
+      true,
+    );
+    await context.close();
+  });
+
+  it('is not there over 900px, where the links are in the bar', async () => {
+    const context = await browser.newContext({ viewport: { width: 1024, height: 800 } });
+    const tab = await context.newPage();
+    await tab.goto(`${origin}/`, { waitUntil: 'networkidle' });
+    expect(await tab.locator('[data-menu-button]').isVisible()).toBe(false);
+    expect(await tab.locator('.nav-links a[href="/docs/"]').isVisible()).toBe(true);
     await context.close();
   });
 });

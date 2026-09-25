@@ -1,6 +1,6 @@
 {
   "name": "bookrail",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Bookrail CLI: booking infrastructure as code, designed to be driven by coding agents.",
   "license": "Apache-2.0",
   "author": "MP Informatica Srl",

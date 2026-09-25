@@ -2,10 +2,10 @@ import type { Hono } from 'hono';
 import type { Pool } from 'pg';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache, type AvailabilityCache } from '@bookrail/engine';
-import { silentLogger, type Logger } from '@bookrail/shared';
+import { silentLogger, type Logger, type PlanTable } from '@bookrail/shared';
 import { createApp } from '../src/app.js';
 import { DEFAULT_PAYMENT_TIMEOUT_MINUTES, type StripePlatformConfig } from '../src/config.js';
-import type { AppEnv } from '../src/context.js';
+import type { AppEnv, BillingDeps } from '../src/context.js';
 import { createLogMailer, type LogMailer } from '../src/mail/index.js';
 import { MemoryRateLimiter, type RateLimiter } from '../src/rate-limit.js';
 import type { UsageCounters } from '../src/usage-counters.js';
@@ -102,6 +102,12 @@ export interface HarnessOptions {
    */
   stripe?: StripePlatformConfig;
   /**
+   * Stripe Billing, pointed at the fake of `test/billing-stripe-server.ts`. Absent means a
+   * deployment where Billing is switched off: the checkout, the portal and the Billing receiver
+   * answer `503 billing_not_configured`.
+   */
+  billing?: BillingDeps;
+  /**
    * How long a booking waits for its payment, in minutes.
    *
    * Thirty by default, as in a deployment. The suite that exercises the expiry does not shorten
@@ -126,9 +132,18 @@ export interface HarnessOptions {
   rateLimit?: {
     rate: number;
     burst: number;
-    live?: { rate: number; burst: number };
+    /**
+     * `'plan'` gives live keys the ceiling of their account's plan, which is what a deployment
+     * without `RATE_LIMIT_LIVE_*` does. A policy is the override those variables set.
+     */
+    live?: { rate: number; burst: number } | 'plan';
     limiter?: RateLimiter;
   };
+  /**
+   * The plan table, when a suite needs a threshold it can reach: the free plan's thousand
+   * bookings lowered to three, the same arithmetic. The published one by default.
+   */
+  plans?: PlanTable;
   /**
    * Count every authenticated request into these counters.
    *
@@ -137,6 +152,11 @@ export interface HarnessOptions {
    * about the counters passes a real one.
    */
   usageCounters?: UsageCounters;
+  /**
+   * The dashboard's clock. `Date.now` by default. A test moves it forward to see a session or a
+   * link expire without waiting; the database refuses to let it move backward.
+   */
+  now?: () => number;
   /**
    * `false` builds the app with **no** `WEBHOOK_SECRET_KEY`, which is a deployment that forgot
    * one: `POST /v1/webhooks` then answers `500 internal` rather than storing a signing secret
@@ -188,7 +208,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     siteUrl: SITE_URL,
     siteOrigin: options.siteOrigin ?? SITE_ORIGIN,
     ...(options.stripe === undefined ? {} : { stripe: options.stripe }),
+    ...(options.billing === undefined ? {} : { billing: options.billing }),
     paymentTimeoutMinutes: options.paymentTimeoutMinutes ?? DEFAULT_PAYMENT_TIMEOUT_MINUTES,
+    ...(options.plans === undefined ? {} : { plans: options.plans }),
     ...(rateLimitPolicy === undefined || rateLimiter === null
       ? {}
       : {
@@ -196,16 +218,20 @@ export function createHarness(options: HarnessOptions = {}): Harness {
             limiter: rateLimiter,
             limits: {
               test: { rate: rateLimitPolicy.rate, burst: rateLimitPolicy.burst },
-              live: rateLimitPolicy.live ?? {
-                rate: rateLimitPolicy.rate,
-                burst: rateLimitPolicy.burst,
-              },
+              live:
+                rateLimitPolicy.live === 'plan'
+                  ? null
+                  : (rateLimitPolicy.live ?? {
+                      rate: rateLimitPolicy.rate,
+                      burst: rateLimitPolicy.burst,
+                    }),
             },
           },
         }),
     // `app.request` opens no socket, so without this every request would count against the
     // single `unknown` bucket and the per caller limit would fire after ten tests.
     trustForwardedFor: true,
+    ...(options.now === undefined ? {} : { now: options.now }),
     allowPrivateWebhookTargets: options.allowPrivateWebhookTargets === true,
     contractGuard: contract,
   });

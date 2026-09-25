@@ -13,7 +13,7 @@
 import Base from '../layouts/Base.astro';
 import { CONTACT_EMAIL } from '../data/site';
 
-const UPDATED = '14 September 2026';
+const UPDATED = '24 September 2026';
 ---
 
 <Base
@@ -60,7 +60,10 @@ const UPDATED = '14 September 2026';
       opened, which is what makes an address typed by mistake cost nothing.
     </p>
     <ul>
-      <li><strong>Purpose</strong>: creating the account, the project and the test key you asked for.</li>
+      <li>
+        <strong>Purpose</strong>: creating the account, the project and the two keys you asked
+        for, a test one and a live one.
+      </li>
       <li>
         <strong>Legal basis</strong>: performance of a contract, Article 6(1)(b) GDPR: it is the
         step that brings the contract into being at your request.
@@ -105,6 +108,83 @@ const UPDATED = '14 September 2026';
       which a browser never sends to a server: it is not in the log of this website, and it is
       not passed on to anywhere else.
     </p>
+
+    <h2>When you use the dashboard</h2>
+    <p>
+      The <a href="/dashboard/">dashboard</a> has no password: you sign in with a link we send to
+      the owner address of the account.
+    </p>
+    <ul>
+      <li>
+        <strong>Purpose</strong>: letting the owner of an account see its plan and usage and
+        manage its API keys.
+      </li>
+      <li>
+        <strong>Legal basis</strong>: performance of a contract, Article 6(1)(b) GDPR.
+      </li>
+      <li>
+        <strong>Data</strong>: the email address you type, a <strong>hash</strong> of the IP
+        address the request came from, and, once you open the link, a session. Every request for
+        a link is recorded the same way whether or not the address has an account, so that the
+        answer never says which addresses are customers; a message is sent only to the owner
+        address of an account.
+      </li>
+      <li>
+        <strong>Retention</strong>: a request for a link, address and hash included, is deleted
+        by an hourly job once it is an hour old, so it is kept for <strong>about two hours</strong>
+        at most. A link works once, for 15 minutes. A session lasts
+        <strong>12 hours</strong>, is never renewed, and ends at once when you sign out; its
+        record is deleted 7 days after it ended.
+      </li>
+      <li>
+        <strong>In your browser</strong>: the session is kept in <code>sessionStorage</code> of
+        this site, for as long as the tab is open. A browser may bring it back if you reopen a
+        closed tab or restore a session after a restart; either way it stops working 12 hours
+        after you opened the link, and «Sign out» ends it at once. <strong>No cookie</strong> is set,
+        and nothing is kept in <code>localStorage</code>. The link carries its token after the
+        <code>#</code>, which a browser never sends to a server, and the page removes it from the
+        address bar as soon as it has read it.
+      </li>
+      <li>
+        <strong>Recipients</strong>: Hostinger, for the message with the link, as above. Nobody
+        else.
+      </li>
+    </ul>
+
+    <h2>When you buy a paid plan</h2>
+    <p>
+      Pro and Scale are sold to businesses through Stripe Checkout, and paid by card on Stripe's
+      pages: the card never reaches Bookrail.
+    </p>
+    <ul>
+      <li>
+        <strong>Purpose</strong>: selling and invoicing the plan, and meeting the accounting and
+        tax obligations of an Italian company.
+      </li>
+      <li>
+        <strong>Legal basis</strong>: performance of a contract, Article 6(1)(b) GDPR, and legal
+        obligation, Article 6(1)(c) GDPR, for the invoices.
+      </li>
+      <li>
+        <strong>Data</strong>: the name of the business, its billing address, its VAT number or
+        tax id and the result of Stripe's check of it, the SdI code or PEC address of an Italian
+        company if you give one, the billing email, and, for each paid invoice, its number, date,
+        lines and amounts. We also record when the account accepted the Terms of Service and the
+        Data Processing Agreement, which versions, the address of the account's owner at that
+        moment, and a <strong>hash</strong> of the IP address.
+      </li>
+      <li>
+        <strong>Retention</strong>: invoices and the data on them are kept for
+        <strong>ten years</strong>, as Italian law requires of accounting records; the record of an
+        acceptance for as long as the account exists and, after that, for as long as a claim under
+        the terms could be made.
+      </li>
+      <li>
+        <strong>Recipients</strong>: Stripe Payments Europe, Ltd., which processes the payment and
+        the subscription; the accounting software the electronic invoice is issued from, and the
+        Italian tax authority's exchange system (SdI) it goes through; Hostinger, for the messages.
+      </li>
+    </ul>
 
     <h2>If you write to us</h2>
     <p>

@@ -89,6 +89,17 @@ export function contractGuard(): MiddlewareHandler<AppEnv> {
       return;
     }
 
+    // A declared `204` is proved by having no body at all.
+    if (status === 204 && declared !== undefined) {
+      const text = await c.res.clone().text();
+      if (text !== '') {
+        record(`${operation.operationId} answered 204 with a body.`);
+        return;
+      }
+      if (coverageFile !== undefined) appendFileSync(coverageFile, `${operation.operationId}\n`);
+      return;
+    }
+
     let body: unknown;
     try {
       body = await c.res.clone().json();

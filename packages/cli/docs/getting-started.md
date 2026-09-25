@@ -33,12 +33,20 @@ unless you asked for it.
 
 ## Where the key comes from
 
-`bookrail signup` is the whole answer for a test key: it asks for an address, sends a link
-there, waits for you to open it, and stores what comes back. No dashboard, no password, and
-nobody to write to. `--no-store` prints the key once instead of writing it.
+`bookrail signup` is the whole answer: it asks for an address, sends a link there, waits for
+you to open it, and stores what comes back, which is **two** keys, a test one and a live one.
+No password, and nobody to write to. `--no-store` prints both once instead of writing them.
+Before anything is sent it shows the Terms of Service and the Data Processing Agreement and asks
+you to accept them on behalf of your business and, separately, to approve the clauses of their
+Section 17; `--accept-terms` and `--approve-clauses` answer for a script.
 
-A **live** key still comes from a person, because there is no payment behind the plans yet:
-write to hello@bookrail.dev, then `bookrail login --live --token sk_live_...`.
+The **live** key books for real, on the free plan: up to 1,000 confirmed live bookings a
+month, then new live bookings are refused with `402 plan_limit_reached` until the next month
+or a paying plan. It is stored next to the test one and used only when you type `--live`.
+More keys, and revoking one, are in the dashboard at
+[bookrail.dev/dashboard](https://bookrail.dev/dashboard/): you sign in with a link sent to
+the same address. A key made there goes in with `bookrail login --token sk_test_...`, or
+`bookrail login --live --token sk_live_...`.
 
 Once there is a key, this is where a command looks for it:
 

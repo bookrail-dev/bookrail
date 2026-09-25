@@ -7,25 +7,28 @@
  * header. The page reads it out of `location.hash` and posts it to the API over TLS, which is
  * the only hop it makes.
  *
- * The key comes back once. There is no way to ask for it again, because it is stored as a
- * SHA-256 hash and nothing here or on the server can reproduce it, so the page says so plainly
- * and offers a copy button rather than pretending the page can be reloaded.
+ * Two keys come back, a test one and a live one, once each. There is no way to ask for them
+ * again, because they are stored as SHA-256 hashes and nothing here or on the server can
+ * reproduce them, so the page says so plainly and offers a copy button for each rather than
+ * pretending the page can be reloaded. More keys are made in the dashboard.
  *
- * When the sign up came from a terminal the key is not here at all: it goes to the process that
- * is waiting for it, and this page says the terminal has it.
+ * When the sign up came from a terminal the keys are not here at all: they go to the process
+ * that is waiting for them, and this page says the terminal has them.
  */
+import { PLANS } from '@bookrail/shared';
 import Base from '../../layouts/Base.astro';
-import { CONTACT_EMAIL } from '../../data/site';
+import { thousands } from '../../data/pricing';
 
 const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
+const FREE_INCLUDED = thousands(PLANS.free.bookingsIncluded ?? 0);
 ---
 
 <Base
-  title="Confirm your key, Bookrail"
-  description="The last step of a Bookrail sign up: the confirmation link creates the account, the project and one test key."
+  title="Confirm your keys, Bookrail"
+  description="The last step of a Bookrail sign up: the confirmation link creates the account, the project, a test key and a live key."
 >
-  <div class="wrap prose">
-    <h1>Confirming</h1>
+  <div class="wrap prose" id="signup-confirm" data-api-url={API_URL}>
+    <h1 id="confirm-title">Confirming</h1>
     <p id="confirm-status" role="status" aria-live="polite">Checking the link...</p>
 
     <noscript>
@@ -33,28 +36,53 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
         This page needs JavaScript: the token is in the part of the link after the
         <code>#</code>, which a browser never sends to a server, so nothing here can read it
         for you. Run <code>npx bookrail signup</code> instead and open the link it sends: the
-        terminal does the same thing and stores the key for you.
+        terminal does the same thing and stores both keys for you.
       </p>
     </noscript>
 
     <div id="confirm-key" class="key-panel" hidden>
       <p>
-        This is your test key. It is shown <strong>once</strong>: it is stored as a hash, so
-        nobody, us included, can show it to you again.
+        These are your keys. They are shown <strong>once</strong>: they are stored as hashes, so
+        nobody, us included, can show them to you again.
       </p>
-      <pre class="key-value"><code id="confirm-secret"></code></pre>
-      <button id="confirm-copy" class="btn" type="button">Copy</button>
-      <p>Store it with the CLI:</p>
-      <pre class="key-value"><code id="confirm-command"></code></pre>
-      <p>
-        Then follow the <a href="/docs/quickstart/">quickstart</a>: it goes from this key to a
-        confirmed booking.
+      <div class="key-row">
+        <span class="key-label">Test key</span>
+        <code class="key-value" id="confirm-secret"></code>
+        <button id="confirm-copy" class="copy" type="button" data-copy="confirm-secret">
+          <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+            <rect x="4.5" y="4.5" width="8" height="8"></rect>
+            <path d="M9.5 4.5v-3h-8v8h3"></path>
+          </svg>
+          <span>Copy</span>
+        </button>
+      </div>
+      <div class="key-row">
+        <span class="key-label">Live key</span>
+        <code class="key-value" id="confirm-live-secret"></code>
+        <button id="confirm-live-copy" class="copy" type="button" data-copy="confirm-live-secret">
+          <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+            <rect x="4.5" y="4.5" width="8" height="8"></rect>
+            <path d="M9.5 4.5v-3h-8v8h3"></path>
+          </svg>
+          <span>Copy</span>
+        </button>
+      </div>
+      <p id="confirm-plan">
+        The live key makes real bookings. The account is on the Free plan: up to {FREE_INCLUDED}
+        confirmed live bookings a month, then new live bookings are refused until the next month
+        or a paying plan. The test key is free and never counted.
       </p>
+      <p>Store them with the CLI:</p>
+      <pre class="key-command"><code id="confirm-command"></code></pre>
+      <div class="key-actions">
+        <a class="btn primary" href="/dashboard/">Open dashboard</a>
+        <a class="btn" href="/docs/quickstart/">Read the quickstart</a>
+      </div>
     </div>
 
     <p id="confirm-help" hidden>
-      A <strong>live key</strong> still comes from a person: write to
-      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and say what you are building.
+      Your keys, and new ones, are in the <a href="/dashboard/">dashboard</a>: sign in there with
+      the address you signed up with.
     </p>
   </div>
 </Base>
@@ -63,121 +91,95 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
   .key-panel {
     display: grid;
     gap: var(--space-4);
-    justify-items: start;
     margin: var(--space-6) 0;
     padding: var(--space-5);
     border: 1px solid var(--line);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-data);
     background: var(--card);
   }
   /* `display: grid` above would otherwise beat the `hidden` attribute, and the panel would
-     show two empty boxes when the terminal, not this page, received the key. */
+     show empty boxes when the terminal, not this page, received the keys. */
   .key-panel[hidden] {
     display: none;
   }
   .key-panel p {
     margin: 0;
   }
+  .key-row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-control);
+    background: var(--bg);
+  }
+  .key-label {
+    font-size: var(--step--1);
+    color: var(--ink-3);
+  }
   .key-value {
-    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: var(--step--1);
+  }
+  .copy {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 28px;
+    padding: 0 var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--step--1);
+    cursor: pointer;
+  }
+  .copy:hover {
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
+  .copy svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+  }
+  .key-command {
     margin: 0;
     padding: var(--space-3);
     overflow-x: auto;
     background: var(--code-bg);
     color: var(--code-ink);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-data);
     font-family: var(--mono);
     font-size: var(--step--1);
   }
-  .key-panel button {
-    cursor: pointer;
+  .key-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  /* The prose column colours its links; these two are buttons, in the colours of a button. */
+  .key-actions .btn {
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .key-actions .btn.primary {
+    color: var(--card);
+  }
+  @media (max-width: 520px) {
+    .key-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .key-label {
+      grid-column: 1 / -1;
+    }
   }
 </style>
 
-<script is:inline define:vars={{ API_URL }}>
-  (function () {
-    const status = document.getElementById('confirm-status');
-    const panel = document.getElementById('confirm-key');
-    const secretEl = document.getElementById('confirm-secret');
-    const commandEl = document.getElementById('confirm-command');
-    const copy = document.getElementById('confirm-copy');
-    const help = document.getElementById('confirm-help');
-    if (!status || !panel || !secretEl || !commandEl || !copy || !help) return;
-
-    function say(text) {
-      status.textContent = text;
-    }
-
-    function withHelp(text) {
-      say(text);
-      help.hidden = false;
-    }
-
-    const hash = window.location.hash.replace(/^#/, '');
-    const token = new URLSearchParams(hash).get('token');
-    if (!token) {
-      withHelp(
-        'This page needs the link from the confirmation message. Start again at /signup.',
-      );
-      return;
-    }
-
-    fetch(API_URL + '/v1/signups/confirm', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: token }),
-    })
-      .then(function (response) {
-        return response.json().then(function (body) {
-          return { status: response.status, body: body };
-        });
-      })
-      .then(function (result) {
-        const body = result.body || {};
-        if (result.status === 200 && body.status === 'email_taken') {
-          withHelp(
-            'That address already has a Bookrail account, so nothing was created. Use the key you have, or write to ' +
-              'hello@bookrail.dev if you have lost it.',
-          );
-          return;
-        }
-        if (result.status === 200 && body.delivered_to === 'cli') {
-          say('Your terminal has the key. You can close this page.');
-          return;
-        }
-        if (result.status === 200 && body.secret_key) {
-          say('Done. Your account and your project exist.');
-          secretEl.textContent = body.secret_key;
-          commandEl.textContent = 'npx bookrail login --token ' + body.secret_key;
-          panel.hidden = false;
-          help.hidden = false;
-          return;
-        }
-        const error = body.error || {};
-        if (error.code === 'signup_expired') {
-          withHelp('That link has expired. A link works for one hour: start again at /signup.');
-          return;
-        }
-        if (error.code === 'signup_already_confirmed') {
-          withHelp(
-            'That link has already been used, and a key is shown once. Run bookrail signup again, or write to hello@bookrail.dev.',
-          );
-          return;
-        }
-        withHelp((error.message || 'That did not work.') + (error.fix ? ' ' + error.fix : ''));
-      })
-      .catch(function () {
-        withHelp(
-          'The API could not be reached. Try the link again in a minute, or write to hello@bookrail.dev.',
-        );
-      });
-
-    copy.addEventListener('click', function () {
-      const value = secretEl.textContent || '';
-      if (value === '' || !navigator.clipboard) return;
-      navigator.clipboard.writeText(value).then(function () {
-        copy.textContent = 'Copied';
-      });
-    });
-  })();
+<script>
+  import '../../scripts/signup-confirm';
 </script>

@@ -4,6 +4,7 @@ dist
 pnpm-lock.yaml
 *.md
 apps/site/dist
+apps/site/dist-test
 apps/site/.astro
 apps/site/src/generated
 apps/site/src/content/docs/docs

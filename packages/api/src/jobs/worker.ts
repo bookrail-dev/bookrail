@@ -1,12 +1,15 @@
 /**
- * The background worker: pg-boss, nine queues, and the reasons for all of them.
+ * The background worker: pg-boss, twelve queues, and the reasons for all of them.
  *
  * The cadences are a hold expiry every ten seconds, the calls owed to Stripe every ten, the
  * automatic booking transitions every thirty, the webhook outbox every five, the webhook
  * delivery sweep every second, an hourly cleanup of `Idempotency-Key` rows, the two nightly
- * reconciliations (the integrity check and the orphan sweep), and the usage digest at seven in
- * the morning, which is the only job here that sends a message to a person and the only one
- * whose cron is in a local time zone.
+ * reconciliations (the integrity check and the orphan sweep), the usage digest at seven in the
+ * morning, and the three jobs of Stripe Billing: the daily cancellation of subscriptions whose
+ * payment has failed for fourteen days (and of the unpaid or paused ones), the daily
+ * reconciliation that reads every live subscription back from Stripe, and the monthly list of
+ * paid invoices, which is, with the digest, one of the two jobs that send a message to a person
+ * and whose cron is in a local time zone, and the only one retried.
  *
  * pg-boss keeps the queue in Postgres, which is the point: there is no second datastore to
  * lose, and a job and the rows it will touch live in the same database and the same backup.
@@ -38,15 +41,17 @@
  */
 import PgBoss from 'pg-boss';
 import type { Logger } from '@bookrail/shared';
-import type { AppDeps } from '../context.js';
+import type { AppDeps, BillingDeps } from '../context.js';
 import {
   purgeIdempotencyKeys,
+  purgeDashboard,
   purgeSignups,
   purgeStripeOauthStates,
   runBookingTransitions,
   runHoldExpiry,
 } from './tasks.js';
 import { runPaymentActions } from './payment-actions.js';
+import { runBillingInvoiceList, runBillingOverdue, runBillingReconcile } from './billing.js';
 import { runIntegrityCheck, runOrphanReconciliation } from './reconcile.js';
 import { DIGEST_TIMEZONE, runUsageDigest, type UsageDigestOptions } from './usage-digest.js';
 import { runWebhookDeliveries } from '../webhooks/dispatch.js';
@@ -62,6 +67,37 @@ export const INTEGRITY_CHECK_QUEUE = 'integrity-check';
 export const ORPHAN_RECONCILE_QUEUE = 'orphan-reconcile';
 export const USAGE_DIGEST_QUEUE = 'usage-digest';
 export const PAYMENT_ACTIONS_QUEUE = 'payment-actions';
+export const BILLING_OVERDUE_QUEUE = 'billing-overdue';
+export const BILLING_INVOICE_LIST_QUEUE = 'billing-invoice-list';
+export const BILLING_RECONCILE_QUEUE = 'billing-reconcile';
+
+/**
+ * Once a day, the subscriptions whose payment has failed for more than fourteen days are
+ * cancelled at Stripe. UTC, like the reconciliations: nobody reads it, and a day late is harmless
+ * because the plan stays paid for until the cancellation.
+ */
+export const DEFAULT_BILLING_OVERDUE_CRON = '20 6 * * *';
+
+/**
+ * The list of the month's paid invoices: on the second, at 08:00 in Rome, the calendar of the
+ * Italian accounts. The second and not the first, so that a payment made on the last evening of a
+ * month has had a night to arrive.
+ */
+export const DEFAULT_BILLING_INVOICE_LIST_CRON = '0 8 2 * *';
+
+/**
+ * Every live subscription read back from Stripe and every claim of overage left open finished,
+ * once a day, twenty minutes after the cancellations, in UTC: a lost event costs a day at most.
+ */
+export const DEFAULT_BILLING_RECONCILE_CRON = '40 6 * * *';
+
+/**
+ * The monthly list is retried: five more attempts, thirty minutes apart and doubling (about
+ * fifteen hours in all), because a mail server down at 08:00 on the second must not cost the
+ * month its list.
+ */
+export const BILLING_INVOICE_LIST_RETRIES = { retryLimit: 5, retryDelay: 1800, retryBackoff: true };
+export const BILLING_INVOICE_LIST_TIMEZONE = 'Europe/Rome';
 
 /**
  * How often the calls owed to Stripe are drained.
@@ -179,6 +215,19 @@ export interface WorkerOptions {
    * (`usageDigestOffReason`).
    */
   usageDigestOffReason?: string;
+  /**
+   * The jobs of Stripe Billing, or nothing when Billing is switched off.
+   *
+   * `mailer` is what the monthly list of paid invoices is sent with; without one the list is not
+   * scheduled, and the cancellation of overdue subscriptions still runs.
+   */
+  billing?: {
+    deps: BillingDeps;
+    mailer?: Mailer;
+    overdueCron?: string;
+    reconcileCron?: string;
+    invoiceListCron?: string;
+  };
 }
 
 export interface WorkerUsageDigest extends Omit<UsageDigestOptions, 'now'> {
@@ -293,6 +342,26 @@ export async function startWorker(
     policy: 'short',
     retryLimit: 0,
   });
+  const billing = options.billing;
+  if (billing !== undefined) {
+    await boss.createQueue(BILLING_OVERDUE_QUEUE, {
+      name: BILLING_OVERDUE_QUEUE,
+      policy: 'short',
+      retryLimit: 0,
+    });
+    await boss.createQueue(BILLING_RECONCILE_QUEUE, {
+      name: BILLING_RECONCILE_QUEUE,
+      policy: 'short',
+      retryLimit: 0,
+    });
+    if (billing.mailer !== undefined) {
+      await boss.createQueue(BILLING_INVOICE_LIST_QUEUE, {
+        name: BILLING_INVOICE_LIST_QUEUE,
+        policy: 'short',
+        ...BILLING_INVOICE_LIST_RETRIES,
+      });
+    }
+  }
   const digest = options.usageDigest;
   if (digest !== undefined) {
     await boss.createQueue(USAGE_DIGEST_QUEUE, {
@@ -462,6 +531,10 @@ export async function startWorker(
       // project. Sign up rows carry an address, so they have a retention and this is it.
       const signups = await purgeSignups(deps);
       if (signups > 0) logger.info('signups_purged', { touched: signups });
+      // The dashboard's link requests and dead sessions, for the same reason: an address has a
+      // retention, and a session that ended has no reason to stay.
+      const dashboard = await purgeDashboard(deps);
+      if (dashboard > 0) logger.info('dashboard_purged', { touched: dashboard });
       // And a third, in the same hour and the same queue: the OAuth states of `/v1/stripe`
       // that nobody came back for. One statement more, not a queue more.
       const states = await purgeStripeOauthStates(deps);
@@ -489,6 +562,52 @@ export async function startWorker(
     });
   }
 
+  if (billing !== undefined) {
+    const billingJobDeps = {
+      db: deps.db,
+      logger,
+      billing: billing.deps,
+      mailer: billing.mailer,
+    };
+    await boss.work(BILLING_OVERDUE_QUEUE, { batchSize: 1 }, async () => {
+      try {
+        const report = await runBillingOverdue(billingJobDeps);
+        if (report.found > 0) logger.info('billing_overdue_tick', { ...report });
+      } catch (error) {
+        logger.error('billing_overdue_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+    await boss.work(BILLING_RECONCILE_QUEUE, { batchSize: 1 }, async () => {
+      try {
+        await runBillingReconcile(billingJobDeps);
+      } catch (error) {
+        logger.error('billing_reconcile_run_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+    const listMailer = billing.mailer;
+    if (listMailer !== undefined) {
+      // This one throws, unlike the others: pg-boss retries it (BILLING_INVOICE_LIST_RETRIES).
+      await boss.work(BILLING_INVOICE_LIST_QUEUE, { batchSize: 1 }, async () => {
+        try {
+          await runBillingInvoiceList(
+            { db: deps.db, logger, mailer: listMailer },
+            { to: billing.deps.invoiceTo },
+          );
+        } catch (error) {
+          logger.error('billing_invoice_list_failed', {
+            error: error instanceof Error ? error.message : String(error),
+            retries: BILLING_INVOICE_LIST_RETRIES.retryLimit,
+          });
+          throw error;
+        }
+      });
+    }
+  }
+
   if (options.schedule !== false) {
     // The watchdog. `short` makes it a no-op whenever the loop is already armed, so its only
     // effect is to restart a loop that was somehow lost.
@@ -506,6 +625,27 @@ export async function startWorker(
       ORPHAN_RECONCILE_QUEUE,
       options.orphanReconcileCron ?? DEFAULT_ORPHAN_RECONCILE_CRON,
     );
+    if (billing !== undefined) {
+      const overdueCron = billing.overdueCron ?? DEFAULT_BILLING_OVERDUE_CRON;
+      await boss.schedule(BILLING_OVERDUE_QUEUE, overdueCron);
+      await boss.schedule(
+        BILLING_RECONCILE_QUEUE,
+        billing.reconcileCron ?? DEFAULT_BILLING_RECONCILE_CRON,
+      );
+      if (billing.mailer !== undefined) {
+        await boss.schedule(
+          BILLING_INVOICE_LIST_QUEUE,
+          billing.invoiceListCron ?? DEFAULT_BILLING_INVOICE_LIST_CRON,
+          {},
+          { tz: BILLING_INVOICE_LIST_TIMEZONE },
+        );
+      }
+      logger.info('billing_jobs_scheduled', {
+        mode: billing.deps.mode,
+        overdue_cron: overdueCron,
+        invoice_list: billing.mailer === undefined ? 'off (no mailer)' : 'on',
+      });
+    }
     if (digest !== undefined) {
       const cron = digest.cron ?? DEFAULT_USAGE_DIGEST_CRON;
       const tz = digest.timezone ?? USAGE_DIGEST_TIMEZONE;

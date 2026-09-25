@@ -57,10 +57,12 @@ What exists today:
   [`@bookrail/node`](https://www.npmjs.com/package/@bookrail/node),
   [`@bookrail/mcp`](https://www.npmjs.com/package/@bookrail/mcp) and
   [`@bookrail/webhook-signature`](https://www.npmjs.com/package/@bookrail/webhook-signature).
-- A **test key is self service**: `npx bookrail signup`, or
+- **Keys are self service**: `npx bookrail signup`, or
   [bookrail.dev/signup](https://bookrail.dev/signup). It sends a link, you open it, and the
-  account, the project and the key exist. A **live key** still comes from a person: write to
-  hello@bookrail.dev and say what you are building. There is no dashboard yet.
+  account, the project, a test key and a live key exist. The live key books for real on the
+  free plan (1,000 confirmed live bookings a month, then new ones are refused until the next
+  month or a paying plan). The dashboard at [bookrail.dev/dashboard](https://bookrail.dev/dashboard/)
+  shows the plan and this month's usage, and creates and revokes keys.
 
 Every API key has a **rate limit**: 20 requests a second with bursts of 40 on a `sk_test_` key,
 100 a second with bursts of 500 on a `sk_live_` one, with `RateLimit-Limit`, `RateLimit-Remaining`

@@ -43,14 +43,21 @@ describe('the padel walkthrough, through MCP tools only', () => {
   let bookingStart = '';
 
   it('1. says which project it is about to change', async () => {
-    const result = await session.call<{ project: { id: string }; live_allowed: boolean }>(
-      'bookrail_project_info',
-      {},
-    );
+    const result = await session.call<{
+      project: { id: string };
+      live_allowed: boolean;
+      plan: string;
+      usage: { bookings_confirmed: number; bookings_included: number; blocks_at_limit: boolean };
+    }>('bookrail_project_info', {});
     expect(result.isError).toBe(false);
     expect(result.envelope.environment).toBe('test');
     expect(result.envelope.data?.project.id).toBe(project.projectId);
     expect(result.envelope.data?.live_allowed).toBe(false);
+    // The plan of the account and this month's live usage, even from the test environment.
+    expect(result.envelope.data?.plan).toBe('free');
+    expect(result.envelope.data?.usage.bookings_confirmed).toBe(0);
+    expect(result.envelope.data?.usage.bookings_included).toBe(1000);
+    expect(result.envelope.data?.usage.blocks_at_limit).toBe(true);
     expect(result.envelope.next_steps?.length).toBeGreaterThan(0);
   });
 

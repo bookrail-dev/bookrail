@@ -572,6 +572,20 @@ describe('/v1/webhooks', () => {
     // `stripe.*` ones and the incoming webhook receiver writes the three `payment.*` ones, so
     // the scan covers both routes: the property being checked is still "the list in
     // `@bookrail/shared` is exactly what the source emits", not "the engine emits everything".
+    // And the plan: `plan.usage_warning` is written by the engine's plan counter, which lives
+    // beside the booking transaction rather than inside it.
+    const planSource = await readFile(
+      fileURLToPath(new URL('../../engine/src/plan/usage.ts', import.meta.url)),
+      'utf8',
+    );
+    for (const match of planSource.matchAll(/'(plan\.[a-z_]+)'/g)) found.add(match[1] ?? '');
+    // And `plan.changed`, which the database writes itself, in the transaction that changes the
+    // plan of an account (migration 0027), for a signed Stripe Billing event or `bookrail-plan`.
+    const billingMigration = await readFile(
+      fileURLToPath(new URL('../../db/migrations/0027_billing.sql', import.meta.url)),
+      'utf8',
+    );
+    for (const match of billingMigration.matchAll(/'(plan\.[a-z_]+)'/g)) found.add(match[1] ?? '');
     for (const file of ['../src/routes/stripe.ts', '../src/routes/stripe-webhook.ts']) {
       const source = await readFile(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
       for (const match of source.matchAll(/'((?:stripe|payment)\.[a-z_]+)'/g)) {

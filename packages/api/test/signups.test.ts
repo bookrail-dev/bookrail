@@ -11,9 +11,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
-import { createLogger } from '@bookrail/shared';
+import { PLANS, createLogger } from '@bookrail/shared';
 import { createDatabase, resolveDatabaseUrls } from '@bookrail/db';
-import { createHarness, type Harness } from './harness.js';
+import { buildScenario, nextMonday, plusDays, slotsFor } from './booking-fixtures.js';
+import { WEBHOOK_SECRET_KEY, createHarness, type Harness } from './harness.js';
+import { encryptSecret } from '../src/webhooks/secrets.js';
 import { TEST_DB_NAME } from './db-name.js';
 import { purgeSignups } from '../src/jobs/tasks.js';
 
@@ -31,9 +33,11 @@ interface SignupBody {
   poll_token?: string;
   delivered_to?: string;
   secret_key?: string;
+  live_secret_key?: string;
   account?: { id: string; name: string };
   project?: { id: string; name: string; default_timezone: string; default_currency: string };
   api_key?: { id: string; environment: string; kind: string; prefix: string };
+  api_keys?: { id: string; environment: string; kind: string; prefix: string }[];
 }
 
 interface ErrorBody {
@@ -62,12 +66,18 @@ function tokenOfLastMessage(h: Harness): string {
   return decodeURIComponent(match[1]);
 }
 
+/** The two ticks of the terms, which every sign up carries unless a test is about their absence. */
+const TERMS = { accept_terms: true, approve_clauses: true } as const;
+
 async function start(
   h: Harness,
   body: Record<string, unknown>,
   headers: Record<string, string> = freshCaller(),
 ): Promise<{ status: number; body: SignupBody; headers: Headers }> {
-  const response = await h.call<SignupBody>('POST', '/v1/signups', { body, headers });
+  const response = await h.call<SignupBody>('POST', '/v1/signups', {
+    body: { ...TERMS, ...body },
+    headers,
+  });
   return response;
 }
 
@@ -97,8 +107,12 @@ describe('POST /v1/signups', () => {
     expect((h.mailer?.sent.length ?? 0) - before).toBe(1);
     const message = h.mailer?.last();
     expect(message?.to).toBe(email);
-    expect(message?.subject).toBe('Confirm your Bookrail test key');
+    expect(message?.subject).toBe('Confirm your Bookrail keys');
     expect(message?.text).toContain('https://bookrail.dev/signup/confirm#token=');
+    // It says what the link hands over, and the number comes from the plan table.
+    expect(message?.text).toContain('a test key');
+    expect(message?.text).toContain('a live key, which makes real bookings, on the free plan');
+    expect(message?.text).toContain('1,000 confirmed live bookings a month');
   });
 
   it('gives a terminal a poll token and never the confirmation token', async () => {
@@ -141,7 +155,7 @@ describe('POST /v1/signups', () => {
       expect(response.status, `attempt ${String(attempt)}`).toBe(202);
     }
     const fourth = await h.call<ErrorBody>('POST', '/v1/signups', {
-      body: { email, client: 'web' },
+      body: { email, client: 'web', ...TERMS },
       headers: freshCaller(),
     });
     expect(fourth.status).toBe(429);
@@ -158,7 +172,7 @@ describe('POST /v1/signups', () => {
       expect(response.status, `attempt ${String(attempt)}`).toBe(202);
     }
     const eleventh = await h.call<ErrorBody>('POST', '/v1/signups', {
-      body: { email: freshEmail(), client: 'web' },
+      body: { email: freshEmail(), client: 'web', ...TERMS },
       headers: caller,
     });
     expect(eleventh.status).toBe(429);
@@ -167,7 +181,7 @@ describe('POST /v1/signups', () => {
 
   it('refuses a body it does not understand', async () => {
     const bad = await h.call<ErrorBody>('POST', '/v1/signups', {
-      body: { email: 'not-an-address', client: 'web' },
+      body: { email: 'not-an-address', client: 'web', ...TERMS },
       headers: freshCaller(),
     });
     expect(bad.status).toBe(400);
@@ -192,7 +206,7 @@ describe('POST /v1/signups/confirm', () => {
     await h.close();
   });
 
-  it('creates an account, a project and one test key, and shows the key once', async () => {
+  it('creates an account, a project, a test key and a live key, and shows both once', async () => {
     const email = freshEmail();
     await start(h, {
       email,
@@ -217,12 +231,57 @@ describe('POST /v1/signups/confirm', () => {
     expect(secret).toMatch(/^sk_test_/);
     expect(secret).toContain(response.body.api_key?.prefix ?? 'nothing');
 
-    // The key it minted is a key: it opens the project it was made for.
-    const project = await h.call<{ id: string; name: string }>('GET', '/v1/project', {
-      token: secret,
-    });
-    expect(project.status).toBe(200);
-    expect(project.body.id).toBe(response.body.project?.id);
+    // Two secrets in clear text: nothing between here and the page may keep a copy.
+    expect(response.headers.get('cache-control')).toBe('no-store');
+
+    // The live one, next to it, with its own prefix, and the list of the two.
+    const live = response.body.live_secret_key ?? '';
+    expect(live).toMatch(/^sk_live_/);
+    expect(response.body.api_keys?.map((key) => key.environment)).toEqual(['test', 'live']);
+    expect(response.body.api_keys?.[0]).toEqual(response.body.api_key);
+    expect(live).toContain(response.body.api_keys?.[1]?.prefix ?? 'nothing');
+    expect(response.body.api_keys?.[1]).toMatchObject({ kind: 'secret', object: 'api_key' });
+
+    // The keys it minted are keys: they open the project they were made for, each in its own
+    // environment, on the free plan.
+    for (const [key, environment] of [
+      [secret, 'test'],
+      [live, 'live'],
+    ] as const) {
+      const project = await h.call<{ id: string; environment: string; plan: string }>(
+        'GET',
+        '/v1/project',
+        { token: key },
+      );
+      expect(project.status).toBe(200);
+      expect(project.body).toMatchObject({
+        id: response.body.project?.id,
+        environment,
+        plan: 'free',
+      });
+    }
+
+    // Both secret, with no scope and no tenant.
+    const admin = new Client({ connectionString: adminUrl() });
+    await admin.connect();
+    try {
+      const { rows } = await admin.query<{
+        environment: string;
+        kind: string;
+        scopes: string[];
+        tenant_id: string | null;
+      }>(
+        `SELECT environment, kind, scopes, tenant_id FROM api_keys
+          WHERE project_id = $1::uuid ORDER BY environment DESC`,
+        [uuidOfProject(response.body.project?.id ?? '')],
+      );
+      expect(rows).toEqual([
+        { environment: 'test', kind: 'secret', scopes: [], tenant_id: null },
+        { environment: 'live', kind: 'secret', scopes: [], tenant_id: null },
+      ]);
+    } finally {
+      await admin.end();
+    }
   });
 
   it('sends a terminal its key through the claim and not in the response', async () => {
@@ -240,7 +299,12 @@ describe('POST /v1/signups/confirm', () => {
     });
     expect(claim.status).toBe(200);
     expect(claim.body.secret_key).toMatch(/^sk_test_/);
+    expect(claim.body.live_secret_key).toMatch(/^sk_live_/);
+    expect(claim.headers.get('cache-control')).toBe('no-store');
     expect(claim.body.api_key?.id).toBe(confirm.body.api_key?.id);
+    expect(claim.body.api_keys).toEqual(confirm.body.api_keys);
+    expect(confirm.body.live_secret_key).toBeUndefined();
+    expect(claim.body.live_secret_key).toContain(claim.body.api_keys?.[1]?.prefix ?? 'nothing');
   });
 
   it('says email_taken and creates nothing when the address already has an account', async () => {
@@ -326,6 +390,15 @@ describe('POST /v1/signups/confirm', () => {
         [email],
       );
       expect(statuses.map((row) => row.status).sort()).toEqual(['claimed', 'email_taken']);
+      // And the one account has its two keys, not four: the refused attempt rolled back whole.
+      const { rows: keys } = await admin.query<{ environment: string }>(
+        `SELECT k.environment FROM api_keys k
+           JOIN projects p ON p.id = k.project_id
+           JOIN accounts a ON a.id = p.account_id
+          WHERE a.owner_email = $1 ORDER BY k.environment`,
+        [email],
+      );
+      expect(keys.map((row) => row.environment)).toEqual(['live', 'test']);
     } finally {
       await admin.end();
     }
@@ -430,6 +503,40 @@ describe('POST /v1/signups/{id}/claim', () => {
     expect(second.body.error.code).toBe('signup_secret_claimed');
   });
 
+  /**
+   * An envelope sealed before migration 0026 holds the test key alone, as a bare string. A
+   * terminal that was waiting across the release still collects it: the claim reads both forms.
+   */
+  it('still hands over an envelope sealed with the test key alone', async () => {
+    const created = await start(h, { email: freshEmail(), client: 'cli' });
+    await h.call('POST', '/v1/signups/confirm', { body: { token: tokenOfLastMessage(h) } });
+    const legacyKey = `sk_test_${'L'.repeat(43)}`;
+    const admin = new Client({ connectionString: adminUrl() });
+    await admin.connect();
+    try {
+      const { rows } = await admin.query<{ api_key_id: string }>(
+        'SELECT api_key_id::text FROM signups WHERE id = $1::uuid',
+        [uuidOf(created.body.id)],
+      );
+      await admin.query(
+        `UPDATE signups SET pending_secret = $2, live_api_key_id = NULL WHERE id = $1::uuid`,
+        [
+          uuidOf(created.body.id),
+          encryptSecret(legacyKey, WEBHOOK_SECRET_KEY, rows[0]!.api_key_id),
+        ],
+      );
+    } finally {
+      await admin.end();
+    }
+    const claim = await h.call<SignupBody>('POST', `/v1/signups/${created.body.id}/claim`, {
+      body: { poll_token: created.body.poll_token },
+    });
+    expect(claim.status).toBe(200);
+    expect(claim.body.secret_key).toBe(legacyKey);
+    expect(claim.body.live_secret_key).toBeUndefined();
+    expect(claim.body.api_keys?.map((key) => key.environment)).toEqual(['test']);
+  });
+
   it('refuses a wrong poll token exactly as it refuses a wrong identifier', async () => {
     const created = await start(h, { email: freshEmail(), client: 'cli' });
     const wrongToken = await h.call<ErrorBody>('POST', `/v1/signups/${created.body.id}/claim`, {
@@ -455,6 +562,56 @@ describe('POST /v1/signups/{id}/claim', () => {
     });
     expect(response.status).toBe(410);
     expect(response.body.error.code).toBe('signup_secret_expired');
+  });
+});
+
+/**
+ * The live key of a sign up is a real key: it books in live, and what it books counts against the
+ * free plan the account is born on, which refuses at its threshold. The threshold is lowered to
+ * one booking, the same arithmetic.
+ */
+describe('the live key of a sign up', () => {
+  let h: Harness;
+
+  beforeAll(() => {
+    h = createHarness({ plans: { ...PLANS, free: { ...PLANS.free, bookingsIncluded: 1 } } });
+  });
+
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it('books in live, counts in the plan, and is refused at the threshold', async () => {
+    await start(h, { email: freshEmail(), client: 'web' });
+    const confirmed = await h.call<SignupBody>('POST', '/v1/signups/confirm', {
+      body: { token: tokenOfLastMessage(h) },
+    });
+    const live = confirmed.body.live_secret_key ?? '';
+    expect(live).toMatch(/^sk_live_/);
+
+    const scenario = await buildScenario(h, live, { resources: 1 });
+    const monday = nextMonday();
+    const slots = await slotsFor(h, live, scenario.serviceId, monday, plusDays(monday, 1));
+    const booked = await h.call('POST', '/v1/bookings', {
+      token: live,
+      body: { service_id: scenario.serviceId, start: slots[0]!.start },
+    });
+    expect(booked.status).toBe(201);
+
+    const project = await h.call<{ plan: string; usage: { bookings_confirmed: number } }>(
+      'GET',
+      '/v1/project',
+      { token: live },
+    );
+    expect(project.body.plan).toBe('free');
+    expect(project.body.usage.bookings_confirmed).toBe(1);
+
+    const refused = await h.call<ErrorBody>('POST', '/v1/bookings', {
+      token: live,
+      body: { service_id: scenario.serviceId, start: slots[2]!.start },
+    });
+    expect(refused.status).toBe(402);
+    expect(refused.body.error.code).toBe('plan_limit_reached');
   });
 });
 
@@ -484,11 +641,11 @@ describe('the sign up endpoints and the rest of the API', () => {
   it('ignores an Idempotency-Key instead of refusing it', async () => {
     const key = `signup-${String(Date.now())}`;
     const first = await h.call<SignupBody>('POST', '/v1/signups', {
-      body: { email: freshEmail(), client: 'web' },
+      body: { email: freshEmail(), client: 'web', ...TERMS },
       headers: { ...freshCaller(), 'idempotency-key': key },
     });
     const second = await h.call<SignupBody>('POST', '/v1/signups', {
-      body: { email: freshEmail(), client: 'web' },
+      body: { email: freshEmail(), client: 'web', ...TERMS },
       headers: { ...freshCaller(), 'idempotency-key': key },
     });
     expect(first.status).toBe(202);
@@ -509,7 +666,7 @@ describe('the sign up endpoints and the rest of the API', () => {
     expect(preflight.headers.get('vary')).toBe('Origin');
 
     const created = await h.call('POST', '/v1/signups', {
-      body: { email: freshEmail(), client: 'web' },
+      body: { email: freshEmail(), client: 'web', ...TERMS },
       headers: freshCaller(),
     });
     expect(created.headers.get('access-control-allow-origin')).toBe('https://bookrail.dev');
@@ -553,7 +710,7 @@ describe('the sign up endpoints and the rest of the API', () => {
 
     // 400: an address that is not one.
     const bad = await h.call('POST', '/v1/signups', {
-      body: { email: 'nope', client: 'web' },
+      body: { email: 'nope', client: 'web', ...TERMS },
       headers: caller,
     });
     // 404: a token nobody was ever sent.
@@ -573,7 +730,7 @@ describe('the sign up endpoints and the rest of the API', () => {
     await start(h, { email, client: 'web' }, caller);
     await start(h, { email, client: 'web' }, caller);
     const limited = await h.call('POST', '/v1/signups', {
-      body: { email, client: 'web' },
+      body: { email, client: 'web', ...TERMS },
       headers: caller,
     });
     // 410 on the claim: a sign up that has no key to hand over.
@@ -621,7 +778,7 @@ describe('the sign up endpoints and the rest of the API', () => {
     try {
       const email = freshEmail();
       const created = await logged.call<SignupBody>('POST', '/v1/signups', {
-        body: { email, client: 'cli' },
+        body: { email, client: 'cli', ...TERMS },
         headers: freshCaller(),
       });
       // The `log` mailer deliberately writes the whole message, which is why it is refused in
@@ -671,7 +828,7 @@ describe('a deployment with no mailer', () => {
 
   it('answers 503 on all three, with the old way in, and with the CORS headers', async () => {
     for (const [path, body] of [
-      ['/v1/signups', { email: 'a@example.com', client: 'web' }],
+      ['/v1/signups', { email: 'a@example.com', client: 'web', ...TERMS }],
       ['/v1/signups/confirm', { token: 'a'.repeat(43) }],
       [`/v1/signups/sgn_${'0'.repeat(32)}/claim`, { poll_token: 'a'.repeat(43) }],
     ] as const) {
@@ -711,7 +868,7 @@ describe('a mail server that is down', () => {
   it('answers 502 and keeps the request it could not tell anybody about', async () => {
     const email = freshEmail();
     const response = await h.call<ErrorBody>('POST', '/v1/signups', {
-      body: { email, client: 'web' },
+      body: { email, client: 'web', ...TERMS },
       headers: freshCaller(),
     });
     expect(response.status).toBe(502);
@@ -836,6 +993,10 @@ async function rowsOf(
     byPublicId.set(publicId, { status: row.status, has_secret: row.has_secret });
   }
   return byPublicId;
+}
+
+function uuidOfProject(publicId: string): string {
+  return uuidOf(publicId.replace(/^proj_/, 'sgn_'));
 }
 
 function uuidOf(publicId: string): string {

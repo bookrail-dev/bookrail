@@ -10,33 +10,41 @@
  * The API lives on another host, so the browser asks permission first; `/v1/signups` is the
  * only part of the API that answers a cross origin request, and it answers this origin only.
  *
- * A live key is not here on purpose. It still comes from a person, and will until there is a
- * paid plan behind it.
+ * The link hands over two keys, a test one and a live one on the Free plan, whose monthly
+ * threshold is read from the plan table rather than written here.
+ *
+ * The keys are issued under the Terms of Service and the Data Processing Agreement, for
+ * businesses only: two boxes, both required, the second being the specific approval of the
+ * clauses listed in Section 17 that articles 1341 and 1342 of the Italian civil code ask for. The
+ * API refuses a request without both (`400 terms_not_accepted`).
  */
+import { PLANS } from '@bookrail/shared';
 import Base from '../layouts/Base.astro';
-import { CONTACT_EMAIL } from '../data/site';
+import { thousands } from '../data/pricing';
+
+const FREE_INCLUDED = thousands(PLANS.free.bookingsIncluded ?? 0);
 
 /** Build time value: the API this site talks to. A preview build points it somewhere else. */
 const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
 ---
 
 <Base
-  title="Get a test key, Bookrail"
-  description="Type an address, open the link, get a Bookrail test key. No dashboard, no password, no waiting for a person."
+  title="Get API keys, Bookrail"
+  description="Type an address, open the link, get a Bookrail test key and a live key. No password, no waiting for a person."
 >
   <div class="wrap prose">
-    <h1>Get a test key</h1>
+    <h1>Get API keys</h1>
     <p>
-      Type an address. We send a link, you open it, and the key is yours: an account, a project
-      and one <code>sk_test_</code> key. It takes under two minutes and nobody has to read an
-      email at the other end.
+      Type an address. We send a link, you open it, and the keys are yours: an account, a
+      project, one <code>sk_test_</code> key and one <code>sk_live_</code> key. It takes under
+      two minutes and nobody has to read an email at the other end.
     </p>
     <p>
-      Prefer the terminal? <code>npx bookrail signup</code> does the same thing and stores the
-      key for you.
+      Prefer the terminal? <code>npx bookrail signup</code> does the same thing and stores both
+      keys for you.
     </p>
 
-    <form id="signup-form" class="signup-form" novalidate>
+    <form id="signup-form" class="signup-form" data-api-url={API_URL} novalidate>
       <label class="field">
         <span>Email address</span>
         <input
@@ -52,6 +60,24 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
         <span>Account name <em>(optional)</em></span>
         <input id="signup-account" name="account_name" type="text" placeholder="Padel Roma" />
       </label>
+      <fieldset class="terms">
+        <legend class="visually-hidden">Terms</legend>
+        <label class="check">
+          <input id="signup-accept-terms" name="accept_terms" type="checkbox" required />
+          <span
+            >I accept the <a href="/terms">Terms of Service</a> and the
+            <a href="/dpa">Data Processing Agreement</a> on behalf of my business</span
+          >
+        </label>
+        <label class="check">
+          <input id="signup-approve-clauses" name="approve_clauses" type="checkbox" required />
+          <span
+            >I specifically approve the clauses listed in <a href="/terms#17-specific-approval"
+              >Section 17 of the Terms</a
+            > (Articles 1341 and 1342 of the Italian Civil Code)</span
+          >
+        </label>
+      </fieldset>
       <button id="signup-submit" class="btn primary" type="submit">Send me a link</button>
     </form>
 
@@ -61,20 +87,22 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
       <p>
         This form needs JavaScript, because it posts to the API and there is no server behind
         this page. Run <code>npx bookrail signup</code> instead: it asks for an address, sends
-        the same link, and stores the key for you.
+        the same link, and stores both keys for you.
       </p>
     </noscript>
 
     <h2>What you get</h2>
     <ul>
-      <li>A test key, immediately, with the full API behind it.</li>
+      <li>A test key, immediately, with the full API behind it, free and never counted.</li>
       <li>
-        No dashboard yet, and no password: the key is the account. Keep it somewhere safe, it is
-        shown once.
+        A live key on the <a href="/pricing/">Free plan</a>: up to {FREE_INCLUDED} confirmed
+        live bookings a month, then new live bookings are refused until the next month or a
+        paying plan.
       </li>
       <li>
-        A <strong>live key</strong> still comes from a person. Write to
-        <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> and say what you are building.
+        Both are shown once. The <a href="/dashboard/">dashboard</a>, where you sign in with a
+        link sent to the same address, shows the plan and this month's usage, and makes and
+        revokes keys. No password anywhere.
       </li>
     </ul>
     <p>
@@ -116,6 +144,43 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
+  .terms {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-3);
+    align-items: start;
+    font-size: var(--step--1);
+    color: var(--ink-2);
+  }
+  .check input {
+    width: 16px;
+    height: 16px;
+    margin: 3px 0 0;
+    accent-color: var(--accent);
+  }
+  .check input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .check a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
   .signup-form button {
     justify-self: start;
     cursor: pointer;
@@ -138,73 +203,6 @@ const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.bookrail.dev';
   }
 </style>
 
-<script is:inline define:vars={{ API_URL }}>
-  (function () {
-    const form = document.getElementById('signup-form');
-    const email = document.getElementById('signup-email');
-    const account = document.getElementById('signup-account');
-    const submit = document.getElementById('signup-submit');
-    const status = document.getElementById('signup-status');
-    if (!form || !email || !account || !submit || !status) return;
-
-    function say(text, state) {
-      status.textContent = text;
-      status.setAttribute('data-state', state);
-    }
-
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
-      const address = email.value.trim();
-      if (address === '') {
-        say('Type the address the link should go to.', 'error');
-        email.focus();
-        return;
-      }
-      const name = account.value.trim();
-      submit.setAttribute('disabled', 'disabled');
-      say('Sending...', 'busy');
-
-      fetch(API_URL + '/v1/signups', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          name === ''
-            ? { email: address, client: 'web' }
-            : { email: address, client: 'web', account_name: name },
-        ),
-      })
-        .then(function (response) {
-          return response.json().then(function (body) {
-            return { status: response.status, body: body };
-          });
-        })
-        .then(function (result) {
-          submit.removeAttribute('disabled');
-          if (result.status === 202) {
-            const until = result.body && result.body.expires_at ? result.body.expires_at : '';
-            say(
-              'Check your inbox. We sent a link to ' +
-                address +
-                '. Open it to finish' +
-                (until === '' ? '.' : '; it works until ' + until + '.'),
-              'sent',
-            );
-            form.reset();
-            return;
-          }
-          const error = (result.body && result.body.error) || {};
-          say(
-            (error.message || 'That did not work.') + (error.fix ? ' ' + error.fix : ''),
-            'error',
-          );
-        })
-        .catch(function () {
-          submit.removeAttribute('disabled');
-          say(
-            'The API could not be reached. Try again in a minute, or write to hello@bookrail.dev.',
-            'error',
-          );
-        });
-    });
-  })();
+<script>
+  import '../scripts/signup-form';
 </script>

@@ -232,14 +232,14 @@ describe('with one article published', () => {
       '<link rel="alternate" type="application/atom+xml" title="Bookrail blog" href="/blog/feed.xml">';
     expect(await read('blog/index.html')).toContain(feedLink);
     expect(await read(`blog/${SLUG}/index.html`)).toContain(feedLink);
-    for (const file of ['index.html', 'early-access/index.html', 'docs/index.html']) {
+    for (const file of ['index.html', 'pricing/index.html', 'docs/index.html']) {
       expect(await read(file), file).not.toContain('atom+xml');
     }
   });
 
   it('puts the blog in the header, the footer and the header of the documentation', async () => {
     // A page outside the documentation carries the header and the footer, so two links.
-    for (const file of ['index.html', 'early-access/index.html']) {
+    for (const file of ['index.html', 'pricing/index.html']) {
       const html = await read(file);
       expect([...html.matchAll(/href="\/blog\/"/g)].length, file).toBe(2);
     }
@@ -416,7 +416,7 @@ describe('the articles this working copy publishes', () => {
   );
 
   it('links the blog from the header and the footer, documentation included', async () => {
-    for (const file of ['index.html', 'early-access/index.html', 'docs/index.html']) {
+    for (const file of ['index.html', 'pricing/index.html', 'docs/index.html']) {
       expect([...(await read(file)).matchAll(/href="\/blog\/"/g)].length, file).toBe(2);
     }
   });

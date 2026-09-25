@@ -13,7 +13,7 @@ import {
 } from '@bookrail/api';
 import { createDatabase, createPool, resolveDatabaseUrls } from '@bookrail/db';
 import { MemoryAvailabilityCache } from '@bookrail/engine';
-import { silentLogger } from '@bookrail/shared';
+import { silentLogger, type PlanTable } from '@bookrail/shared';
 import { run } from '../src/run.js';
 import type { Io } from '../src/io.js';
 import { TEST_DB_NAME } from './db-name.js';
@@ -156,6 +156,12 @@ export interface HarnessOptions {
    * calls, which is what `RATE_LIMIT_TEST_RPS` and `RATE_LIMIT_TEST_BURST` set on a deployment.
    */
   rateLimit?: { rate: number; burst: number };
+  /**
+   * The plan table the API runs with, when a suite needs a threshold it can reach: the free
+   * plan's thousand bookings lowered to a handful, the same arithmetic. The published one by
+   * default.
+   */
+  plans?: PlanTable;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -187,6 +193,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     siteUrl: 'https://bookrail.dev',
     siteOrigin: 'https://bookrail.dev',
     allowPrivateWebhookTargets: true,
+    ...(options.plans === undefined ? {} : { plans: options.plans }),
     ...(options.stripeBase === undefined
       ? {}
       : {

@@ -18,6 +18,9 @@ const BASE = {
   APP_DB_ROLE: 'bookrail_app',
 } satisfies NodeJS.ProcessEnv;
 
+/** Versions of the terms that are not drafts, for the cases that load a production configuration. */
+const APPROVED = { legalVersions: { terms: '2026-10-01', dpa: '2026-10-01' } };
+
 describe('the mailer configuration', () => {
   it('leaves sign up switched off when the variable is not set', () => {
     const config = loadConfig({ ...BASE });
@@ -32,9 +35,9 @@ describe('the mailer configuration', () => {
   });
 
   it('refuses to start with the log mailer in production', () => {
-    expect(() => loadConfig({ ...BASE, BOOKRAIL_MAILER: 'log', NODE_ENV: 'production' })).toThrow(
-      /BOOKRAIL_MAILER=log/,
-    );
+    expect(() =>
+      loadConfig({ ...BASE, BOOKRAIL_MAILER: 'log', NODE_ENV: 'production' }, APPROVED),
+    ).toThrow(/BOOKRAIL_MAILER=log/);
   });
 
   it('refuses a mailer it does not know', () => {
@@ -51,15 +54,18 @@ describe('the mailer configuration', () => {
   });
 
   it('reads the SMTP mailer, the site and the browser origin', () => {
-    const config = loadConfig({
-      ...BASE,
-      NODE_ENV: 'production',
-      BOOKRAIL_MAILER: 'smtp',
-      SMTP_URL: 'smtps://user:password@smtp.example.com:465',
-      MAIL_FROM: 'Bookrail <noreply@bookrail.dev>',
-      BOOKRAIL_SITE_URL: 'https://staging.example.com/',
-      BOOKRAIL_SITE_ORIGIN: 'http://localhost:4321',
-    });
+    const config = loadConfig(
+      {
+        ...BASE,
+        NODE_ENV: 'production',
+        BOOKRAIL_MAILER: 'smtp',
+        SMTP_URL: 'smtps://user:password@smtp.example.com:465',
+        MAIL_FROM: 'Bookrail <noreply@bookrail.dev>',
+        BOOKRAIL_SITE_URL: 'https://staging.example.com/',
+        BOOKRAIL_SITE_ORIGIN: 'http://localhost:4321',
+      },
+      APPROVED,
+    );
     expect(config.mailer).toBe('smtp');
     expect(config.smtpUrl).toBe('smtps://user:password@smtp.example.com:465');
     expect(config.mailFrom).toBe('Bookrail <noreply@bookrail.dev>');
@@ -97,12 +103,15 @@ describe('the usage digest configuration', () => {
    */
   it('gives the worker the same mailer rules as the API', () => {
     expect(() =>
-      loadConfig({
-        ...BASE,
-        NODE_ENV: 'production',
-        BOOKRAIL_MAILER: 'log',
-        USAGE_DIGEST_TO: 'hello@bookrail.dev',
-      }),
+      loadConfig(
+        {
+          ...BASE,
+          NODE_ENV: 'production',
+          BOOKRAIL_MAILER: 'log',
+          USAGE_DIGEST_TO: 'hello@bookrail.dev',
+        },
+        APPROVED,
+      ),
     ).toThrow(/BOOKRAIL_MAILER=log/);
   });
 });
@@ -113,7 +122,8 @@ describe('the rate limit configuration', () => {
     expect(config.rateLimit).toEqual({
       enabled: true,
       test: { rate: 20, burst: 40 },
-      live: { rate: 100, burst: 500 },
+      // No override: a live key has the ceiling of its account's plan.
+      live: null,
     });
     expect(DEFAULT_RATE_LIMITS.test).toEqual({ rate: 20, burst: 40 });
     expect(DEFAULT_RATE_LIMITS.live).toEqual({ rate: 100, burst: 500 });
@@ -163,7 +173,20 @@ describe('the rate limit configuration', () => {
   it('treats an empty value as unset, the way an unexported variable arrives', () => {
     const config = loadConfig({ ...BASE, RATE_LIMIT_TEST_RPS: '', RATE_LIMIT_LIVE_BURST: '  ' });
     expect(config.rateLimit.test.rate).toBe(20);
-    expect(config.rateLimit.live.burst).toBe(500);
+    expect(config.rateLimit.live).toBeNull();
+  });
+
+  it('overrides every live key when one of the two live variables is set', () => {
+    // The half that is not written comes from the default, not from a plan: an override is one
+    // ceiling for every live key, and a plan's burst next to an operator's rate would be neither.
+    expect(loadConfig({ ...BASE, RATE_LIMIT_LIVE_RPS: '50' }).rateLimit.live).toEqual({
+      rate: 50,
+      burst: 500,
+    });
+    expect(loadConfig({ ...BASE, RATE_LIMIT_LIVE_BURST: '60' }).rateLimit.live).toEqual({
+      rate: 100,
+      burst: 60,
+    });
   });
 
   /**
@@ -308,5 +331,32 @@ describe('the Stripe platform configuration', () => {
     expect(() =>
       loadConfig({ ...BASE, ...TEST_ENV, STRIPE_CLIENT_ID_TEST: 'acct_NotAnApplication' }),
     ).toThrow(/STRIPE_CLIENT_ID_TEST must be a Stripe Connect client id/);
+  });
+});
+
+describe('the versions of the terms in production', () => {
+  it('refuses to start while the terms or the DPA it records are drafts', () => {
+    expect(() =>
+      loadConfig(
+        { ...BASE, NODE_ENV: 'production' },
+        { legalVersions: { terms: '2026-09-24-draft', dpa: '2026-10-01' } },
+      ),
+    ).toThrow(/Terms of Service \(2026-09-24-draft\) is a draft/);
+    expect(() =>
+      loadConfig(
+        { ...BASE, NODE_ENV: 'production' },
+        { legalVersions: { terms: '2026-01-01-fixture', dpa: '2026-01-01-fixture' } },
+      ),
+    ).toThrow(/are drafts/);
+  });
+
+  it('starts with approved versions, and outside production with drafts', () => {
+    expect(() => loadConfig({ ...BASE, NODE_ENV: 'production' }, APPROVED)).not.toThrow();
+    expect(() =>
+      loadConfig(
+        { ...BASE, NODE_ENV: 'development' },
+        { legalVersions: { terms: '2026-09-24-draft', dpa: '2026-09-24-draft' } },
+      ),
+    ).not.toThrow();
   });
 });

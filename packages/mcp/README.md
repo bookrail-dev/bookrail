@@ -87,9 +87,10 @@ installed.
 
 ## Status
 
-Early access. The API is live at `https://api.bookrail.dev`, a **test key is self service**
-(`npx bookrail signup`, or [bookrail.dev/signup](https://bookrail.dev/signup)) while a **live
-key** still comes from a person (hello@bookrail.dev), and this package is on npm as
+Early access. The API is live at `https://api.bookrail.dev`, **keys are self service**
+(`npx bookrail signup`, or [bookrail.dev/signup](https://bookrail.dev/signup), hands you a test
+key and a live key on the free plan, and [bookrail.dev/dashboard](https://bookrail.dev/dashboard/)
+makes and revokes more), and this package is on npm as
 [`@bookrail/mcp`](https://www.npmjs.com/package/@bookrail/mcp), Apache 2.0, with its source in
 [github.com/bookrail-dev/bookrail](https://github.com/bookrail-dev/bookrail) under
 `packages/mcp`.

@@ -1,24 +1,69 @@
 ---
+/**
+ * The header of every page that is not documentation.
+ *
+ * Logo on the left; the links in the middle; on the right the repository, «Sign in» and «Get API
+ * keys». Under 900px the links, the repository and «Sign in» move into a full width panel behind a
+ * «Menu» button, and «Get API keys» stays in the bar. The panel is the same list of links, not a
+ * second copy of it, so each link is in the page once.
+ *
+ * The repository link carries the GitHub mark (`GitHubMark.astro`), the one mark of somebody else
+ * on this site, as GitHub's guidelines allow for a link to a repository.
+ *
+ * `script` is false on the homepage only: the homepage ships one JavaScript file, and the header's
+ * few lines are part of it (`src/scripts/home.ts`) instead of being a second file.
+ */
+import GitHubMark from './GitHubMark.astro';
 import Logo from './Logo.astro';
 import { withBlog } from '../data/blog';
-import { BRAND, NAV_LINKS } from '../data/site';
+import { BRAND, GITHUB_REPO, NAV_BLOG_BEFORE, NAV_LINKS } from '../data/site';
+import { SESSION_STORAGE_KEY } from '../scripts/dashboard-session';
+
+interface Props {
+  script?: boolean;
+}
+const { script = true } = Astro.props;
 
 // The blog is in the header only once it has an article in it, and then it is in every header.
-const links = await withBlog(NAV_LINKS);
+const links = await withBlog(NAV_LINKS, NAV_BLOG_BEFORE);
 ---
 
-<header class="nav" id="site-nav">
+<header class="nav" id="site-nav" data-session-key={SESSION_STORAGE_KEY}>
   <div class="wrap">
     <a class="logo" href="/" aria-label={`${BRAND}, home`}>
       <Logo size={30} />
       {BRAND}
     </a>
-    <nav class="nav-links" aria-label="Sections">
-      {links.map((link) => <a href={link.href}>{link.label}</a>)}
-    </nav>
+    <div class="nav-panel" id="nav-panel" data-menu-panel>
+      <nav class="nav-links" aria-label="Main">
+        {links.map((link) => <a href={link.href}>{link.label}</a>)}
+      </nav>
+      <div class="nav-aside">
+        <a class="nav-github" href={GITHUB_REPO}>
+          <GitHubMark />
+          <span class="nav-github-label">GitHub</span>
+        </a>
+        <a class="btn sm signin" href="/dashboard/" data-session-link>Sign in</a>
+      </div>
+    </div>
     <div class="nav-right">
-      <a class="btn sm" href="/early-access/">Early access</a>
-      <a class="btn sm primary" href="/signup/">Get a test key</a>
+      <a class="btn sm primary" href="/signup/">Get API keys</a>
+      <button
+        type="button"
+        class="btn sm menu-button"
+        aria-expanded="false"
+        aria-controls="nav-panel"
+        data-menu-button
+        hidden>Menu</button
+      >
     </div>
   </div>
 </header>
+
+{
+  script && (
+    <script>
+      import '../scripts/nav';
+    </script>
+  )
+}

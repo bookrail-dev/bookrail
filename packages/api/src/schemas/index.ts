@@ -1,6 +1,7 @@
 import { DURATION_PATTERN } from '@bookrail/engine';
 import {
   isSubscribableEventType,
+  PAID_PLAN_IDS,
   pricingRulesSchema,
   SUBSCRIBABLE_EVENT_TYPES,
 } from '@bookrail/shared';
@@ -420,6 +421,20 @@ export const emailSchema = z
   })
   .openapi({ type: 'string', format: 'email', example: 'you@example.com' });
 
+/**
+ * The two ticks of the terms, both required: the terms of service with the data processing
+ * agreement, and the specific approval of the clauses listed in their Section 17 (Articles 1341
+ * and 1342 of the Italian Civil Code). `true` is the only value that means anything.
+ */
+const acceptTermsSchema = z.boolean().openapi({
+  description:
+    'I accept the Terms of Service and the Data Processing Agreement on behalf of my business. Must be `true`.',
+});
+const approveClausesSchema = z.boolean().openapi({
+  description:
+    'I specifically approve the clauses listed in Section 17 of the Terms (Articles 1341 and 1342 of the Italian Civil Code). Must be `true`.',
+});
+
 export const signupCreateSchema = z
   .object({
     email: emailSchema,
@@ -431,6 +446,14 @@ export const signupCreateSchema = z
     project_name: nameSchema.optional(),
     default_timezone: timezoneSchema.optional(),
     default_currency: currencySchema.optional(),
+    accept_terms: acceptTermsSchema.optional().openapi({
+      description:
+        'I accept the Terms of Service and the Data Processing Agreement on behalf of my business. Required, and `true`: a sign up without it is refused with `400 terms_not_accepted`.',
+    }),
+    approve_clauses: approveClausesSchema.optional().openapi({
+      description:
+        'I specifically approve the clauses listed in Section 17 of the Terms (Articles 1341 and 1342 of the Italian Civil Code). Required, and `true`.',
+    }),
   })
   .strict();
 
@@ -446,6 +469,61 @@ export const signupClaimSchema = z
   .object({
     poll_token: z.string().min(16).max(200).openapi({
       description: 'The `poll_token` returned when the sign up was created.',
+    }),
+  })
+  .strict();
+
+// --- Dashboard ----------------------------------------------------------------------------
+
+/** `POST /v1/dashboard/login`: the owner address of a self service account. */
+export const dashboardLoginSchema = z
+  .object({
+    email: emailSchema,
+    upgrade: z.enum(PAID_PLAN_IDS).optional().openapi({
+      description:
+        'The plan the person was about to buy. The link carries it, and the dashboard opens the checkout of that plan after sign in.',
+    }),
+  })
+  .strict();
+
+/** `POST /v1/dashboard/billing/checkout`. */
+export const billingChangeSchema = z
+  .object({
+    plan: z.enum(PAID_PLAN_IDS).openapi({
+      description:
+        'The plan to move to: `scale` from Pro applies at once, pro rata; `pro` from Scale on the first of the next month.',
+    }),
+  })
+  .strict();
+
+export const billingCheckoutSchema = z
+  .object({
+    plan: z.enum(PAID_PLAN_IDS),
+    accept_terms: acceptTermsSchema.optional().openapi({
+      description:
+        'Required, and `true`, when the account has not accepted the terms in force yet.',
+    }),
+    approve_clauses: approveClausesSchema
+      .optional()
+      .openapi({ description: 'Required, and `true`, together with `accept_terms`.' }),
+  })
+  .strict();
+
+/** `POST /v1/dashboard/login/confirm`: the token of the link, out of its `#token=` fragment. */
+export const dashboardLoginConfirmSchema = z
+  .object({
+    token: z.string().min(16).max(200).openapi({
+      description: 'The token from the dashboard link, taken out of its `#token=` fragment.',
+    }),
+  })
+  .strict();
+
+/** `POST /v1/dashboard/projects/{id}/keys`. */
+export const dashboardKeyCreateSchema = z
+  .object({
+    environment: z.enum(['test', 'live']),
+    name: nameSchema.optional().openapi({
+      description: 'A label for people. Defaults to `test secret key` or `live secret key`.',
     }),
   })
   .strict();

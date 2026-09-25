@@ -219,6 +219,19 @@ export async function seedProjectData(
   );
   rows.payment_provider_events = providerEventId;
 
+  // The plan counter exists in the live environment only (a CHECK refuses a test row), so a
+  // test scope gets no row here and the isolation tests expect none.
+  if (environment === 'live') {
+    const usageId = id();
+    await client.query(
+      `INSERT INTO plan_usage (id, project_id, environment, month, bookings_confirmed,
+                               payment_volume, currency)
+       VALUES ($1, $2, $3, '2026-09', 3, 4500, 'EUR')`,
+      [usageId, ...scope],
+    );
+    rows.plan_usage = usageId;
+  }
+
   const eventId = id();
   await client.query(
     `INSERT INTO events (id, project_id, environment, type, data, api_version)

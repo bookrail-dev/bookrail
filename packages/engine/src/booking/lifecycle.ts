@@ -61,9 +61,11 @@ import {
   uuidv7,
   BookrailError,
   type Environment,
+  type PlanTable,
   type PriceRuleRef,
 } from '@bookrail/shared';
 
+import { chainAlreadyConfirmed, recordPlanUsage, type PlanUsageWarning } from '../plan/usage.js';
 import { runBookingTransaction, take, DEFAULT_MAX_RETRIES } from './create.js';
 import {
   graceMinutes,
@@ -212,6 +214,8 @@ export interface TransitionInput {
 
   readonly maxRetries?: number;
   readonly isolationLevel?: 'read committed' | 'serializable';
+  /** The plan table, when it is not the published one. Only a test passes it. */
+  readonly plans?: PlanTable;
 }
 
 export interface TransitionResult {
@@ -242,6 +246,13 @@ export interface TransitionResult {
   readonly eventIds: readonly string[];
   readonly touchedDays: readonly TouchedDay[];
   readonly nextTransition: { readonly action: AutomaticTransition; readonly at: number } | null;
+  /**
+   * The usage warnings this transition claimed, with their events already written: a `confirm`
+   * in the live environment that took the account to 80 % or 100 % of its included bookings for
+   * the first time this month, or a reschedule whose new booking did. The caller sends the
+   * emails after the commit.
+   */
+  readonly planWarnings: readonly PlanUsageWarning[];
 }
 
 // --- Errors ---------------------------------------------------------------------------------
@@ -365,6 +376,7 @@ function notApplied(booking: BookingRow, action: TransitionAction): TransitionRe
       booking.nextTransition === null || booking.nextTransitionAt === null
         ? null
         : { action: booking.nextTransition, at: booking.nextTransitionAt },
+    planWarnings: [],
   };
 }
 
@@ -793,6 +805,23 @@ async function simpleTransition(
     },
   );
 
+  // A `pending` booking reaching `confirmed` is counted against the plan here, once. It is not
+  // refused: it was accepted while the account was under its threshold. A booking that came
+  // from a reschedule of one already confirmed is the same booking moved, and is not counted
+  // again. `confirm` is the only transition that reaches `confirmed`.
+  const planWarnings =
+    input.action === 'confirm' &&
+    input.environment === 'live' &&
+    !(await chainAlreadyConfirmed(tx, booking.rescheduledFromBookingId))
+      ? await recordPlanUsage(tx, {
+          projectId: input.projectId,
+          environment: input.environment,
+          now: input.now,
+          bookings: 1,
+          ...(input.plans === undefined ? {} : { plans: input.plans }),
+        })
+      : [];
+
   return {
     bookingId: booking.id,
     action: input.action,
@@ -807,6 +836,7 @@ async function simpleTransition(
     eventIds: [eventId],
     touchedDays,
     nextTransition: scheduled,
+    planWarnings,
   };
 }
 
@@ -1195,6 +1225,7 @@ async function rescheduleBooking(
       count: booking.rescheduleCount + 1,
       feeExpected: fee,
     },
+    ...(input.plans === undefined ? {} : { plans: input.plans }),
   });
 
   // Step 5. The only write left is on the **old** booking, whose event has not been written
@@ -1233,6 +1264,7 @@ async function rescheduleBooking(
     eventIds: [created.eventId, rescheduledEventId],
     touchedDays: [...releasedDays, ...created.touchedDays],
     nextTransition: null,
+    planWarnings: created.planWarnings,
   };
 }
 

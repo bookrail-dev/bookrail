@@ -15,7 +15,7 @@ import { registerPaymentTools } from './tools/payments.js';
 import { registerProjectTools } from './tools/project.js';
 import type { Workspace } from './environment.js';
 
-export const MCP_VERSION = '0.3.1';
+export const MCP_VERSION = '0.4.0';
 
 export interface CreateServerOptions {
   /** The project directory: where `bookrail.config.ts` is looked for. Default: `process.cwd()`. */

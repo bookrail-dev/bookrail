@@ -49,8 +49,13 @@ a mailbox, and an agent has neither. Ask the person to run
 npx bookrail signup --email you@example.com
 ```
 
-and to open the link that arrives. The command waits, stores the key with mode 600, and every
-tool below then finds it. A **live** key still comes from a person at hello@bookrail.dev.
+and to open the link that arrives. On a terminal the command first shows the
+[Terms of Service](/terms) and the [Data Processing Agreement](/dpa) and asks the person to accept
+them, and separately to approve the clauses of their Section 17; `--accept-terms` and
+`--approve-clauses` give the two on the command line, and only the person can give them. The command waits, stores a test key and a live key with
+mode 600, and every tool below then finds them; the live one is used only when asked for. More
+keys, and revoking one, are in the dashboard at https://bookrail.dev/dashboard/, which a person
+signs in to with a link sent to the same address.
 
 ## The order of operations that works
 

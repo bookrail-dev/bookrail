@@ -65,6 +65,7 @@ export type Hold = components['schemas']['Hold'];
 export type HoldCreated = components['schemas']['HoldCreated'];
 export type Location = components['schemas']['Location'];
 export type OpenApiDocument = components['schemas']['OpenApiDocument'];
+export type PlanUsage = components['schemas']['PlanUsage'];
 export type Policy = components['schemas']['Policy'];
 export type Project = components['schemas']['Project'];
 export type Resource = components['schemas']['Resource'];
